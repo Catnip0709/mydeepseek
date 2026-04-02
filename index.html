@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <!-- iOS 核心适配：视口、缩放、点击延迟 -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -10,224 +9,171 @@
   <title>DeepSeek Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    /* iOS 暗夜背景专属优化 */
-    body {
-      background-color: #000000; /* iOS 纯黑暗夜底 */
-      color: #f5f5f7; /* iOS 系统级文字色 */
-      -webkit-font-smoothing: antialiased; /* iOS 文字抗锯齿 */
-      -moz-osx-font-smoothing: grayscale;
-    }
-    /* 解决 iOS 点击元素高亮 */
-    * {
-      -webkit-tap-highlight-color: transparent;
-      tap-highlight-color: transparent;
-    }
-    /* iOS 滚动优化 */
-    #chat {
-      -webkit-overflow-scrolling: touch; /* 弹性滚动 */
-      scroll-behavior: smooth;
-    }
-    /* 适配 iOS 底部安全区 */
-    .safe-area-bottom {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    /* 多行输入框样式优化 */
+    body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; }
+    * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
+    #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
+    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    
+    /* 输入框核心：自动变高 1→2→3行，超出滚动 */
     #input {
-      caret-color: #007aff; /* iOS 蓝色光标 */
-      border-radius: 12px !important; /* iOS 圆角风格 */
-      resize: none; /* 禁用默认缩放 */
-      line-height: 1.5; /* 行高优化 */
-      overflow-y: auto; /* 超出滚动 */
-      -webkit-overflow-scrolling: touch; /* iOS 弹性滚动 */
-    }
-    /* 输入框滚动条美化（iOS风格） */
-    #input::-webkit-scrollbar {
-      width: 4px;
-    }
-    #input::-webkit-scrollbar-track {
-      background: #1f1f1f;
-      border-radius: 2px;
-    }
-    #input::-webkit-scrollbar-thumb {
-      background: #555;
-      border-radius: 2px;
+      min-height:44px;
+      max-height:88px;
+      line-height:1.4;
+      overflow-y:auto;
+      resize:none;
+      border-radius:12px;
+      padding:10px 12px;
     }
   </style>
 </head>
-<body class="max-w-full mx-0 p-0 safe-area-bottom">
-  <!-- 顶部栏（iOS 风格） -->
-  <div class="fixed top-0 left-0 right-0 bg-black/80 backdrop-blur-md z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
-    <h1 class="text-lg font-medium text-white">DeepSeek 对话</h1>
+<body class="max-w-full mx-0 safe-area-bottom">
+  <div class="fixed top-0 left-0 right-0 bg-black/85 backdrop-blur z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
+    <h1 class="text-lg font-medium text-white">DeepSeek</h1>
     <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置对话</button>
   </div>
 
-  <!-- 聊天区域（适配 iOS 滚动） -->
   <div id="chat" class="pt-16 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
-  <!-- 输入区域（iOS 底部固定 + 适配安全区） -->
-  <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md px-4 py-3 border-t border-gray-800 safe-area-bottom">
+  <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
     <div class="flex gap-2 items-end">
-      <!-- 改为textarea实现多行输入 -->
-      <textarea 
-        id="input" 
-        autocomplete="off" 
-        class="flex-1 p-3 bg-gray-800 border border-gray-700 rounded-lg text-base min-h-[72px] max-h-[144px]" 
-        placeholder="输入消息...（回车发送，Shift+回车换行）"
-        spellcheck="false"
-        rows="3"
-      ></textarea>
-      <button id="sendBtn" class="bg-[#007aff] px-5 py-3 rounded-lg text-white font-medium h-[48px] flex items-center">发送</button>
+      <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base"
+        placeholder="输入消息..." rows="1"></textarea>
+      <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px]">发送</button>
     </div>
   </div>
 
-  <!-- API Key 弹窗（iOS 风格） -->
-  <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-20 hidden">
-    <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-96 border border-gray-800">
-      <h3 class="mb-4 text-lg font-medium text-white">输入 DeepSeek API Key</h3>
-      <input 
-        id="apiKeyInput" 
-        class="w-full p-3 mb-4 bg-gray-800 rounded-lg border border-gray-700 text-white"
-        placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      >
-      <button id="saveKey" class="w-full bg-[#007aff] px-4 py-3 rounded-lg text-white font-medium">保存</button>
+  <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
+    <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
+      <h3 class="text-white mb-3">输入 API Key</h3>
+      <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3">
+      <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
     </div>
   </div>
 
-  <script>
-    let apiKey = localStorage.getItem("dsApiKey");
-    let messages = JSON.parse(localStorage.getItem("dsMessages")) || [];
+<script>
+let apiKey = localStorage.getItem("dsApiKey");
+let messages = JSON.parse(localStorage.getItem("dsMsg")) || [];
 
-    const chatDiv = document.getElementById("chat");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
-    const keyPanel = document.getElementById("keyPanel");
-    const apiKeyInput = document.getElementById("apiKeyInput");
-    const saveKey = document.getElementById("saveKey");
-    const resetBtn = document.getElementById("resetBtn");
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("sendBtn");
+const keyPanel = document.getElementById("keyPanel");
+const apiKeyInput = document.getElementById("apiKeyInput");
+const saveKey = document.getElementById("saveKey");
+const resetBtn = document.getElementById("resetBtn");
 
-    // 初始化：显示Key弹窗（如果未设置）
-    if (!apiKey) keyPanel.classList.remove("hidden");
+if (!apiKey) keyPanel.classList.remove("hidden");
 
-    // 保存Key（iOS 点击优化）
-    saveKey.addEventListener("click", () => {
-      apiKey = apiKeyInput.value.trim();
-      if (!apiKey) return alert("请输入有效的 API Key");
-      localStorage.setItem("dsApiKey", apiKey);
-      keyPanel.classList.add("hidden");
-      apiKeyInput.value = "";
+saveKey.onclick = () => {
+  apiKey = apiKeyInput.value.trim();
+  if (!apiKey) return alert("请输入Key");
+  localStorage.setItem("dsApiKey", apiKey);
+  keyPanel.classList.add("hidden");
+};
+
+resetBtn.onclick = () => {
+  if (confirm("清空对话？")) {
+    messages = [];
+    localStorage.removeItem("dsMsg");
+    chat.innerHTML = "";
+  }
+};
+
+function render() {
+  chat.innerHTML = messages.map(m => `
+    <div class="p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+      ${m.content.replace(/\n/g,'<br>')}
+    </div>
+  `).join("");
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// 输入框自动高度 1→2→3行
+function autoHeight() {
+  input.style.height = "auto";
+  let h = input.scrollHeight;
+  if (h < 44) h = 44;
+  if (h > 88) h = 88;
+  input.style.height = h + "px";
+}
+input.addEventListener("input", autoHeight);
+
+// 流式输出（一边生成一边显示）
+async function send() {
+  const text = input.value.trim();
+  if (!text || !apiKey) return;
+  
+  messages.push({role:"user",content:text});
+  render();
+  input.value = "";
+  autoHeight();
+
+  const msgDiv = document.createElement("div");
+  msgDiv.className = "p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
+  msgDiv.innerText = "";
+  chat.appendChild(msgDiv);
+  chat.scrollTop = chat.scrollHeight;
+
+  try {
+    const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json",
+        "Authorization":`Bearer ${apiKey}`
+      },
+      body:JSON.stringify({
+        model:"deepseek-chat",
+        messages:messages,
+        stream:true,
+        temperature:0.7,
+        max_tokens:4096
+      })
     });
 
-    // 重置对话
-    resetBtn.addEventListener("click", () => {
-      if (confirm("确定清空所有对话记录吗？")) {
-        messages = [];
-        localStorage.removeItem("dsMessages");
-        chatDiv.innerHTML = "";
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let full = "";
+
+    while (true) {
+      const {done,value} = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n");
+      
+      for (let line of lines) {
+        line = line.trim();
+        if (!line || !line.startsWith("data: ")) continue;
+        const json = line.slice(6);
+        if (json === "[DONE]") break;
+        
+        try {
+          const data = JSON.parse(json);
+          const c = data.choices[0].delta.content || "";
+          full += c;
+          msgDiv.innerHTML = full.replace(/\n/g,'<br>');
+          chat.scrollTop = chat.scrollHeight;
+        } catch(e) {}
       }
-    });
-
-    // 渲染聊天记录（iOS 样式适配）
-    function renderChat() {
-      chatDiv.innerHTML = messages.map(m => `
-        <div class="p-4 rounded-2xl ${m.role === 'user' ? 'bg-[#007aff] ml-auto' : 'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-          ${m.content.replace(/\n/g, '<br>')}
-        </div>
-      `).join("");
-      // iOS 滚动到底部（平滑）
-      chatDiv.scrollTop = chatDiv.scrollHeight;
     }
 
-    // 发送消息（iOS 兼容）
-    async function sendMessage() {
-      const text = input.value.trim();
-      if (!text || !apiKey) return;
+    messages.push({role:"assistant",content:full});
+    localStorage.setItem("dsMsg", JSON.stringify(messages));
 
-      // 添加用户消息
-      messages.push({ role: "user", content: text });
-      renderChat();
-      input.value = "";
-      // 重置输入框高度
-      input.style.height = "";
+  } catch (e) {
+    msgDiv.innerHTML = `<span class="text-red-400">错误：${e.message}</span>`;
+  }
+}
 
-      // 显示加载中
-      const loading = document.createElement("div");
-      loading.className = "p-4 rounded-2xl bg-gray-800 mr-auto max-w-[85%]";
-      loading.innerHTML = '<div class="flex gap-2"><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.2s"></div><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.4s"></div></div>';
-      chatDiv.appendChild(loading);
-      chatDiv.scrollTop = chatDiv.scrollHeight;
+sendBtn.onclick = send;
+input.addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
 
-      try {
-        // 调用 DeepSeek API
-        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: "deepseek-chat",
-            messages: messages,
-            temperature: 0.85,
-            stream: false,
-            max_tokens: 4096
-          })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || "请求失败，请检查Key或余额");
-
-        // 移除加载动画，添加AI回复
-        loading.remove();
-        messages.push({ role: "assistant", content: data.choices[0].message.content });
-        localStorage.setItem("dsMessages", JSON.stringify(messages));
-        renderChat();
-      } catch (err) {
-        loading.innerHTML = `<span class="text-red-400">❌ 错误：${err.message}</span>`;
-        console.error("请求错误：", err);
-      }
-    }
-
-    // 自动调整输入框高度（最大3行）
-    function autoResizeInput() {
-      // 重置高度以获取准确的scrollHeight
-      input.style.height = "auto";
-      // 设置高度为scrollHeight，但不超过最大高度
-      const maxHeight = parseInt(getComputedStyle(input).maxHeight);
-      const scrollHeight = input.scrollHeight;
-      input.style.height = Math.min(scrollHeight, maxHeight) + "px";
-    }
-
-    // 绑定事件（iOS 兼容）
-    sendBtn.addEventListener("click", sendMessage);
-    
-    // 键盘事件：回车发送，Shift+回车换行
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        if (e.shiftKey) {
-          // Shift+回车：换行
-          return;
-        } else {
-          // 回车：发送消息
-          e.preventDefault();
-          sendMessage();
-        }
-      }
-    });
-
-    // 输入时自动调整高度
-    input.addEventListener("input", autoResizeInput);
-    // 初始化高度
-    autoResizeInput();
-
-    // iOS 软键盘适配：点击输入框自动滚动
-    input.addEventListener("focus", () => {
-      setTimeout(() => {
-        chatDiv.scrollTop = chatDiv.scrollHeight;
-      }, 300);
-    });
-
-    // 初始化渲染
-    renderChat();
-  </script>
+render();
+autoHeight();
+</script>
 </body>
 </html>
