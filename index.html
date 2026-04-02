@@ -36,19 +36,31 @@
       opacity:0.6;
     }
     .copy-btn:hover { opacity:1; }
-    .message-box {
-      position:relative;
-    }
+    .message-box { position:relative; }
+    .tab { padding:6px 10px; border-radius:8px; cursor:pointer; font-size:14px; }
+    .tab.active { background:#007aff; color:white; }
+    .tab:hover { background:#222; }
+    .active.tab:hover { background:#007aff; }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
-<div class="fixed top-0 left-0 right-0 bg-black/85 backdrop-blur z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
-  <h1 class="text-lg font-medium text-white">DeepSeek</h1>
-  <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置对话</button>
+
+<!-- 顶部：多对话切换栏 -->
+<div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-2 border-b border-gray-800">
+  <div class="flex items-center gap-2 overflow-x-auto pb-1">
+    <div id="tabs" class="flex gap-2"></div>
+    <button id="addTab" class="text-white bg-gray-700 px-3 py-1 rounded-lg">+</button>
+  </div>
+  <div class="flex justify-between items-center px-2 mt-1">
+    <h1 class="text-lg font-medium text-white m-0">DeepSeek</h1>
+    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置当前对话</button>
+  </div>
 </div>
 
-<div id="chat" class="pt-16 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
+<!-- 聊天区域 -->
+<div id="chat" class="pt-24 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
+<!-- 输入框（已删除复制输入按钮）-->
 <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
   <div class="flex gap-2 items-end">
     <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
@@ -56,6 +68,7 @@
   </div>
 </div>
 
+<!-- API Key 弹窗 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
     <h3 class="text-white mb-3">输入 API Key</h3>
@@ -66,16 +79,20 @@
 
 <script>
 let apiKey = localStorage.getItem("dsApiKey");
-let messages = JSON.parse(localStorage.getItem("dsMessages")) || [];
+let tabData = JSON.parse(localStorage.getItem("dsTabs")) || {
+  active: "tab1",
+  list: { tab1: [] }
+};
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
-const copyInputBtn = document.getElementById("copyInputBtn");
+const tabsEl = document.getElementById("tabs");
+const addTab = document.getElementById("addTab");
+const resetBtn = document.getElementById("resetBtn");
 const keyPanel = document.getElementById("keyPanel");
 const apiKeyInput = document.getElementById("apiKeyInput");
 const saveKey = document.getElementById("saveKey");
-const resetBtn = document.getElementById("resetBtn");
 
 if (!apiKey) keyPanel.classList.remove("hidden");
 
@@ -86,27 +103,36 @@ saveKey.onclick = () => {
   keyPanel.classList.add("hidden");
 };
 
-resetBtn.onclick = () => {
-  if (confirm("清空对话？")) {
-    messages = [];
-    localStorage.removeItem("dsMessages");
-    chat.innerHTML = "";
-  }
-};
+function saveTabs() {
+  localStorage.setItem("dsTabs", JSON.stringify(tabData));
+}
 
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => {
-    alert("复制成功！");
-  }).catch(err => {
-    alert("复制失败：" + err);
+function renderTabs() {
+  tabsEl.innerHTML = "";
+  Object.keys(tabData.list).forEach(id => {
+    let div = document.createElement("div");
+    div.className = "tab " + (id === tabData.active ? "active" : "");
+    div.innerText = id.replace("tab", "对话 ");
+    div.onclick = () => {
+      tabData.active = id;
+      saveTabs();
+      render();
+      renderTabs();
+    };
+    tabsEl.appendChild(div);
   });
 }
 
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => alert("复制成功！")).catch(e => alert("失败"));
+}
+
 function render() {
-  chat.innerHTML = messages.map((m, idx) => `
-    <div class="message-box p-3 rounded-xl ${m.role==='user' ? 'bg-blue-600 ml-auto' : 'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-      <button class="copy-btn" onclick="copyText(\`${m.content.replace(/`/g,'')}\`)">复制</button>
-      ${m.content.replace(/\n/g,'<br>')}
+  let ms = tabData.list[tabData.active] || [];
+  chat.innerHTML = ms.map((m, i) => `
+    <div class="message-box p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+      <button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g,'')}\`)">复制</button>
+      ${(m.content||'').replace(/\n/g,'<br>')}
     </div>
   `).join("");
 }
@@ -114,97 +140,87 @@ function render() {
 function autoHeight() {
   input.style.height = "auto";
   let h = input.scrollHeight;
-  input.style.height = Math.min(Math.max(h, 44), 88) + "px";
+  input.style.height = Math.min(Math.max(h,44),88)+"px";
 }
-
 input.addEventListener("input", autoHeight);
-copyInputBtn.onclick = () => copyText(input.value);
+
+addTab.onclick = () => {
+  let newId = "tab" + (Object.keys(tabData.list).length + 1);
+  tabData.list[newId] = [];
+  tabData.active = newId;
+  saveTabs();
+  render();
+  renderTabs();
+};
+
+resetBtn.onclick = () => {
+  if (!confirm("清空当前对话？")) return;
+  tabData.list[tabData.active] = [];
+  saveTabs();
+  render();
+};
 
 async function send() {
   const text = input.value.trim();
   if (!text || !apiKey) return;
-  
-  messages.push({role:"user",content:text});
+  let arr = tabData.list[tabData.active] || [];
+  arr.push({ role:"user", content:text });
+  tabData.list[tabData.active] = arr;
+  saveTabs();
   render();
   input.value = "";
   autoHeight();
 
-  // 只有在最底部才自动跟随
   const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-
   const msgDiv = document.createElement("div");
   msgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
   chat.appendChild(msgDiv);
+  if (isAtBottom) chat.scrollTop = chat.scrollHeight;
 
-  // 初始只定位一次
-  if (isAtBottom) {
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-  let fullText = "";
+  let full = "";
   try {
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method:"POST",
-      headers:{
+      method:"POST", headers:{
         "Content-Type":"application/json",
         "Authorization":`Bearer ${apiKey}`
       },
       body:JSON.stringify({
         model:"deepseek-chat",
-        messages:messages,
+        messages:arr,
         stream:true,
         temperature:0.7,
         max_tokens:4096
       })
     });
-
     const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const {done,value} = await reader.read();
+    const dec = new TextDecoder();
+    while (1) {
+      const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n");
-      
+      const lines = dec.decode(value).split("\n");
       for (let line of lines) {
         line = line.trim();
-        if (!line || !line.startsWith("data: ")) continue;
-        const json = line.slice(6);
-        if (json === "[DONE]") break;
-        
+        if (!line.startsWith("data: ")) continue;
+        let j = line.slice(6);
+        if (j === "[DONE]") break;
         try {
-          const data = JSON.parse(json);
-          const c = data.choices[0].delta.content || "";
-          fullText += c;
-
-          // 流式输出时更新内容
+          let d = JSON.parse(j);
+          let c = d.choices[0].delta.content || "";
+          full += c;
           msgDiv.innerHTML = `
-            <button class="copy-btn" onclick="copyText(\`${fullText.replace(/`/g,'')}\`)">复制</button>
-            ${fullText.replace(/\n/g,'<br>')}
+            <button class="copy-btn" onclick="copyText(\`${full.replace(/`/g,'')}\`)">复制</button>
+            ${full.replace(/\n/g,'<br>')}
           `;
-
-          // 关键修复：只有本来就在底部，才滚动
-          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-          if (currentIsAtBottom) {
-            chat.scrollTop = chat.scrollHeight;
-          }
-
-        } catch(e) {}
+          let curBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+          if (curBottom) chat.scrollTop = chat.scrollHeight;
+        } catch(e){}
       }
     }
-
-    messages.push({role:"assistant",content:fullText});
-    localStorage.setItem("dsMessages", JSON.stringify(messages));
+    arr.push({ role:"assistant", content:full });
+    saveTabs();
     render();
-
-    // 最后再判断一次
-    if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20) {
-      chat.scrollTop = chat.scrollHeight;
-    }
-
   } catch (e) {
-    msgDiv.innerHTML = `<span class="text-red-400">错误：${e.message}</span>`;
+    msgDiv.innerHTML = `<span class="text-red-400">错误</span>`;
   }
 }
 
@@ -216,6 +232,7 @@ input.addEventListener("keydown", e => {
   }
 });
 
+renderTabs();
 render();
 autoHeight();
 </script>
