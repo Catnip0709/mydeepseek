@@ -14,7 +14,6 @@
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
     
-    /* 输入框核心：自动变高 1→2→3行，超出滚动 */
     #input {
       min-height:44px;
       max-height:88px;
@@ -24,39 +23,56 @@
       border-radius:12px;
       padding:10px 12px;
     }
+    .copy-btn {
+      position: absolute;
+      top:6px;
+      right:6px;
+      background:#333;
+      color:#fff;
+      border:none;
+      border-radius:6px;
+      padding:3px 6px;
+      font-size:12px;
+      opacity:0.6;
+    }
+    .copy-btn:hover { opacity:1; }
+    .message-box {
+      position:relative;
+    }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
-  <div class="fixed top-0 left-0 right-0 bg-black/85 backdrop-blur z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
-    <h1 class="text-lg font-medium text-white">DeepSeek</h1>
-    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置对话</button>
-  </div>
+<div class="fixed top-0 left-0 right-0 bg-black/85 backdrop-blur z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
+  <h1 class="text-lg font-medium text-white">DeepSeek</h1>
+  <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置对话</button>
+</div>
 
-  <div id="chat" class="pt-16 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
+<div id="chat" class="pt-16 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
-  <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
-    <div class="flex gap-2 items-end">
-      <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base"
-        placeholder="输入消息..." rows="1"></textarea>
-      <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px]">发送</button>
-    </div>
+<div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
+  <div class="flex gap-2 items-end">
+    <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
+    <button id="copyInputBtn" class="bg-gray-700 px-2 py-2 rounded-lg text-white text-xs">复制输入</button>
+    <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px]">发送</button>
   </div>
+</div>
 
-  <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
-    <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
-      <h3 class="text-white mb-3">输入 API Key</h3>
-      <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3">
-      <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
-    </div>
+<div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
+  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
+    <h3 class="text-white mb-3">输入 API Key</h3>
+    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3">
+    <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
   </div>
+</div>
 
 <script>
 let apiKey = localStorage.getItem("dsApiKey");
-let messages = JSON.parse(localStorage.getItem("dsMsg")) || [];
+let messages = JSON.parse(localStorage.getItem("dsMessages")) || [];
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
+const copyInputBtn = document.getElementById("copyInputBtn");
 const keyPanel = document.getElementById("keyPanel");
 const apiKeyInput = document.getElementById("apiKeyInput");
 const saveKey = document.getElementById("saveKey");
@@ -74,21 +90,29 @@ saveKey.onclick = () => {
 resetBtn.onclick = () => {
   if (confirm("清空对话？")) {
     messages = [];
-    localStorage.removeItem("dsMsg");
+    localStorage.removeItem("dsMessages");
     chat.innerHTML = "";
   }
 };
 
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => {
+    alert("复制成功！");
+  }).catch(err => {
+    alert("复制失败：" + err);
+  });
+}
+
 function render() {
-  chat.innerHTML = messages.map(m => `
-    <div class="p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+  chat.innerHTML = messages.map((m, idx) => `
+    <div class="message-box p-3 rounded-xl ${m.role==='user' ? 'bg-blue-600 ml-auto' : 'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+      <button class="copy-btn" onclick="copyText(\`${m.content.replace(/`/g,'')}\`)">复制</button>
       ${m.content.replace(/\n/g,'<br>')}
     </div>
   `).join("");
   chat.scrollTop = chat.scrollHeight;
 }
 
-// 输入框自动高度 1→2→3行
 function autoHeight() {
   input.style.height = "auto";
   let h = input.scrollHeight;
@@ -96,9 +120,13 @@ function autoHeight() {
   if (h > 88) h = 88;
   input.style.height = h + "px";
 }
+
 input.addEventListener("input", autoHeight);
 
-// 流式输出（一边生成一边显示）
+copyInputBtn.onclick = () => {
+  copyText(input.value);
+};
+
 async function send() {
   const text = input.value.trim();
   if (!text || !apiKey) return;
@@ -109,11 +137,16 @@ async function send() {
   autoHeight();
 
   const msgDiv = document.createElement("div");
-  msgDiv.className = "p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-  msgDiv.innerText = "";
+  msgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
+  const copyBtn = document.createElement("button");
+  copyBtn.className = "copy-btn";
+  copyBtn.innerText = "复制";
+  copyBtn.onclick = () => copyText(fullText);
+  msgDiv.appendChild(copyBtn);
   chat.appendChild(msgDiv);
   chat.scrollTop = chat.scrollHeight;
 
+  let fullText = "";
   try {
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method:"POST",
@@ -132,7 +165,6 @@ async function send() {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    let full = "";
 
     while (true) {
       const {done,value} = await reader.read();
@@ -149,15 +181,16 @@ async function send() {
         try {
           const data = JSON.parse(json);
           const c = data.choices[0].delta.content || "";
-          full += c;
-          msgDiv.innerHTML = full.replace(/\n/g,'<br>');
+          fullText += c;
+          msgDiv.innerHTML = `<button class="copy-btn" onclick="copyText(\`${fullText.replace(/`/g,'')}\`)">复制</button>${fullText.replace(/\n/g,'<br>')}`;
           chat.scrollTop = chat.scrollHeight;
         } catch(e) {}
       }
     }
 
-    messages.push({role:"assistant",content:full});
-    localStorage.setItem("dsMsg", JSON.stringify(messages));
+    messages.push({role:"assistant",content:fullText});
+    localStorage.setItem("dsMessages", JSON.stringify(messages));
+    render();
 
   } catch (e) {
     msgDiv.innerHTML = `<span class="text-red-400">错误：${e.message}</span>`;
