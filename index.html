@@ -14,6 +14,7 @@
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
     
+    /* 输入框：1→2→3行，超出滚动 */
     #input {
       min-height:44px;
       max-height:88px;
@@ -23,66 +24,99 @@
       border-radius:12px;
       padding:10px 12px;
     }
+    /* 复制按钮：右下方悬浮，不遮挡文字 */
     .copy-btn {
       position: absolute;
-      top:6px;
+      bottom:6px;
       right:6px;
-      background:#333;
+      background:rgba(51,51,51,0.8);
       color:#fff;
       border:none;
       border-radius:6px;
-      padding:3px 6px;
-      font-size:12px;
-      opacity:0.6;
+      padding:2px 5px;
+      font-size:10px;
+      opacity:0.7;
+      z-index:5;
     }
     .copy-btn:hover { opacity:1; }
-    .message-box { position:relative; }
-    .tab { padding:6px 10px; border-radius:8px; cursor:pointer; font-size:14px; }
+    /* 消息容器：相对定位，预留复制按钮空间 */
+    .message-box { 
+      position:relative;
+      padding-bottom:20px !important;
+    }
+    /* 对话标签：带删除按钮，样式优化 */
+    .tab { 
+      padding:6px 10px; 
+      border-radius:8px; 
+      cursor:pointer; 
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      background:#333;
+    }
     .tab.active { background:#007aff; color:white; }
-    .tab:hover { background:#222; }
+    .tab:hover { background:#444; }
     .active.tab:hover { background:#007aff; }
+    /* 标签删除按钮 */
+    .tab-del {
+      font-size:12px;
+      width:16px;
+      height:16px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border-radius:50%;
+      background:rgba(255,255,255,0.2);
+      cursor:pointer;
+    }
+    .tab-del:hover {
+      background:rgba(255,255,255,0.4);
+    }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
 
-<!-- 顶部：多对话切换栏 -->
+<!-- 顶部：多对话切换栏（支持删除） -->
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-2 border-b border-gray-800">
-  <div class="flex items-center gap-2 overflow-x-auto pb-1">
+  <div class="flex items-center gap-2 overflow-x-auto pb-1" style="scrollbar-width: none;-ms-overflow-style: none;">
     <div id="tabs" class="flex gap-2"></div>
-    <button id="addTab" class="text-white bg-gray-700 px-3 py-1 rounded-lg">+</button>
+    <button id="addTab" class="text-white bg-gray-700 px-3 py-1 rounded-lg flex-shrink-0">+ 新建对话</button>
   </div>
   <div class="flex justify-between items-center px-2 mt-1">
-    <h1 class="text-lg font-medium text-white m-0">DeepSeek</h1>
-    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置当前对话</button>
+    <h1 class="text-lg font-medium text-white m-0">DeepSeek Chat</h1>
+    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
   </div>
 </div>
 
 <!-- 聊天区域 -->
 <div id="chat" class="pt-24 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
-<!-- 输入框（已删除复制输入按钮）-->
+<!-- 输入框（无复制输入按钮，清爽） -->
 <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
   <div class="flex gap-2 items-end">
-    <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
-    <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px]">发送</button>
+    <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息...（回车发送，Shift+回车换行）" rows="1"></textarea>
+    <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px] flex-shrink-0">发送</button>
   </div>
 </div>
 
 <!-- API Key 弹窗 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
-    <h3 class="text-white mb-3">输入 API Key</h3>
-    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3">
+    <h3 class="text-white mb-3">输入 DeepSeek API Key</h3>
+    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
     <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
   </div>
 </div>
 
 <script>
 let apiKey = localStorage.getItem("dsApiKey");
-let tabData = JSON.parse(localStorage.getItem("dsTabs")) || {
-  active: "tab1",
-  list: { tab1: [] }
-};
+// 本地存储多对话数据，兼容旧记录
+let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
+  // 兼容之前的单对话记录，自动转为第一个对话
+  const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
+  return { active: "tab1", list: { tab1: oldMsgs } };
+})();
 
 const chat = document.getElementById("chat");
 const input = document.getElementById("input");
@@ -94,147 +128,246 @@ const keyPanel = document.getElementById("keyPanel");
 const apiKeyInput = document.getElementById("apiKeyInput");
 const saveKey = document.getElementById("saveKey");
 
+// 未设置Key则显示弹窗
 if (!apiKey) keyPanel.classList.remove("hidden");
 
+// 保存API Key
 saveKey.onclick = () => {
   apiKey = apiKeyInput.value.trim();
-  if (!apiKey) return alert("请输入Key");
+  if (!apiKey || !apiKey.startsWith("sk-")) return alert("请输入有效的sk-开头的API Key");
   localStorage.setItem("dsApiKey", apiKey);
   keyPanel.classList.add("hidden");
+  alert("Key保存成功，可正常使用！");
 };
 
+// 保存对话数据到本地
 function saveTabs() {
   localStorage.setItem("dsTabs", JSON.stringify(tabData));
 }
 
+// 渲染对话标签（带删除按钮）
 function renderTabs() {
   tabsEl.innerHTML = "";
+  const tabIds = Object.keys(tabData.list);
+  // 最少保留1个对话，不能删完
+  if (tabIds.length === 0) {
+    tabData.list = { tab1: [] };
+    tabData.active = "tab1";
+    saveTabs();
+  }
+  // 遍历生成标签
   Object.keys(tabData.list).forEach(id => {
-    let div = document.createElement("div");
-    div.className = "tab " + (id === tabData.active ? "active" : "");
-    div.innerText = id.replace("tab", "对话 ");
-    div.onclick = () => {
+    const tabDiv = document.createElement("div");
+    tabDiv.className = `tab ${id === tabData.active ? "active" : ""} flex-shrink-0`;
+    // 标签内容：对话名称 + 删除按钮
+    tabDiv.innerHTML = `
+      <span>对话 ${id.replace("tab", "")}</span>
+      <span class="tab-del" data-id="${id}">×</span>
+    `;
+    // 切换对话
+    tabDiv.addEventListener("click", (e) => {
+      if (e.target.classList.contains("tab-del")) return; // 点击删除按钮不切换
       tabData.active = id;
       saveTabs();
-      render();
+      renderChat();
       renderTabs();
-    };
-    tabsEl.appendChild(div);
+    });
+    tabsEl.appendChild(tabDiv);
+  });
+  // 绑定删除按钮事件
+  document.querySelectorAll(".tab-del").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation(); // 阻止冒泡，不触发切换
+      const delId = btn.dataset.id;
+      const tabIds = Object.keys(tabData.list);
+      // 最少保留1个对话
+      if (tabIds.length <= 1) {
+        alert("至少保留1个对话，无法删除！");
+        return;
+      }
+      if (confirm(`确定删除「对话 ${delId.replace("tab", "")}」吗？删除后记录将永久消失！`)) {
+        // 删除该对话
+        delete tabData.list[delId];
+        // 若删除的是当前激活的对话，切换到第一个
+        if (delId === tabData.active) {
+          tabData.active = Object.keys(tabData.list)[0];
+        }
+        saveTabs();
+        renderChat();
+        renderTabs();
+      }
+    });
   });
 }
 
+// 复制文字功能
 function copyText(text) {
-  navigator.clipboard.writeText(text).then(() => alert("复制成功！")).catch(e => alert("失败"));
+  if (!text) return alert("暂无内容可复制");
+  navigator.clipboard.writeText(text).then(() => {
+    alert("复制成功！");
+  }).catch(err => {
+    alert("复制失败，请手动复制！");
+    console.error("复制错误：", err);
+  });
 }
 
-function render() {
-  let ms = tabData.list[tabData.active] || [];
-  chat.innerHTML = ms.map((m, i) => `
+// 渲染聊天记录
+function renderChat() {
+  const currentMsgs = tabData.list[tabData.active] || [];
+  chat.innerHTML = currentMsgs.map((m, i) => `
     <div class="message-box p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-      <button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g,'')}\`)">复制</button>
-      ${(m.content||'').replace(/\n/g,'<br>')}
+      <button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g, '\\`')}\`)">复制</button>
+      ${(m.content||'').replace(/\n/g, '<br>')}
     </div>
   `).join("");
+  // 渲染后滚动到底部（首次加载/切换对话）
+  chat.scrollTop = chat.scrollHeight;
 }
 
+// 输入框自动高度：1→2→3行
 function autoHeight() {
   input.style.height = "auto";
-  let h = input.scrollHeight;
-  input.style.height = Math.min(Math.max(h,44),88)+"px";
+  const scrollH = input.scrollHeight;
+  input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
 }
 input.addEventListener("input", autoHeight);
+// 初始化输入框高度
+autoHeight();
 
+// 新建对话
 addTab.onclick = () => {
-  let newId = "tab" + (Object.keys(tabData.list).length + 1);
+  // 生成新的对话ID
+  const tabIds = Object.keys(tabData.list);
+  const newId = `tab${tabIds.length + 1}`;
   tabData.list[newId] = [];
   tabData.active = newId;
   saveTabs();
-  render();
+  renderChat();
   renderTabs();
+  input.focus(); // 新建后聚焦输入框
 };
 
+// 清空当前对话记录
 resetBtn.onclick = () => {
-  if (!confirm("清空当前对话？")) return;
+  if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
   tabData.list[tabData.active] = [];
   saveTabs();
-  render();
+  renderChat();
 };
 
-async function send() {
+// 发送消息（流式输出，自由滚动）
+async function sendMessage() {
   const text = input.value.trim();
-  if (!text || !apiKey) return;
-  let arr = tabData.list[tabData.active] || [];
-  arr.push({ role:"user", content:text });
-  tabData.list[tabData.active] = arr;
+  if (!text) {
+    input.focus();
+    return;
+  }
+  if (!apiKey) {
+    keyPanel.classList.remove("hidden");
+    return;
+  }
+
+  // 添加用户消息到当前对话
+  const currentMsgs = tabData.list[tabData.active] || [];
+  currentMsgs.push({ role: "user", content: text });
+  tabData.list[tabData.active] = currentMsgs;
   saveTabs();
-  render();
+  renderChat();
+  // 清空输入框并重置高度
   input.value = "";
   autoHeight();
 
+  // 判断是否在底部，仅在底部时自动跟随
   const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-  const msgDiv = document.createElement("div");
-  msgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-  chat.appendChild(msgDiv);
+  // 创建AI回复容器
+  const aiMsgDiv = document.createElement("div");
+  aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
+  aiMsgDiv.innerHTML = '<button class="copy-btn" onclick="copyText(\'\')">复制</button>';
+  chat.appendChild(aiMsgDiv);
+  // 首次定位到底部
   if (isAtBottom) chat.scrollTop = chat.scrollHeight;
 
-  let full = "";
+  let fullContent = "";
   try {
+    // 调用DeepSeek流式API
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method:"POST", headers:{
-        "Content-Type":"application/json",
-        "Authorization":`Bearer ${apiKey}`
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
       },
-      body:JSON.stringify({
-        model:"deepseek-chat",
-        messages:arr,
-        stream:true,
-        temperature:0.7,
-        max_tokens:4096
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: currentMsgs,
+        stream: true,
+        temperature: 0.7,
+        max_tokens: 4096
       })
     });
+
+    if (!res.ok) throw new Error("API请求失败，请检查Key是否有效或网络状况");
+
     const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    while (1) {
+    const decoder = new TextDecoder();
+    // 流式读取返回数据
+    while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const lines = dec.decode(value).split("\n");
-      for (let line of lines) {
-        line = line.trim();
+      const chunk = decoder.decode(value);
+      const lines = chunk.split("\n").filter(line => line.trim() !== "");
+      
+      for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
-        let j = line.slice(6);
-        if (j === "[DONE]") break;
+        const dataStr = line.slice(6);
+        if (dataStr === "[DONE]") break; // 流式结束
         try {
-          let d = JSON.parse(j);
-          let c = d.choices[0].delta.content || "";
-          full += c;
-          msgDiv.innerHTML = `
-            <button class="copy-btn" onclick="copyText(\`${full.replace(/`/g,'')}\`)">复制</button>
-            ${full.replace(/\n/g,'<br>')}
+          const data = JSON.parse(dataStr);
+          const content = data.choices[0].delta.content || "";
+          fullContent += content;
+          // 更新AI回复内容和复制按钮
+          aiMsgDiv.innerHTML = `
+            <button class="copy-btn" onclick="copyText(\`${fullContent.replace(/`/g, '\\`')}\`)">复制</button>
+            ${fullContent.replace(/\n/g, '<br>')}
           `;
-          let curBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-          if (curBottom) chat.scrollTop = chat.scrollHeight;
-        } catch(e){}
+          // 仅在用户未滚动时，自动跟随到底部
+          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+          if (currentIsAtBottom) {
+            chat.scrollTop = chat.scrollHeight;
+          }
+        } catch (e) {
+          continue; // 忽略解析错误，继续读取
+        }
       }
     }
-    arr.push({ role:"assistant", content:full });
+
+    // 流式结束，保存AI回复到本地
+    currentMsgs.push({ role: "assistant", content: fullContent });
+    tabData.list[tabData.active] = currentMsgs;
     saveTabs();
-    render();
+    renderChat();
+
   } catch (e) {
-    msgDiv.innerHTML = `<span class="text-red-400">错误</span>`;
+    aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
+    console.error("发送消息错误：", e);
   }
 }
 
-sendBtn.onclick = send;
-input.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    send();
+// 绑定发送事件
+sendBtn.onclick = sendMessage;
+// 回车发送，Shift+回车换行
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    if (e.shiftKey) return; // Shift+回车，正常换行
+    e.preventDefault(); // 阻止默认回车换行
+    sendMessage();
   }
 });
 
+// 初始化渲染
 renderTabs();
-render();
-autoHeight();
+renderChat();
 </script>
 </body>
 </html>
