@@ -110,22 +110,16 @@ function render() {
       ${m.content.replace(/\n/g,'<br>')}
     </div>
   `).join("");
-  chat.scrollTop = chat.scrollHeight;
 }
 
 function autoHeight() {
   input.style.height = "auto";
   let h = input.scrollHeight;
-  if (h < 44) h = 44;
-  if (h > 88) h = 88;
-  input.style.height = h + "px";
+  input.style.height = Math.min(Math.max(h, 44), 88) + "px";
 }
 
 input.addEventListener("input", autoHeight);
-
-copyInputBtn.onclick = () => {
-  copyText(input.value);
-};
+copyInputBtn.onclick = () => copyText(input.value);
 
 async function send() {
   const text = input.value.trim();
@@ -136,15 +130,17 @@ async function send() {
   input.value = "";
   autoHeight();
 
+  // 只有在最底部才自动跟随
+  const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+
   const msgDiv = document.createElement("div");
   msgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-  const copyBtn = document.createElement("button");
-  copyBtn.className = "copy-btn";
-  copyBtn.innerText = "复制";
-  copyBtn.onclick = () => copyText(fullText);
-  msgDiv.appendChild(copyBtn);
   chat.appendChild(msgDiv);
-  chat.scrollTop = chat.scrollHeight;
+
+  // 初始只定位一次
+  if (isAtBottom) {
+    chat.scrollTop = chat.scrollHeight;
+  }
 
   let fullText = "";
   try {
@@ -182,8 +178,19 @@ async function send() {
           const data = JSON.parse(json);
           const c = data.choices[0].delta.content || "";
           fullText += c;
-          msgDiv.innerHTML = `<button class="copy-btn" onclick="copyText(\`${fullText.replace(/`/g,'')}\`)">复制</button>${fullText.replace(/\n/g,'<br>')}`;
-          chat.scrollTop = chat.scrollHeight;
+
+          // 流式输出时更新内容
+          msgDiv.innerHTML = `
+            <button class="copy-btn" onclick="copyText(\`${fullText.replace(/`/g,'')}\`)">复制</button>
+            ${fullText.replace(/\n/g,'<br>')}
+          `;
+
+          // 关键修复：只有本来就在底部，才滚动
+          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+          if (currentIsAtBottom) {
+            chat.scrollTop = chat.scrollHeight;
+          }
+
         } catch(e) {}
       }
     }
@@ -191,6 +198,11 @@ async function send() {
     messages.push({role:"assistant",content:fullText});
     localStorage.setItem("dsMessages", JSON.stringify(messages));
     render();
+
+    // 最后再判断一次
+    if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20) {
+      chat.scrollTop = chat.scrollHeight;
+    }
 
   } catch (e) {
     msgDiv.innerHTML = `<span class="text-red-400">错误：${e.message}</span>`;
