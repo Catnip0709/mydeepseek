@@ -13,7 +13,6 @@
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    
     /* 输入框：1→2→3行，超出滚动 */
     #input {
       min-height:44px;
@@ -40,15 +39,15 @@
     }
     .copy-btn:hover { opacity:1; }
     /* 消息容器：相对定位，预留复制按钮空间 */
-    .message-box { 
+    .message-box {
       position:relative;
       padding-bottom:20px !important;
     }
     /* 对话标签：带删除按钮，样式优化 */
-    .tab { 
-      padding:6px 10px; 
-      border-radius:8px; 
-      cursor:pointer; 
+    .tab {
+      padding:6px 10px;
+      border-radius:8px;
+      cursor:pointer;
       font-size:14px;
       display:flex;
       align-items:center;
@@ -259,14 +258,22 @@ function autoHeight() {
   input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
 }
 input.addEventListener("input", autoHeight);
+
 // 初始化输入框高度
 autoHeight();
 
 // 新建对话
 addTab.onclick = () => {
-  // 生成新的对话ID
   const tabIds = Object.keys(tabData.list);
-  const newId = `tab${tabIds.length + 1}`;
+  let maxIdNum = 0;
+  tabIds.forEach(id => {
+    const num = parseInt(id.replace('tab', ''), 10);
+    if (num > maxIdNum) {
+      maxIdNum = num;
+    }
+  });
+  const newId = `tab${maxIdNum + 1}`;
+
   tabData.list[newId] = [];
   tabData.active = newId;
   saveTabs();
@@ -294,7 +301,6 @@ async function sendMessage() {
     keyPanel.classList.remove("hidden");
     return;
   }
-
   // 添加用户消息到当前对话
   const currentMsgs = tabData.list[tabData.active] || [];
   currentMsgs.push({ role: "user", content: text });
@@ -304,7 +310,6 @@ async function sendMessage() {
   // 清空输入框并重置高度
   input.value = "";
   autoHeight();
-
   // 判断是否在底部，仅在底部时自动跟随
   const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
   // 创建AI回复容器
@@ -314,7 +319,6 @@ async function sendMessage() {
   chat.appendChild(aiMsgDiv);
   // 首次定位到底部
   if (isAtBottom) chat.scrollTop = chat.scrollHeight;
-
   let fullContent = "";
   try {
     // 调用DeepSeek流式API
@@ -334,13 +338,11 @@ async function sendMessage() {
         max_tokens: 4096
       })
     });
-
     if (!res.ok) {
       // 捕获API返回的错误信息，提示用户修改Key
       const errorData = await res.json();
       throw new Error(`API请求失败：${errorData.error?.message || '请检查API Key是否有效'}`);
     }
-
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     // 流式读取返回数据
@@ -349,7 +351,6 @@ async function sendMessage() {
       if (done) break;
       const chunk = decoder.decode(value);
       const lines = chunk.split("\n").filter(line => line.trim() !== "");
-      
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const dataStr = line.slice(6);
@@ -373,13 +374,11 @@ async function sendMessage() {
         }
       }
     }
-
     // 流式结束，保存AI回复到本地
     currentMsgs.push({ role: "assistant", content: fullContent });
     tabData.list[tabData.active] = currentMsgs;
     saveTabs();
     renderChat();
-
   } catch (e) {
     aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
     console.error("发送消息错误：", e);
