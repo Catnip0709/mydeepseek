@@ -13,7 +13,6 @@
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    /* 输入框：1→2→3行，超出滚动 */
     #input {
       min-height:44px;
       max-height:88px;
@@ -23,7 +22,6 @@
       border-radius:12px;
       padding:10px 12px;
     }
-    /* 复制按钮：右下方悬浮，不遮挡文字 */
     .copy-btn {
       position: absolute;
       bottom:6px;
@@ -38,12 +36,38 @@
       z-index:5;
     }
     .copy-btn:hover { opacity:1; }
-    /* 消息容器：相对定位，预留复制按钮空间 */
+    /* 新增：重新生成按钮样式 */
+    .regenerate-btn {
+      position: absolute;
+      bottom:6px;
+      right:40px; /* 放在复制按钮左边 */
+      background:rgba(51,51,51,0.6);
+      color:#fff;
+      border:none;
+      border-radius:6px;
+      padding:2px 5px;
+      font-size:10px;
+      opacity:0.5;
+      z-index:5;
+      width:24px;
+      height:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: all 0.2s ease;
+    }
+    .regenerate-btn:hover {
+      opacity:0.8;
+      background:rgba(51,51,51,0.8);
+    }
+    .regenerate-btn:active {
+      transform: scale(0.95);
+    }
     .message-box {
       position:relative;
       padding-bottom:20px !important;
     }
-    /* 对话标签：带删除按钮，样式优化 */
     .tab {
       padding:6px 10px;
       border-radius:8px;
@@ -57,7 +81,6 @@
     .tab.active { background:#007aff; color:white; }
     .tab:hover { background:#444; }
     .active.tab:hover { background:#007aff; }
-    /* 标签删除按钮 */
     .tab-del {
       font-size:12px;
       width:16px;
@@ -76,7 +99,6 @@
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
 
-<!-- 顶部：多对话切换栏（支持删除） -->
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-2 border-b border-gray-800">
   <div class="flex items-center gap-2 overflow-x-auto pb-1" style="scrollbar-width: none;-ms-overflow-style: none;">
     <div id="tabs" class="flex gap-2"></div>
@@ -85,17 +107,15 @@
   <div class="flex justify-between items-center px-2 mt-1">
     <h1 class="text-lg font-medium text-white m-0">DeepSeek Chat</h1>
     <div class="flex gap-2">
-      <!-- 新增：修改API Key按钮 -->
+      <!-- 移除了重新生成按钮 -->
       <button id="editKeyBtn" class="bg-purple-600/90 px-3 py-1 rounded-lg text-sm">修改API Key</button>
       <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
     </div>
   </div>
 </div>
 
-<!-- 聊天区域 -->
 <div id="chat" class="pt-24 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
-<!-- 输入框（无复制输入按钮，清爽） -->
 <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
   <div class="flex gap-2 items-end">
     <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
@@ -103,7 +123,6 @@
   </div>
 </div>
 
-<!-- API Key 弹窗 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
     <h3 class="text-white mb-3">输入/修改 DeepSeek API Key</h3>
@@ -114,9 +133,7 @@
 
 <script>
 let apiKey = localStorage.getItem("dsApiKey");
-// 本地存储多对话数据，兼容旧记录
 let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
-  // 兼容之前的单对话记录，自动转为第一个对话
   const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
   return { active: "tab1", list: { tab1: oldMsgs } };
 })();
@@ -130,24 +147,19 @@ const resetBtn = document.getElementById("resetBtn");
 const keyPanel = document.getElementById("keyPanel");
 const apiKeyInput = document.getElementById("apiKeyInput");
 const saveKey = document.getElementById("saveKey");
-// 新增：绑定修改Key按钮
 const editKeyBtn = document.getElementById("editKeyBtn");
 
-// 未设置Key则显示弹窗
 if (!apiKey) {
   keyPanel.classList.remove("hidden");
 } else {
-  // 初始化时填充当前Key到输入框（方便修改）
   apiKeyInput.value = apiKey;
 }
 
-// 保存API Key
 saveKey.onclick = () => {
   const newKey = apiKeyInput.value.trim();
   if (!newKey || !newKey.startsWith("sk-")) {
     return alert("请输入有效的以sk-开头的API Key！");
   }
-  // 简单验证Key长度（DeepSeek Key通常较长，避免明显非法的Key）
   if (newKey.length < 20) {
     alert("API Key长度过短，可能是无效的Key，请检查！");
     return;
@@ -158,42 +170,33 @@ saveKey.onclick = () => {
   alert("Key保存成功，可正常使用！");
 };
 
-// 新增：点击修改Key按钮打开弹窗
 editKeyBtn.onclick = () => {
-  // 填充当前Key到输入框
   apiKeyInput.value = apiKey || "";
   keyPanel.classList.remove("hidden");
-  // 聚焦输入框，方便编辑
   apiKeyInput.focus();
 };
 
-// 保存对话数据到本地
 function saveTabs() {
   localStorage.setItem("dsTabs", JSON.stringify(tabData));
 }
 
-// 渲染对话标签（带删除按钮）
 function renderTabs() {
   tabsEl.innerHTML = "";
   const tabIds = Object.keys(tabData.list);
-  // 最少保留1个对话，不能删完
   if (tabIds.length === 0) {
     tabData.list = { tab1: [] };
     tabData.active = "tab1";
     saveTabs();
   }
-  // 遍历生成标签
   Object.keys(tabData.list).forEach(id => {
     const tabDiv = document.createElement("div");
     tabDiv.className = `tab ${id === tabData.active ? "active" : ""} flex-shrink-0`;
-    // 标签内容：对话名称 + 删除按钮
     tabDiv.innerHTML = `
       <span>对话 ${id.replace("tab", "")}</span>
       <span class="tab-del" data-id="${id}">×</span>
     `;
-    // 切换对话
     tabDiv.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-del")) return; // 点击删除按钮不切换
+      if (e.target.classList.contains("tab-del")) return;
       tabData.active = id;
       saveTabs();
       renderChat();
@@ -201,21 +204,17 @@ function renderTabs() {
     });
     tabsEl.appendChild(tabDiv);
   });
-  // 绑定删除按钮事件
   document.querySelectorAll(".tab-del").forEach(btn => {
     btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // 阻止冒泡，不触发切换
+      e.stopPropagation();
       const delId = btn.dataset.id;
       const tabIds = Object.keys(tabData.list);
-      // 最少保留1个对话
       if (tabIds.length <= 1) {
         alert("至少保留1个对话，无法删除！");
         return;
       }
       if (confirm(`确定删除「对话 ${delId.replace("tab", "")}」吗？删除后记录将永久消失！`)) {
-        // 删除该对话
         delete tabData.list[delId];
-        // 若删除的是当前激活的对话，切换到第一个
         if (delId === tabData.active) {
           tabData.active = Object.keys(tabData.list)[0];
         }
@@ -227,7 +226,6 @@ function renderTabs() {
   });
 }
 
-// 复制文字功能
 function copyText(text) {
   if (!text) return alert("暂无内容可复制");
   navigator.clipboard.writeText(text).then(() => {
@@ -241,28 +239,43 @@ function copyText(text) {
 // 渲染聊天记录
 function renderChat() {
   const currentMsgs = tabData.list[tabData.active] || [];
-  chat.innerHTML = currentMsgs.map((m, i) => `
-    <div class="message-box p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-      <button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g, '\\`')}\`)">复制</button>
-      ${(m.content||'').replace(/\n/g, '<br>')}
-    </div>
-  `).join("");
-  // 渲染后滚动到底部（首次加载/切换对话）
+  chat.innerHTML = currentMsgs.map((m, i) => {
+    const isUser = m.role === 'user';
+    const isAssistant = m.role === 'assistant';
+    const isLastAssistant = isAssistant && i === currentMsgs.length - 1;
+    
+    let buttons = '';
+    if (isAssistant) {
+      // 所有AI回复都有复制按钮
+      buttons += `<button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g, '\\`')}\`)">复制</button>`;
+      
+      // 只有最后一条AI回复显示重新生成按钮
+      if (isLastAssistant) {
+        buttons += `<button class="regenerate-btn" onclick="regenerateResponse(${i})" title="重新生成">↻</button>`;
+      }
+    } else if (isUser) {
+      // 用户消息只有复制按钮
+      buttons += `<button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g, '\\`')}\`)">复制</button>`;
+    }
+    
+    return `
+      <div class="message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+        ${buttons}
+        ${(m.content||'').replace(/\n/g, '<br>')}
+      </div>
+    `;
+  }).join("");
   chat.scrollTop = chat.scrollHeight;
 }
 
-// 输入框自动高度：1→2→3行
 function autoHeight() {
   input.style.height = "auto";
   const scrollH = input.scrollHeight;
   input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
 }
 input.addEventListener("input", autoHeight);
-
-// 初始化输入框高度
 autoHeight();
 
-// 新建对话
 addTab.onclick = () => {
   const tabIds = Object.keys(tabData.list);
   let maxIdNum = 0;
@@ -273,16 +286,14 @@ addTab.onclick = () => {
     }
   });
   const newId = `tab${maxIdNum + 1}`;
-
   tabData.list[newId] = [];
   tabData.active = newId;
   saveTabs();
   renderChat();
   renderTabs();
-  input.focus(); // 新建后聚焦输入框
+  input.focus();
 };
 
-// 清空当前对话记录
 resetBtn.onclick = () => {
   if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
   tabData.list[tabData.active] = [];
@@ -290,38 +301,53 @@ resetBtn.onclick = () => {
   renderChat();
 };
 
-// 发送消息（流式输出，自由滚动）
-async function sendMessage() {
-  const text = input.value.trim();
-  if (!text) {
-    input.focus();
-    return;
-  }
+// 重新生成回复的函数
+async function regenerateResponse(messageIndex) {
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
     return;
   }
-  // 添加用户消息到当前对话
+  
   const currentMsgs = tabData.list[tabData.active] || [];
-  currentMsgs.push({ role: "user", content: text });
-  tabData.list[tabData.active] = currentMsgs;
+  if (currentMsgs.length === 0) {
+    return alert("当前对话为空，无法重新生成。");
+  }
+
+  // 检查要重新生成的消息是否是AI回复
+  if (messageIndex < 0 || messageIndex >= currentMsgs.length) {
+    return alert("消息索引无效。");
+  }
+  
+  const targetMessage = currentMsgs[messageIndex];
+  if (targetMessage.role !== 'assistant') {
+    return alert("只能重新生成AI的回复。");
+  }
+
+  // 移除该AI回复及其之后的所有消息（保持对话上下文连贯）
+  // 例如：用户1 -> AI1 -> 用户2 -> AI2，重新生成AI2时，只移除AI2
+  const messagesToKeep = currentMsgs.slice(0, messageIndex);
+  tabData.list[tabData.active] = messagesToKeep;
   saveTabs();
   renderChat();
-  // 清空输入框并重置高度
-  input.value = "";
-  autoHeight();
-  // 判断是否在底部，仅在底部时自动跟随
+
+  // 重新发起请求
+  await fetchAndStreamResponse();
+}
+
+// API请求和流式处理封装函数
+async function fetchAndStreamResponse() {
+  const currentMsgs = tabData.list[tabData.active] || [];
   const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-  // 创建AI回复容器
+
   const aiMsgDiv = document.createElement("div");
   aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
   aiMsgDiv.innerHTML = '<button class="copy-btn" onclick="copyText(\'\')">复制</button>';
   chat.appendChild(aiMsgDiv);
-  // 首次定位到底部
+
   if (isAtBottom) chat.scrollTop = chat.scrollHeight;
+
   let fullContent = "";
   try {
-    // 调用DeepSeek流式API
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -338,14 +364,14 @@ async function sendMessage() {
         max_tokens: 4096
       })
     });
+
     if (!res.ok) {
-      // 捕获API返回的错误信息，提示用户修改Key
       const errorData = await res.json();
       throw new Error(`API请求失败：${errorData.error?.message || '请检查API Key是否有效'}`);
     }
+
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    // 流式读取返回数据
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -354,27 +380,24 @@ async function sendMessage() {
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const dataStr = line.slice(6);
-        if (dataStr === "[DONE]") break; // 流式结束
+        if (dataStr === "[DONE]") break;
         try {
           const data = JSON.parse(dataStr);
           const content = data.choices[0].delta.content || "";
           fullContent += content;
-          // 更新AI回复内容和复制按钮
           aiMsgDiv.innerHTML = `
             <button class="copy-btn" onclick="copyText(\`${fullContent.replace(/`/g, '\\`')}\`)">复制</button>
             ${fullContent.replace(/\n/g, '<br>')}
           `;
-          // 仅在用户未滚动时，自动跟随到底部
           const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
           if (currentIsAtBottom) {
             chat.scrollTop = chat.scrollHeight;
           }
         } catch (e) {
-          continue; // 忽略解析错误，继续读取
+          continue;
         }
       }
     }
-    // 流式结束，保存AI回复到本地
     currentMsgs.push({ role: "assistant", content: fullContent });
     tabData.list[tabData.active] = currentMsgs;
     saveTabs();
@@ -382,7 +405,6 @@ async function sendMessage() {
   } catch (e) {
     aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
     console.error("发送消息错误：", e);
-    // 错误时提示用户修改Key
     if (e.message.includes("API请求失败") || e.message.includes("Key")) {
       setTimeout(() => {
         if (confirm("检测到API Key可能无效，是否立即修改？")) {
@@ -393,13 +415,36 @@ async function sendMessage() {
   }
 }
 
-// 绑定发送事件
+// 发送消息函数
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) {
+    input.focus();
+    return;
+  }
+  if (!apiKey) {
+    keyPanel.classList.remove("hidden");
+    return;
+  }
+
+  const currentMsgs = tabData.list[tabData.active] || [];
+  currentMsgs.push({ role: "user", content: text });
+  tabData.list[tabData.active] = currentMsgs;
+  saveTabs();
+  renderChat();
+
+  input.value = "";
+  autoHeight();
+
+  await fetchAndStreamResponse();
+}
+
+// 绑定事件
 sendBtn.onclick = sendMessage;
-// 回车发送，Shift+回车换行
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
-    if (e.shiftKey) return; // Shift+回车，正常换行
-    e.preventDefault(); // 阻止默认回车换行
+    if (e.shiftKey) return;
+    e.preventDefault();
     sendMessage();
   }
 });
