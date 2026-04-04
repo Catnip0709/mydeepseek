@@ -3,59 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DS 交互优化版</title>
+    <title>智能聊天助手</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
             background-color: #f5f5f7;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
+            padding-bottom: 80px;
         }
 
         .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            margin-bottom: 80px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px 15px;
         }
 
         .message {
+            margin-bottom: 16px;
             padding: 12px 16px;
-            border-radius: 8px;
-            max-width: 100%;
-            position: relative;
+            border-radius: 12px;
+            line-height: 1.5;
+            max-width: 75%;
+            word-wrap: break-word;
         }
 
         .user-message {
             background-color: #007aff;
             color: white;
-            align-self: flex-end;
+            margin-left: auto;
         }
 
         .assistant-message {
             background-color: white;
             color: #1d1d1f;
-            border: 1px solid #e5e5e7;
-            align-self: flex-start;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            margin-right: auto;
         }
 
-        .input-container {
+        .input-area {
             position: fixed;
             bottom: 0;
             left: 0;
-            right: 0;
-            padding: 16px;
+            width: 100%;
+            padding: 10px 15px;
             background-color: white;
-            border-top: 1px solid #e5e5e7;
+            box-shadow: 0 -1px 5px rgba(0,0,0,0.05);
             display: flex;
-            gap: 8px;
+            gap: 10px;
+            align-items: center;
         }
 
         #user-input {
@@ -65,23 +65,31 @@
             border-radius: 24px;
             outline: none;
             font-size: 16px;
+            resize: none;
+            height: 48px;
+            max-height: 120px;
         }
 
         #send-btn {
-            padding: 12px 24px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
             background-color: #007aff;
             color: white;
             border: none;
-            border-radius: 24px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #send-btn:disabled {
-            background-color: #a7c0ff;
+            background-color: #999;
             cursor: not-allowed;
         }
 
+        /* 长按菜单样式 */
         .context-menu {
             position: absolute;
             background-color: white;
@@ -89,6 +97,7 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 1000;
             display: none;
+            min-width: 120px;
         }
 
         .context-menu button {
@@ -105,6 +114,7 @@
             background-color: #f5f5f7;
         }
 
+        /* 回到底部按钮样式 */
         .to-bottom-btn {
             position: fixed;
             bottom: 80px;
@@ -127,11 +137,12 @@
             display: flex;
         }
 
+        /* 加载中样式 */
         .loading {
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid #fff;
+            border: 2px solid #007aff;
             border-radius: 50%;
             border-top-color: transparent;
             animation: spin 1s linear infinite;
@@ -145,9 +156,9 @@
 </head>
 <body>
     <div class="chat-container" id="chat-container"></div>
-    
-    <div class="input-container">
-        <input type="text" id="user-input" placeholder="请输入内容...">
+
+    <div class="input-area">
+        <textarea id="user-input" placeholder="请输入你的问题..."></textarea>
         <button id="send-btn">发送</button>
     </div>
 
@@ -157,11 +168,11 @@
         <button id="copy-btn">复制</button>
     </div>
 
-    <!-- 回到底部按钮 -->
+    <!-- 快速回到底部按钮 -->
     <button class="to-bottom-btn" id="to-bottom-btn">↓</button>
 
     <script>
-        // 全局变量
+        // 核心变量
         const chatContainer = document.getElementById('chat-container');
         const userInput = document.getElementById('user-input');
         const sendBtn = document.getElementById('send-btn');
@@ -170,46 +181,134 @@
         const copyBtn = document.getElementById('copy-btn');
         const toBottomBtn = document.getElementById('to-bottom-btn');
         
-        // 当前长按的消息元素
-        let currentMessage = null;
-        // 流式输出相关
-        let currentAssistantMessage = null;
-        let isStreaming = false;
+        let currentLongPressMsg = null; // 当前长按的用户消息
+        let pressTimer = null; // 长按计时器
+        let isStreaming = false; // 是否正在流式输出
 
-        // 初始化
-        init();
-
+        // 初始化事件
         function init() {
-            // 发送消息
+            // 发送按钮点击事件
             sendBtn.addEventListener('click', sendMessage);
+            // 回车发送（兼容换行）
             userInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') sendMessage();
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
             });
+            // 输入框高度自适应
+            userInput.addEventListener('input', autoResizeInput);
 
-            // 长按事件处理
-            let pressTimer = null;
-            document.addEventListener('touchstart', handleLongPressStart); // 移动端
-            document.addEventListener('mousedown', handleLongPressStart); // 桌面端
-            
-            // 取消长按
+            // 长按事件（PC+移动端）
+            document.addEventListener('touchstart', handleLongPressStart);
+            document.addEventListener('mousedown', handleLongPressStart);
             document.addEventListener('touchend', clearLongPressTimer);
             document.addEventListener('mouseup', clearLongPressTimer);
             document.addEventListener('mouseleave', clearLongPressTimer);
-            document.addEventListener('click', hideContextMenu);
+            // 点击空白处隐藏菜单
+            document.addEventListener('click', (e) => {
+                if (!contextMenu.contains(e.target)) {
+                    hideContextMenu();
+                }
+            });
 
             // 长按菜单按钮事件
             regenerateBtn.addEventListener('click', handleRegenerate);
             copyBtn.addEventListener('click', handleCopy);
 
-            // 回到底部按钮
+            // 回到底部按钮事件
             toBottomBtn.addEventListener('click', scrollToBottom);
             window.addEventListener('scroll', toggleToBottomBtn);
-
-            // 初始滚动到底部
-            scrollToBottom();
         }
 
-        // 长按开始
+        // 输入框高度自适应
+        function autoResizeInput() {
+            userInput.style.height = '48px';
+            userInput.style.height = `${Math.min(userInput.scrollHeight, 120)}px`;
+        }
+
+        // 发送消息
+        function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text || isStreaming) return;
+
+            // 清空输入框
+            userInput.value = '';
+            userInput.style.height = '48px';
+
+            // 添加用户消息到页面
+            const userMsgElement = createMessageElement(text, 'user-message');
+            chatContainer.appendChild(userMsgElement);
+
+            // 添加助手消息容器
+            const assistantMsgElement = createMessageElement('', 'assistant-message');
+            chatContainer.appendChild(assistantMsgElement);
+
+            // 滚动到底部
+            scrollToBottom();
+
+            // 模拟流式输出（实际项目替换为真实接口请求）
+            simulateStreamResponse(text, assistantMsgElement);
+        }
+
+        // 创建消息元素
+        function createMessageElement(content, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.textContent = content;
+            return div;
+        }
+
+        // 模拟流式输出（替换为真实DS/接口请求）
+        function simulateStreamResponse(inputText, assistantMsgElement) {
+            isStreaming = true;
+            sendBtn.disabled = true;
+            
+            // 模拟加载中
+            assistantMsgElement.innerHTML = '<span class="loading"></span> 思考中...';
+
+            // 模拟流式输出（实际项目替换为 fetch/websocket 流式请求）
+            const responses = [
+                '你问的是："', inputText, '"，',
+                '我来为你解答。',
+                '这是一个模拟的流式回复，',
+                '实际项目中可以替换为真实的接口返回。'
+            ];
+            let index = 0;
+            
+            const interval = setInterval(() => {
+                if (index >= responses.length) {
+                    clearInterval(interval);
+                    isStreaming = false;
+                    sendBtn.disabled = false;
+                    return;
+                }
+
+                // 模拟请求失败场景（注释掉下面3行则为正常输出）
+                // if (index === 2) {
+                //     handleStreamError(interval, assistantMsgElement);
+                //     return;
+                // }
+
+                // 追加内容（流式核心：不清空，只追加）
+                assistantMsgElement.innerHTML = assistantMsgElement.innerHTML.replace('<span class="loading"></span> 思考中...', '') + responses[index];
+                index++;
+                
+                // 滚动到底部
+                scrollToBottom();
+            }, 300);
+        }
+
+        // 流式输出失败处理（核心：不清空已有内容）
+        function handleStreamError(interval, assistantMsgElement) {
+            clearInterval(interval);
+            // 保留已有内容，仅追加失败提示
+            assistantMsgElement.innerHTML += ' <span style="color: #ff3b30;">[加载失败，可长按重新生成]</span>';
+            isStreaming = false;
+            sendBtn.disabled = false;
+        }
+
+        // 长按开始处理
         function handleLongPressStart(e) {
             const target = e.target.closest('.user-message');
             if (!target) return;
@@ -217,10 +316,27 @@
             e.preventDefault();
             clearLongPressTimer();
             
+            // 500ms判定为长按
             pressTimer = setTimeout(() => {
-                currentMessage = target;
-                showContextMenu(e);
-            }, 500); // 500ms 判定为长按
+                currentLongPressMsg = target;
+                // 定位菜单
+                const x = e.clientX || (e.touches && e.touches[0].clientX);
+                const y = e.clientY || (e.touches && e.touches[0].clientY);
+                contextMenu.style.left = `${x}px`;
+                contextMenu.style.top = `${y}px`;
+                
+                // 防止菜单超出视口
+                const rect = contextMenu.getBoundingClientRect();
+                if (rect.right > window.innerWidth) {
+                    contextMenu.style.left = `${window.innerWidth - rect.width - 10}px`;
+                }
+                if (rect.bottom > window.innerHeight) {
+                    contextMenu.style.top = `${window.innerHeight - rect.height - 10}px`;
+                }
+                
+                // 显示菜单
+                contextMenu.style.display = 'block';
+            }, 500);
         }
 
         // 清除长按计时器
@@ -231,145 +347,53 @@
             }
         }
 
-        // 显示长按菜单
-        function showContextMenu(e) {
-            const menu = contextMenu;
-            menu.style.display = 'block';
-            
-            // 定位菜单
-            const x = e.clientX || (e.touches && e.touches[0].clientX);
-            const y = e.clientY || (e.touches && e.touches[0].clientY);
-            
-            menu.style.left = `${x}px`;
-            menu.style.top = `${y}px`;
-
-            // 防止菜单超出视口
-            const rect = menu.getBoundingClientRect();
-            if (rect.right > window.innerWidth) {
-                menu.style.left = `${window.innerWidth - rect.width - 10}px`;
-            }
-            if (rect.bottom > window.innerHeight) {
-                menu.style.top = `${window.innerHeight - rect.height - 10}px`;
-            }
-        }
-
         // 隐藏长按菜单
         function hideContextMenu() {
             contextMenu.style.display = 'none';
-            currentMessage = null;
+            currentLongPressMsg = null;
         }
 
-        // 重新生成
+        // 重新生成逻辑
         function handleRegenerate() {
             hideContextMenu();
-            if (!currentMessage) return;
+            if (!currentLongPressMsg) return;
             
-            // 获取用户输入内容
-            const userText = currentMessage.textContent.trim();
-            // 找到对应的助手回复并标记为重新生成
-            const nextSibling = currentMessage.nextElementSibling;
-            if (nextSibling && nextSibling.classList.contains('assistant-message')) {
-                nextSibling.innerHTML = '<span class="loading"></span>重新生成中...';
+            // 获取长按的用户输入内容
+            const userInputText = currentLongPressMsg.textContent.trim();
+            // 找到对应的助手回复
+            const assistantMsg = currentLongPressMsg.nextElementSibling;
+            
+            // 清空原有回复并标记重新生成
+            if (assistantMsg && assistantMsg.classList.contains('assistant-message')) {
+                assistantMsg.innerHTML = '<span class="loading"></span> 重新生成中...';
+            } else {
+                // 如果没有助手回复，创建新的
+                const newAssistantMsg = createMessageElement('<span class="loading"></span> 重新生成中...', 'assistant-message');
+                currentLongPressMsg.after(newAssistantMsg);
+                scrollToBottom();
+                simulateStreamResponse(userInputText, newAssistantMsg);
+                return;
             }
             
-            // 重新发送请求
-            sendMessage(userText, true);
+            // 重新触发流式输出
+            simulateStreamResponse(userInputText, assistantMsg);
+            scrollToBottom();
         }
 
-        // 复制
+        // 复制逻辑
         function handleCopy() {
             hideContextMenu();
-            if (!currentMessage) return;
+            if (!currentLongPressMsg) return;
             
             // 复制用户输入内容
-            const text = currentMessage.textContent.trim();
-            navigator.clipboard.writeText(text).then(() => {
-                // 简单的复制成功提示
+            const copyText = currentLongPressMsg.textContent.trim();
+            navigator.clipboard.writeText(copyText).then(() => {
+                // 简单提示（可替换为toast）
                 alert('复制成功');
             }).catch(err => {
                 console.error('复制失败:', err);
                 alert('复制失败，请手动复制');
             });
-        }
-
-        // 发送消息
-        function sendMessage(predefinedText = '', isRegenerate = false) {
-            const text = predefinedText || userInput.value.trim();
-            if (!text) return;
-
-            // 禁用发送按钮
-            sendBtn.disabled = true;
-            sendBtn.innerHTML = '<span class="loading"></span>发送中...';
-
-            // 如果不是重新生成，添加用户消息
-            if (!isRegenerate) {
-                const userMsg = createMessageElement(text, 'user-message');
-                chatContainer.appendChild(userMsg);
-                userInput.value = '';
-                scrollToBottom();
-            }
-
-            // 模拟流式输出（实际项目中替换为真实接口请求）
-            simulateStreamingResponse(text, isRegenerate);
-        }
-
-        // 创建消息元素
-        function createMessageElement(text, className) {
-            const div = document.createElement('div');
-            div.className = `message ${className}`;
-            div.textContent = text;
-            return div;
-        }
-
-        // 模拟流式输出（含失败处理）
-        function simulateStreamingResponse(inputText, isRegenerate) {
-            isStreaming = true;
-            let responseText = '';
-            const words = [
-                '这是', '流式', '输出', '的', '示例', '内容', '，', 
-                '即使', '中途', '失败', '也', '不会', '清空', '已', '输出', '的', '内容', '。'
-            ];
-            
-            // 如果是重新生成，找到并复用原有助手消息元素
-            if (isRegenerate) {
-                const userMsg = currentMessage;
-                currentAssistantMessage = userMsg.nextElementSibling;
-                if (!currentAssistantMessage || !currentAssistantMessage.classList.contains('assistant-message')) {
-                    currentAssistantMessage = createMessageElement('', 'assistant-message');
-                    userMsg.after(currentAssistantMessage);
-                }
-            } else {
-                // 新建助手消息元素
-                currentAssistantMessage = createMessageElement('', 'assistant-message');
-                chatContainer.appendChild(currentAssistantMessage);
-            }
-
-            let index = 0;
-            const interval = setInterval(() => {
-                if (index < words.length) {
-                    // 模拟随机失败（第10个词后有30%概率失败）
-                    if (index === 10 && Math.random() < 0.3) {
-                        clearInterval(interval);
-                        currentAssistantMessage.textContent += ' [加载失败]';
-                        isStreaming = false;
-                        // 恢复发送按钮
-                        sendBtn.disabled = false;
-                        sendBtn.textContent = '发送';
-                        return;
-                    }
-                    
-                    responseText += words[index];
-                    currentAssistantMessage.textContent = responseText;
-                    scrollToBottom();
-                    index++;
-                } else {
-                    clearInterval(interval);
-                    isStreaming = false;
-                    // 恢复发送按钮
-                    sendBtn.disabled = false;
-                    sendBtn.textContent = '发送';
-                }
-            }, 200);
         }
 
         // 滚动到底部
@@ -381,17 +405,15 @@
             toggleToBottomBtn();
         }
 
-        // 切换回到底部按钮显示状态
+        // 切换回到底部按钮显示
         function toggleToBottomBtn() {
             const scrollTop = window.scrollY;
             const scrollHeight = document.body.scrollHeight - window.innerHeight;
-            
-            if (scrollTop < scrollHeight - 100) {
-                toBottomBtn.classList.add('visible');
-            } else {
-                toBottomBtn.classList.remove('visible');
-            }
+            toBottomBtn.classList.toggle('visible', scrollTop < scrollHeight - 100);
         }
+
+        // 页面加载完成初始化
+        window.addEventListener('DOMContentLoaded', init);
     </script>
 </body>
 </html>
