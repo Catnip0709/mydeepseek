@@ -85,7 +85,11 @@
   </div>
   <div class="flex justify-between items-center px-2 mt-1">
     <h1 class="text-lg font-medium text-white m-0">DeepSeek Chat</h1>
-    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
+    <div class="flex gap-2">
+      <!-- 新增：修改API Key按钮 -->
+      <button id="editKeyBtn" class="bg-purple-600/90 px-3 py-1 rounded-lg text-sm">修改API Key</button>
+      <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
+    </div>
   </div>
 </div>
 
@@ -103,7 +107,7 @@
 <!-- API Key 弹窗 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
-    <h3 class="text-white mb-3">输入 DeepSeek API Key</h3>
+    <h3 class="text-white mb-3">输入/修改 DeepSeek API Key</h3>
     <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
     <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
   </div>
@@ -127,17 +131,41 @@ const resetBtn = document.getElementById("resetBtn");
 const keyPanel = document.getElementById("keyPanel");
 const apiKeyInput = document.getElementById("apiKeyInput");
 const saveKey = document.getElementById("saveKey");
+// 新增：绑定修改Key按钮
+const editKeyBtn = document.getElementById("editKeyBtn");
 
 // 未设置Key则显示弹窗
-if (!apiKey) keyPanel.classList.remove("hidden");
+if (!apiKey) {
+  keyPanel.classList.remove("hidden");
+} else {
+  // 初始化时填充当前Key到输入框（方便修改）
+  apiKeyInput.value = apiKey;
+}
 
 // 保存API Key
 saveKey.onclick = () => {
-  apiKey = apiKeyInput.value.trim();
-  if (!apiKey || !apiKey.startsWith("sk-")) return alert("请输入有效的sk-开头的API Key");
+  const newKey = apiKeyInput.value.trim();
+  if (!newKey || !newKey.startsWith("sk-")) {
+    return alert("请输入有效的以sk-开头的API Key！");
+  }
+  // 简单验证Key长度（DeepSeek Key通常较长，避免明显非法的Key）
+  if (newKey.length < 20) {
+    alert("API Key长度过短，可能是无效的Key，请检查！");
+    return;
+  }
+  apiKey = newKey;
   localStorage.setItem("dsApiKey", apiKey);
   keyPanel.classList.add("hidden");
   alert("Key保存成功，可正常使用！");
+};
+
+// 新增：点击修改Key按钮打开弹窗
+editKeyBtn.onclick = () => {
+  // 填充当前Key到输入框
+  apiKeyInput.value = apiKey || "";
+  keyPanel.classList.remove("hidden");
+  // 聚焦输入框，方便编辑
+  apiKeyInput.focus();
 };
 
 // 保存对话数据到本地
@@ -307,7 +335,11 @@ async function sendMessage() {
       })
     });
 
-    if (!res.ok) throw new Error("API请求失败，请检查Key是否有效或网络状况");
+    if (!res.ok) {
+      // 捕获API返回的错误信息，提示用户修改Key
+      const errorData = await res.json();
+      throw new Error(`API请求失败：${errorData.error?.message || '请检查API Key是否有效'}`);
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -351,6 +383,14 @@ async function sendMessage() {
   } catch (e) {
     aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
     console.error("发送消息错误：", e);
+    // 错误时提示用户修改Key
+    if (e.message.includes("API请求失败") || e.message.includes("Key")) {
+      setTimeout(() => {
+        if (confirm("检测到API Key可能无效，是否立即修改？")) {
+          editKeyBtn.click();
+        }
+      }, 1000);
+    }
   }
 }
 
