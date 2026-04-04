@@ -1,373 +1,397 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="format-detection" content="telephone=no">
-  <title>DeepSeek Chat</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; }
-    * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
-    #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
-    .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    
-    /* 输入框：1→2→3行，超出滚动 */
-    #input {
-      min-height:44px;
-      max-height:88px;
-      line-height:1.4;
-      overflow-y:auto;
-      resize:none;
-      border-radius:12px;
-      padding:10px 12px;
-    }
-    /* 复制按钮：右下方悬浮，不遮挡文字 */
-    .copy-btn {
-      position: absolute;
-      bottom:6px;
-      right:6px;
-      background:rgba(51,51,51,0.8);
-      color:#fff;
-      border:none;
-      border-radius:6px;
-      padding:2px 5px;
-      font-size:10px;
-      opacity:0.7;
-      z-index:5;
-    }
-    .copy-btn:hover { opacity:1; }
-    /* 消息容器：相对定位，预留复制按钮空间 */
-    .message-box { 
-      position:relative;
-      padding-bottom:20px !important;
-    }
-    /* 对话标签：带删除按钮，样式优化 */
-    .tab { 
-      padding:6px 10px; 
-      border-radius:8px; 
-      cursor:pointer; 
-      font-size:14px;
-      display:flex;
-      align-items:center;
-      gap:6px;
-      background:#333;
-    }
-    .tab.active { background:#007aff; color:white; }
-    .tab:hover { background:#444; }
-    .active.tab:hover { background:#007aff; }
-    /* 标签删除按钮 */
-    .tab-del {
-      font-size:12px;
-      width:16px;
-      height:16px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border-radius:50%;
-      background:rgba(255,255,255,0.2);
-      cursor:pointer;
-    }
-    .tab-del:hover {
-      background:rgba(255,255,255,0.4);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DS 交互优化版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f7;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            margin-bottom: 80px;
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            max-width: 100%;
+            position: relative;
+        }
+
+        .user-message {
+            background-color: #007aff;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .assistant-message {
+            background-color: white;
+            color: #1d1d1f;
+            border: 1px solid #e5e5e7;
+            align-self: flex-start;
+        }
+
+        .input-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            background-color: white;
+            border-top: 1px solid #e5e5e7;
+            display: flex;
+            gap: 8px;
+        }
+
+        #user-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #e5e5e7;
+            border-radius: 24px;
+            outline: none;
+            font-size: 16px;
+        }
+
+        #send-btn {
+            padding: 12px 24px;
+            background-color: #007aff;
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #send-btn:disabled {
+            background-color: #a7c0ff;
+            cursor: not-allowed;
+        }
+
+        .context-menu {
+            position: absolute;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            display: none;
+        }
+
+        .context-menu button {
+            padding: 8px 16px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            width: 100%;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .context-menu button:hover {
+            background-color: #f5f5f7;
+        }
+
+        .to-bottom-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #007aff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .to-bottom-btn.visible {
+            display: flex;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
 </head>
-<body class="max-w-full mx-0 safe-area-bottom">
-
-<!-- 顶部：多对话切换栏（支持删除） -->
-<div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-2 border-b border-gray-800">
-  <div class="flex items-center gap-2 overflow-x-auto pb-1" style="scrollbar-width: none;-ms-overflow-style: none;">
-    <div id="tabs" class="flex gap-2"></div>
-    <button id="addTab" class="text-white bg-gray-700 px-3 py-1 rounded-lg flex-shrink-0">+ 新建对话</button>
-  </div>
-  <div class="flex justify-between items-center px-2 mt-1">
-    <h1 class="text-lg font-medium text-white m-0">DeepSeek Chat</h1>
-    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
-  </div>
-</div>
-
-<!-- 聊天区域 -->
-<div id="chat" class="pt-24 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
-
-<!-- 输入框（无复制输入按钮，清爽） -->
-<div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur px-4 py-3 border-t border-gray-800 safe-area-bottom z-10">
-  <div class="flex gap-2 items-end">
-    <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
-    <button id="sendBtn" class="bg-blue-500 px-4 py-3 rounded-lg text-white h-[44px] flex-shrink-0">发送</button>
-  </div>
-</div>
-
-<!-- API Key 弹窗 -->
-<div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
-  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
-    <h3 class="text-white mb-3">输入 DeepSeek API Key</h3>
-    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-    <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
-  </div>
-</div>
-
-<script>
-let apiKey = localStorage.getItem("dsApiKey");
-// 本地存储多对话数据，兼容旧记录
-let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
-  // 兼容之前的单对话记录，自动转为第一个对话
-  const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
-  return { active: "tab1", list: { tab1: oldMsgs } };
-})();
-
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
-const sendBtn = document.getElementById("sendBtn");
-const tabsEl = document.getElementById("tabs");
-const addTab = document.getElementById("addTab");
-const resetBtn = document.getElementById("resetBtn");
-const keyPanel = document.getElementById("keyPanel");
-const apiKeyInput = document.getElementById("apiKeyInput");
-const saveKey = document.getElementById("saveKey");
-
-// 未设置Key则显示弹窗
-if (!apiKey) keyPanel.classList.remove("hidden");
-
-// 保存API Key
-saveKey.onclick = () => {
-  apiKey = apiKeyInput.value.trim();
-  if (!apiKey || !apiKey.startsWith("sk-")) return alert("请输入有效的sk-开头的API Key");
-  localStorage.setItem("dsApiKey", apiKey);
-  keyPanel.classList.add("hidden");
-  alert("Key保存成功，可正常使用！");
-};
-
-// 保存对话数据到本地
-function saveTabs() {
-  localStorage.setItem("dsTabs", JSON.stringify(tabData));
-}
-
-// 渲染对话标签（带删除按钮）
-function renderTabs() {
-  tabsEl.innerHTML = "";
-  const tabIds = Object.keys(tabData.list);
-  // 最少保留1个对话，不能删完
-  if (tabIds.length === 0) {
-    tabData.list = { tab1: [] };
-    tabData.active = "tab1";
-    saveTabs();
-  }
-  // 遍历生成标签
-  Object.keys(tabData.list).forEach(id => {
-    const tabDiv = document.createElement("div");
-    tabDiv.className = `tab ${id === tabData.active ? "active" : ""} flex-shrink-0`;
-    // 标签内容：对话名称 + 删除按钮
-    tabDiv.innerHTML = `
-      <span>对话 ${id.replace("tab", "")}</span>
-      <span class="tab-del" data-id="${id}">×</span>
-    `;
-    // 切换对话
-    tabDiv.addEventListener("click", (e) => {
-      if (e.target.classList.contains("tab-del")) return; // 点击删除按钮不切换
-      tabData.active = id;
-      saveTabs();
-      renderChat();
-      renderTabs();
-    });
-    tabsEl.appendChild(tabDiv);
-  });
-  // 绑定删除按钮事件
-  document.querySelectorAll(".tab-del").forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation(); // 阻止冒泡，不触发切换
-      const delId = btn.dataset.id;
-      const tabIds = Object.keys(tabData.list);
-      // 最少保留1个对话
-      if (tabIds.length <= 1) {
-        alert("至少保留1个对话，无法删除！");
-        return;
-      }
-      if (confirm(`确定删除「对话 ${delId.replace("tab", "")}」吗？删除后记录将永久消失！`)) {
-        // 删除该对话
-        delete tabData.list[delId];
-        // 若删除的是当前激活的对话，切换到第一个
-        if (delId === tabData.active) {
-          tabData.active = Object.keys(tabData.list)[0];
-        }
-        saveTabs();
-        renderChat();
-        renderTabs();
-      }
-    });
-  });
-}
-
-// 复制文字功能
-function copyText(text) {
-  if (!text) return alert("暂无内容可复制");
-  navigator.clipboard.writeText(text).then(() => {
-    alert("复制成功！");
-  }).catch(err => {
-    alert("复制失败，请手动复制！");
-    console.error("复制错误：", err);
-  });
-}
-
-// 渲染聊天记录
-function renderChat() {
-  const currentMsgs = tabData.list[tabData.active] || [];
-  chat.innerHTML = currentMsgs.map((m, i) => `
-    <div class="message-box p-3 rounded-xl ${m.role==='user'?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-      <button class="copy-btn" onclick="copyText(\`${(m.content||'').replace(/`/g, '\\`')}\`)">复制</button>
-      ${(m.content||'').replace(/\n/g, '<br>')}
+<body>
+    <div class="chat-container" id="chat-container"></div>
+    
+    <div class="input-container">
+        <input type="text" id="user-input" placeholder="请输入内容...">
+        <button id="send-btn">发送</button>
     </div>
-  `).join("");
-  // 渲染后滚动到底部（首次加载/切换对话）
-  chat.scrollTop = chat.scrollHeight;
-}
 
-// 输入框自动高度：1→2→3行
-function autoHeight() {
-  input.style.height = "auto";
-  const scrollH = input.scrollHeight;
-  input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
-}
-input.addEventListener("input", autoHeight);
-// 初始化输入框高度
-autoHeight();
+    <!-- 长按菜单 -->
+    <div class="context-menu" id="context-menu">
+        <button id="regenerate-btn">重新生成</button>
+        <button id="copy-btn">复制</button>
+    </div>
 
-// 新建对话
-addTab.onclick = () => {
-  // 生成新的对话ID
-  const tabIds = Object.keys(tabData.list);
-  const newId = `tab${tabIds.length + 1}`;
-  tabData.list[newId] = [];
-  tabData.active = newId;
-  saveTabs();
-  renderChat();
-  renderTabs();
-  input.focus(); // 新建后聚焦输入框
-};
+    <!-- 回到底部按钮 -->
+    <button class="to-bottom-btn" id="to-bottom-btn">↓</button>
 
-// 清空当前对话记录
-resetBtn.onclick = () => {
-  if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
-  tabData.list[tabData.active] = [];
-  saveTabs();
-  renderChat();
-};
+    <script>
+        // 全局变量
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const contextMenu = document.getElementById('context-menu');
+        const regenerateBtn = document.getElementById('regenerate-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const toBottomBtn = document.getElementById('to-bottom-btn');
+        
+        // 当前长按的消息元素
+        let currentMessage = null;
+        // 流式输出相关
+        let currentAssistantMessage = null;
+        let isStreaming = false;
 
-// 发送消息（流式输出，自由滚动）
-async function sendMessage() {
-  const text = input.value.trim();
-  if (!text) {
-    input.focus();
-    return;
-  }
-  if (!apiKey) {
-    keyPanel.classList.remove("hidden");
-    return;
-  }
+        // 初始化
+        init();
 
-  // 添加用户消息到当前对话
-  const currentMsgs = tabData.list[tabData.active] || [];
-  currentMsgs.push({ role: "user", content: text });
-  tabData.list[tabData.active] = currentMsgs;
-  saveTabs();
-  renderChat();
-  // 清空输入框并重置高度
-  input.value = "";
-  autoHeight();
+        function init() {
+            // 发送消息
+            sendBtn.addEventListener('click', sendMessage);
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') sendMessage();
+            });
 
-  // 判断是否在底部，仅在底部时自动跟随
-  const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-  // 创建AI回复容器
-  const aiMsgDiv = document.createElement("div");
-  aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-  aiMsgDiv.innerHTML = '<button class="copy-btn" onclick="copyText(\'\')">复制</button>';
-  chat.appendChild(aiMsgDiv);
-  // 首次定位到底部
-  if (isAtBottom) chat.scrollTop = chat.scrollHeight;
+            // 长按事件处理
+            let pressTimer = null;
+            document.addEventListener('touchstart', handleLongPressStart); // 移动端
+            document.addEventListener('mousedown', handleLongPressStart); // 桌面端
+            
+            // 取消长按
+            document.addEventListener('touchend', clearLongPressTimer);
+            document.addEventListener('mouseup', clearLongPressTimer);
+            document.addEventListener('mouseleave', clearLongPressTimer);
+            document.addEventListener('click', hideContextMenu);
 
-  let fullContent = "";
-  try {
-    // 调用DeepSeek流式API
-    const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache"
-      },
-      body: JSON.stringify({
-        model: "deepseek-chat",
-        messages: currentMsgs,
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      })
-    });
+            // 长按菜单按钮事件
+            regenerateBtn.addEventListener('click', handleRegenerate);
+            copyBtn.addEventListener('click', handleCopy);
 
-    if (!res.ok) throw new Error("API请求失败，请检查Key是否有效或网络状况");
+            // 回到底部按钮
+            toBottomBtn.addEventListener('click', scrollToBottom);
+            window.addEventListener('scroll', toggleToBottomBtn);
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    // 流式读取返回数据
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n").filter(line => line.trim() !== "");
-      
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const dataStr = line.slice(6);
-        if (dataStr === "[DONE]") break; // 流式结束
-        try {
-          const data = JSON.parse(dataStr);
-          const content = data.choices[0].delta.content || "";
-          fullContent += content;
-          // 更新AI回复内容和复制按钮
-          aiMsgDiv.innerHTML = `
-            <button class="copy-btn" onclick="copyText(\`${fullContent.replace(/`/g, '\\`')}\`)">复制</button>
-            ${fullContent.replace(/\n/g, '<br>')}
-          `;
-          // 仅在用户未滚动时，自动跟随到底部
-          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-          if (currentIsAtBottom) {
-            chat.scrollTop = chat.scrollHeight;
-          }
-        } catch (e) {
-          continue; // 忽略解析错误，继续读取
+            // 初始滚动到底部
+            scrollToBottom();
         }
-      }
-    }
 
-    // 流式结束，保存AI回复到本地
-    currentMsgs.push({ role: "assistant", content: fullContent });
-    tabData.list[tabData.active] = currentMsgs;
-    saveTabs();
-    renderChat();
+        // 长按开始
+        function handleLongPressStart(e) {
+            const target = e.target.closest('.user-message');
+            if (!target) return;
+            
+            e.preventDefault();
+            clearLongPressTimer();
+            
+            pressTimer = setTimeout(() => {
+                currentMessage = target;
+                showContextMenu(e);
+            }, 500); // 500ms 判定为长按
+        }
 
-  } catch (e) {
-    aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
-    console.error("发送消息错误：", e);
-  }
-}
+        // 清除长按计时器
+        function clearLongPressTimer() {
+            if (pressTimer) {
+                clearTimeout(pressTimer);
+                pressTimer = null;
+            }
+        }
 
-// 绑定发送事件
-sendBtn.onclick = sendMessage;
-// 回车发送，Shift+回车换行
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    if (e.shiftKey) return; // Shift+回车，正常换行
-    e.preventDefault(); // 阻止默认回车换行
-    sendMessage();
-  }
-});
+        // 显示长按菜单
+        function showContextMenu(e) {
+            const menu = contextMenu;
+            menu.style.display = 'block';
+            
+            // 定位菜单
+            const x = e.clientX || (e.touches && e.touches[0].clientX);
+            const y = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            menu.style.left = `${x}px`;
+            menu.style.top = `${y}px`;
 
-// 初始化渲染
-renderTabs();
-renderChat();
-</script>
+            // 防止菜单超出视口
+            const rect = menu.getBoundingClientRect();
+            if (rect.right > window.innerWidth) {
+                menu.style.left = `${window.innerWidth - rect.width - 10}px`;
+            }
+            if (rect.bottom > window.innerHeight) {
+                menu.style.top = `${window.innerHeight - rect.height - 10}px`;
+            }
+        }
+
+        // 隐藏长按菜单
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+            currentMessage = null;
+        }
+
+        // 重新生成
+        function handleRegenerate() {
+            hideContextMenu();
+            if (!currentMessage) return;
+            
+            // 获取用户输入内容
+            const userText = currentMessage.textContent.trim();
+            // 找到对应的助手回复并标记为重新生成
+            const nextSibling = currentMessage.nextElementSibling;
+            if (nextSibling && nextSibling.classList.contains('assistant-message')) {
+                nextSibling.innerHTML = '<span class="loading"></span>重新生成中...';
+            }
+            
+            // 重新发送请求
+            sendMessage(userText, true);
+        }
+
+        // 复制
+        function handleCopy() {
+            hideContextMenu();
+            if (!currentMessage) return;
+            
+            // 复制用户输入内容
+            const text = currentMessage.textContent.trim();
+            navigator.clipboard.writeText(text).then(() => {
+                // 简单的复制成功提示
+                alert('复制成功');
+            }).catch(err => {
+                console.error('复制失败:', err);
+                alert('复制失败，请手动复制');
+            });
+        }
+
+        // 发送消息
+        function sendMessage(predefinedText = '', isRegenerate = false) {
+            const text = predefinedText || userInput.value.trim();
+            if (!text) return;
+
+            // 禁用发送按钮
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="loading"></span>发送中...';
+
+            // 如果不是重新生成，添加用户消息
+            if (!isRegenerate) {
+                const userMsg = createMessageElement(text, 'user-message');
+                chatContainer.appendChild(userMsg);
+                userInput.value = '';
+                scrollToBottom();
+            }
+
+            // 模拟流式输出（实际项目中替换为真实接口请求）
+            simulateStreamingResponse(text, isRegenerate);
+        }
+
+        // 创建消息元素
+        function createMessageElement(text, className) {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            div.textContent = text;
+            return div;
+        }
+
+        // 模拟流式输出（含失败处理）
+        function simulateStreamingResponse(inputText, isRegenerate) {
+            isStreaming = true;
+            let responseText = '';
+            const words = [
+                '这是', '流式', '输出', '的', '示例', '内容', '，', 
+                '即使', '中途', '失败', '也', '不会', '清空', '已', '输出', '的', '内容', '。'
+            ];
+            
+            // 如果是重新生成，找到并复用原有助手消息元素
+            if (isRegenerate) {
+                const userMsg = currentMessage;
+                currentAssistantMessage = userMsg.nextElementSibling;
+                if (!currentAssistantMessage || !currentAssistantMessage.classList.contains('assistant-message')) {
+                    currentAssistantMessage = createMessageElement('', 'assistant-message');
+                    userMsg.after(currentAssistantMessage);
+                }
+            } else {
+                // 新建助手消息元素
+                currentAssistantMessage = createMessageElement('', 'assistant-message');
+                chatContainer.appendChild(currentAssistantMessage);
+            }
+
+            let index = 0;
+            const interval = setInterval(() => {
+                if (index < words.length) {
+                    // 模拟随机失败（第10个词后有30%概率失败）
+                    if (index === 10 && Math.random() < 0.3) {
+                        clearInterval(interval);
+                        currentAssistantMessage.textContent += ' [加载失败]';
+                        isStreaming = false;
+                        // 恢复发送按钮
+                        sendBtn.disabled = false;
+                        sendBtn.textContent = '发送';
+                        return;
+                    }
+                    
+                    responseText += words[index];
+                    currentAssistantMessage.textContent = responseText;
+                    scrollToBottom();
+                    index++;
+                } else {
+                    clearInterval(interval);
+                    isStreaming = false;
+                    // 恢复发送按钮
+                    sendBtn.disabled = false;
+                    sendBtn.textContent = '发送';
+                }
+            }, 200);
+        }
+
+        // 滚动到底部
+        function scrollToBottom() {
+            window.scrollTo({
+                top: document.body.scrollHeight,
+                behavior: 'smooth'
+            });
+            toggleToBottomBtn();
+        }
+
+        // 切换回到底部按钮显示状态
+        function toggleToBottomBtn() {
+            const scrollTop = window.scrollY;
+            const scrollHeight = document.body.scrollHeight - window.innerHeight;
+            
+            if (scrollTop < scrollHeight - 100) {
+                toBottomBtn.classList.add('visible');
+            } else {
+                toBottomBtn.classList.remove('visible');
+            }
+        }
+    </script>
 </body>
 </html>
