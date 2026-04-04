@@ -1,419 +1,233 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>智能聊天助手</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-
-        body {
-            background-color: #f5f5f7;
-            padding-bottom: 80px;
-        }
-
-        .chat-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px 15px;
-        }
-
-        .message {
-            margin-bottom: 16px;
-            padding: 12px 16px;
-            border-radius: 12px;
-            line-height: 1.5;
-            max-width: 75%;
-            word-wrap: break-word;
-        }
-
-        .user-message {
-            background-color: #007aff;
-            color: white;
-            margin-left: auto;
-        }
-
-        .assistant-message {
-            background-color: white;
-            color: #1d1d1f;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-            margin-right: auto;
-        }
-
-        .input-area {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            padding: 10px 15px;
-            background-color: white;
-            box-shadow: 0 -1px 5px rgba(0,0,0,0.05);
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        #user-input {
-            flex: 1;
-            padding: 12px 16px;
-            border: 1px solid #e5e5e7;
-            border-radius: 24px;
-            outline: none;
-            font-size: 16px;
-            resize: none;
-            height: 48px;
-            max-height: 120px;
-        }
-
-        #send-btn {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #send-btn:disabled {
-            background-color: #999;
-            cursor: not-allowed;
-        }
-
-        /* 长按菜单样式 */
-        .context-menu {
-            position: absolute;
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            z-index: 1000;
-            display: none;
-            min-width: 120px;
-        }
-
-        .context-menu button {
-            padding: 8px 16px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            width: 100%;
-            text-align: left;
-            font-size: 14px;
-        }
-
-        .context-menu button:hover {
-            background-color: #f5f5f7;
-        }
-
-        /* 回到底部按钮样式 */
-        .to-bottom-btn {
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .to-bottom-btn.visible {
-            display: flex;
-        }
-
-        /* 加载中样式 */
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #007aff;
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s linear infinite;
-            margin-right: 8px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <!-- iOS 核心适配：视口、缩放、点击延迟 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <title>DeepSeek Chat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* iOS 暗夜背景专属优化 */
+    body {
+      background-color: #000000; /* iOS 纯黑暗夜底 */
+      color: #f5f5f7; /* iOS 系统级文字色 */
+      -webkit-font-smoothing: antialiased; /* iOS 文字抗锯齿 */
+      -moz-osx-font-smoothing: grayscale;
+    }
+    /* 解决 iOS 点击元素高亮 */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      tap-highlight-color: transparent;
+    }
+    /* iOS 滚动优化 */
+    #chat {
+      -webkit-overflow-scrolling: touch; /* 弹性滚动 */
+      scroll-behavior: smooth;
+    }
+    /* 适配 iOS 底部安全区 */
+    .safe-area-bottom {
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    /* 多行输入框样式优化 */
+    #input {
+      caret-color: #007aff; /* iOS 蓝色光标 */
+      border-radius: 12px !important; /* iOS 圆角风格 */
+      resize: none; /* 禁用默认缩放 */
+      line-height: 1.5; /* 行高优化 */
+      overflow-y: auto; /* 超出滚动 */
+      -webkit-overflow-scrolling: touch; /* iOS 弹性滚动 */
+    }
+    /* 输入框滚动条美化（iOS风格） */
+    #input::-webkit-scrollbar {
+      width: 4px;
+    }
+    #input::-webkit-scrollbar-track {
+      background: #1f1f1f;
+      border-radius: 2px;
+    }
+    #input::-webkit-scrollbar-thumb {
+      background: #555;
+      border-radius: 2px;
+    }
+  </style>
 </head>
-<body>
-    <div class="chat-container" id="chat-container"></div>
+<body class="max-w-full mx-0 p-0 safe-area-bottom">
+  <!-- 顶部栏（iOS 风格） -->
+  <div class="fixed top-0 left-0 right-0 bg-black/80 backdrop-blur-md z-10 px-4 py-3 flex justify-between items-center border-b border-gray-800">
+    <h1 class="text-lg font-medium text-white">DeepSeek 对话</h1>
+    <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">重置对话</button>
+  </div>
 
-    <div class="input-area">
-        <textarea id="user-input" placeholder="请输入你的问题..."></textarea>
-        <button id="send-btn">发送</button>
+  <!-- 聊天区域（适配 iOS 滚动） -->
+  <div id="chat" class="pt-16 pb-28 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
+
+  <!-- 输入区域（iOS 底部固定 + 适配安全区） -->
+  <div class="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-md px-4 py-3 border-t border-gray-800 safe-area-bottom">
+    <div class="flex gap-2 items-end">
+      <!-- 改为textarea实现多行输入 -->
+      <textarea 
+        id="input" 
+        autocomplete="off" 
+        class="flex-1 p-3 bg-gray-800 border border-gray-700 rounded-lg text-base min-h-[72px] max-h-[144px]" 
+        placeholder="输入消息...（回车发送，Shift+回车换行）"
+        spellcheck="false"
+        rows="3"
+      ></textarea>
+      <button id="sendBtn" class="bg-[#007aff] px-5 py-3 rounded-lg text-white font-medium h-[48px] flex items-center">发送</button>
     </div>
+  </div>
 
-    <!-- 长按菜单 -->
-    <div class="context-menu" id="context-menu">
-        <button id="regenerate-btn">重新生成</button>
-        <button id="copy-btn">复制</button>
+  <!-- API Key 弹窗（iOS 风格） -->
+  <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-20 hidden">
+    <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-96 border border-gray-800">
+      <h3 class="mb-4 text-lg font-medium text-white">输入 DeepSeek API Key</h3>
+      <input 
+        id="apiKeyInput" 
+        class="w-full p-3 mb-4 bg-gray-800 rounded-lg border border-gray-700 text-white"
+        placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      >
+      <button id="saveKey" class="w-full bg-[#007aff] px-4 py-3 rounded-lg text-white font-medium">保存</button>
     </div>
+  </div>
 
-    <!-- 快速回到底部按钮 -->
-    <button class="to-bottom-btn" id="to-bottom-btn">↓</button>
+  <script>
+    let apiKey = localStorage.getItem("dsApiKey");
+    let messages = JSON.parse(localStorage.getItem("dsMessages")) || [];
 
-    <script>
-        // 核心变量
-        const chatContainer = document.getElementById('chat-container');
-        const userInput = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-btn');
-        const contextMenu = document.getElementById('context-menu');
-        const regenerateBtn = document.getElementById('regenerate-btn');
-        const copyBtn = document.getElementById('copy-btn');
-        const toBottomBtn = document.getElementById('to-bottom-btn');
-        
-        let currentLongPressMsg = null; // 当前长按的用户消息
-        let pressTimer = null; // 长按计时器
-        let isStreaming = false; // 是否正在流式输出
+    const chatDiv = document.getElementById("chat");
+    const input = document.getElementById("input");
+    const sendBtn = document.getElementById("sendBtn");
+    const keyPanel = document.getElementById("keyPanel");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    const saveKey = document.getElementById("saveKey");
+    const resetBtn = document.getElementById("resetBtn");
 
-        // 初始化事件
-        function init() {
-            // 发送按钮点击事件
-            sendBtn.addEventListener('click', sendMessage);
-            // 回车发送（兼容换行）
-            userInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-            // 输入框高度自适应
-            userInput.addEventListener('input', autoResizeInput);
+    // 初始化：显示Key弹窗（如果未设置）
+    if (!apiKey) keyPanel.classList.remove("hidden");
 
-            // 长按事件（PC+移动端）
-            document.addEventListener('touchstart', handleLongPressStart);
-            document.addEventListener('mousedown', handleLongPressStart);
-            document.addEventListener('touchend', clearLongPressTimer);
-            document.addEventListener('mouseup', clearLongPressTimer);
-            document.addEventListener('mouseleave', clearLongPressTimer);
-            // 点击空白处隐藏菜单
-            document.addEventListener('click', (e) => {
-                if (!contextMenu.contains(e.target)) {
-                    hideContextMenu();
-                }
-            });
+    // 保存Key（iOS 点击优化）
+    saveKey.addEventListener("click", () => {
+      apiKey = apiKeyInput.value.trim();
+      if (!apiKey) return alert("请输入有效的 API Key");
+      localStorage.setItem("dsApiKey", apiKey);
+      keyPanel.classList.add("hidden");
+      apiKeyInput.value = "";
+    });
 
-            // 长按菜单按钮事件
-            regenerateBtn.addEventListener('click', handleRegenerate);
-            copyBtn.addEventListener('click', handleCopy);
+    // 重置对话
+    resetBtn.addEventListener("click", () => {
+      if (confirm("确定清空所有对话记录吗？")) {
+        messages = [];
+        localStorage.removeItem("dsMessages");
+        chatDiv.innerHTML = "";
+      }
+    });
 
-            // 回到底部按钮事件
-            toBottomBtn.addEventListener('click', scrollToBottom);
-            window.addEventListener('scroll', toggleToBottomBtn);
+    // 渲染聊天记录（iOS 样式适配）
+    function renderChat() {
+      chatDiv.innerHTML = messages.map(m => `
+        <div class="p-4 rounded-2xl ${m.role === 'user' ? 'bg-[#007aff] ml-auto' : 'bg-gray-800 mr-auto'} max-w-[85%] text-white">
+          ${m.content.replace(/\n/g, '<br>')}
+        </div>
+      `).join("");
+      // iOS 滚动到底部（平滑）
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+    }
+
+    // 发送消息（iOS 兼容）
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text || !apiKey) return;
+
+      // 添加用户消息
+      messages.push({ role: "user", content: text });
+      renderChat();
+      input.value = "";
+      // 重置输入框高度
+      input.style.height = "";
+
+      // 显示加载中
+      const loading = document.createElement("div");
+      loading.className = "p-4 rounded-2xl bg-gray-800 mr-auto max-w-[85%]";
+      loading.innerHTML = '<div class="flex gap-2"><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.2s"></div><div class="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style="animation-delay: 0.4s"></div></div>';
+      chatDiv.appendChild(loading);
+      chatDiv.scrollTop = chatDiv.scrollHeight;
+
+      try {
+        // 调用 DeepSeek API
+        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: "deepseek-chat",
+            messages: messages,
+            temperature: 0.85,
+            stream: false,
+            max_tokens: 4096
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || "请求失败，请检查Key或余额");
+
+        // 移除加载动画，添加AI回复
+        loading.remove();
+        messages.push({ role: "assistant", content: data.choices[0].message.content });
+        localStorage.setItem("dsMessages", JSON.stringify(messages));
+        renderChat();
+      } catch (err) {
+        loading.innerHTML = `<span class="text-red-400">❌ 错误：${err.message}</span>`;
+        console.error("请求错误：", err);
+      }
+    }
+
+    // 自动调整输入框高度（最大3行）
+    function autoResizeInput() {
+      // 重置高度以获取准确的scrollHeight
+      input.style.height = "auto";
+      // 设置高度为scrollHeight，但不超过最大高度
+      const maxHeight = parseInt(getComputedStyle(input).maxHeight);
+      const scrollHeight = input.scrollHeight;
+      input.style.height = Math.min(scrollHeight, maxHeight) + "px";
+    }
+
+    // 绑定事件（iOS 兼容）
+    sendBtn.addEventListener("click", sendMessage);
+    
+    // 键盘事件：回车发送，Shift+回车换行
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        if (e.shiftKey) {
+          // Shift+回车：换行
+          return;
+        } else {
+          // 回车：发送消息
+          e.preventDefault();
+          sendMessage();
         }
+      }
+    });
 
-        // 输入框高度自适应
-        function autoResizeInput() {
-            userInput.style.height = '48px';
-            userInput.style.height = `${Math.min(userInput.scrollHeight, 120)}px`;
-        }
+    // 输入时自动调整高度
+    input.addEventListener("input", autoResizeInput);
+    // 初始化高度
+    autoResizeInput();
 
-        // 发送消息
-        function sendMessage() {
-            const text = userInput.value.trim();
-            if (!text || isStreaming) return;
+    // iOS 软键盘适配：点击输入框自动滚动
+    input.addEventListener("focus", () => {
+      setTimeout(() => {
+        chatDiv.scrollTop = chatDiv.scrollHeight;
+      }, 300);
+    });
 
-            // 清空输入框
-            userInput.value = '';
-            userInput.style.height = '48px';
-
-            // 添加用户消息到页面
-            const userMsgElement = createMessageElement(text, 'user-message');
-            chatContainer.appendChild(userMsgElement);
-
-            // 添加助手消息容器
-            const assistantMsgElement = createMessageElement('', 'assistant-message');
-            chatContainer.appendChild(assistantMsgElement);
-
-            // 滚动到底部
-            scrollToBottom();
-
-            // 模拟流式输出（实际项目替换为真实接口请求）
-            simulateStreamResponse(text, assistantMsgElement);
-        }
-
-        // 创建消息元素
-        function createMessageElement(content, className) {
-            const div = document.createElement('div');
-            div.className = `message ${className}`;
-            div.textContent = content;
-            return div;
-        }
-
-        // 模拟流式输出（替换为真实DS/接口请求）
-        function simulateStreamResponse(inputText, assistantMsgElement) {
-            isStreaming = true;
-            sendBtn.disabled = true;
-            
-            // 模拟加载中
-            assistantMsgElement.innerHTML = '<span class="loading"></span> 思考中...';
-
-            // 模拟流式输出（实际项目替换为 fetch/websocket 流式请求）
-            const responses = [
-                '你问的是："', inputText, '"，',
-                '我来为你解答。',
-                '这是一个模拟的流式回复，',
-                '实际项目中可以替换为真实的接口返回。'
-            ];
-            let index = 0;
-            
-            const interval = setInterval(() => {
-                if (index >= responses.length) {
-                    clearInterval(interval);
-                    isStreaming = false;
-                    sendBtn.disabled = false;
-                    return;
-                }
-
-                // 模拟请求失败场景（注释掉下面3行则为正常输出）
-                // if (index === 2) {
-                //     handleStreamError(interval, assistantMsgElement);
-                //     return;
-                // }
-
-                // 追加内容（流式核心：不清空，只追加）
-                assistantMsgElement.innerHTML = assistantMsgElement.innerHTML.replace('<span class="loading"></span> 思考中...', '') + responses[index];
-                index++;
-                
-                // 滚动到底部
-                scrollToBottom();
-            }, 300);
-        }
-
-        // 流式输出失败处理（核心：不清空已有内容）
-        function handleStreamError(interval, assistantMsgElement) {
-            clearInterval(interval);
-            // 保留已有内容，仅追加失败提示
-            assistantMsgElement.innerHTML += ' <span style="color: #ff3b30;">[加载失败，可长按重新生成]</span>';
-            isStreaming = false;
-            sendBtn.disabled = false;
-        }
-
-        // 长按开始处理
-        function handleLongPressStart(e) {
-            const target = e.target.closest('.user-message');
-            if (!target) return;
-            
-            e.preventDefault();
-            clearLongPressTimer();
-            
-            // 500ms判定为长按
-            pressTimer = setTimeout(() => {
-                currentLongPressMsg = target;
-                // 定位菜单
-                const x = e.clientX || (e.touches && e.touches[0].clientX);
-                const y = e.clientY || (e.touches && e.touches[0].clientY);
-                contextMenu.style.left = `${x}px`;
-                contextMenu.style.top = `${y}px`;
-                
-                // 防止菜单超出视口
-                const rect = contextMenu.getBoundingClientRect();
-                if (rect.right > window.innerWidth) {
-                    contextMenu.style.left = `${window.innerWidth - rect.width - 10}px`;
-                }
-                if (rect.bottom > window.innerHeight) {
-                    contextMenu.style.top = `${window.innerHeight - rect.height - 10}px`;
-                }
-                
-                // 显示菜单
-                contextMenu.style.display = 'block';
-            }, 500);
-        }
-
-        // 清除长按计时器
-        function clearLongPressTimer() {
-            if (pressTimer) {
-                clearTimeout(pressTimer);
-                pressTimer = null;
-            }
-        }
-
-        // 隐藏长按菜单
-        function hideContextMenu() {
-            contextMenu.style.display = 'none';
-            currentLongPressMsg = null;
-        }
-
-        // 重新生成逻辑
-        function handleRegenerate() {
-            hideContextMenu();
-            if (!currentLongPressMsg) return;
-            
-            // 获取长按的用户输入内容
-            const userInputText = currentLongPressMsg.textContent.trim();
-            // 找到对应的助手回复
-            const assistantMsg = currentLongPressMsg.nextElementSibling;
-            
-            // 清空原有回复并标记重新生成
-            if (assistantMsg && assistantMsg.classList.contains('assistant-message')) {
-                assistantMsg.innerHTML = '<span class="loading"></span> 重新生成中...';
-            } else {
-                // 如果没有助手回复，创建新的
-                const newAssistantMsg = createMessageElement('<span class="loading"></span> 重新生成中...', 'assistant-message');
-                currentLongPressMsg.after(newAssistantMsg);
-                scrollToBottom();
-                simulateStreamResponse(userInputText, newAssistantMsg);
-                return;
-            }
-            
-            // 重新触发流式输出
-            simulateStreamResponse(userInputText, assistantMsg);
-            scrollToBottom();
-        }
-
-        // 复制逻辑
-        function handleCopy() {
-            hideContextMenu();
-            if (!currentLongPressMsg) return;
-            
-            // 复制用户输入内容
-            const copyText = currentLongPressMsg.textContent.trim();
-            navigator.clipboard.writeText(copyText).then(() => {
-                // 简单提示（可替换为toast）
-                alert('复制成功');
-            }).catch(err => {
-                console.error('复制失败:', err);
-                alert('复制失败，请手动复制');
-            });
-        }
-
-        // 滚动到底部
-        function scrollToBottom() {
-            window.scrollTo({
-                top: document.body.scrollHeight,
-                behavior: 'smooth'
-            });
-            toggleToBottomBtn();
-        }
-
-        // 切换回到底部按钮显示
-        function toggleToBottomBtn() {
-            const scrollTop = window.scrollY;
-            const scrollHeight = document.body.scrollHeight - window.innerHeight;
-            toBottomBtn.classList.toggle('visible', scrollTop < scrollHeight - 100);
-        }
-
-        // 页面加载完成初始化
-        window.addEventListener('DOMContentLoaded', init);
-    </script>
+    // 初始化渲染
+    renderChat();
+  </script>
 </body>
 </html>
