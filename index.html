@@ -9,11 +9,11 @@
   <title>DeepSeek Chat</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; }
+    body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; }
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
-    
+
     #input {
       min-height:44px;
       max-height:88px;
@@ -24,7 +24,7 @@
       padding:10px 12px;
       border: 1px solid #4b5563;
     }
-    
+
     #sendBtn {
       background: #3b82f6;
       color: white;
@@ -41,136 +41,76 @@
       justify-content: center;
       flex-shrink: 0;
     }
-    
-    #sendBtn:hover {
-      background: #2563eb;
-    }
-    
-    #sendBtn:active {
-      background: #1d4ed8;
-      transform: scale(0.98);
-    }
-    
-    #sendBtn:disabled {
-      background: #6b7280;
-      cursor: not-allowed;
-    }
-    
-    .copy-btn {
+
+    #sendBtn:hover { background: #2563eb; }
+    #sendBtn:active { background: #1d4ed8; transform: scale(0.98); }
+    #sendBtn:disabled { background: #6b7280; cursor: not-allowed; }
+
+    .copy-btn, .regenerate-btn, .edit-btn {
       position: absolute;
       bottom:6px;
-      right:6px;
       background:rgba(51,51,51,0.6);
       color:#fff;
       border:none;
       border-radius:6px;
       padding:2px 5px;
-      font-size:10px;
-      opacity:0.7;
+      font-size:12px;
+      opacity:0.5;
       z-index:5;
       cursor: pointer;
-    }
-    
-    .copy-btn:hover { opacity:1; }
-    
-    /* 重新生成按钮样式 */
-    .regenerate-btn {
-      position: absolute;
-      bottom:6px;
-      right:40px; /* 放在复制按钮左边 */
-      background:rgba(51,51,51,0.6);
-      color:#fff;
-      border:none;
-      border-radius:6px;
-      padding:2px 5px;
-      font-size:10px;
-      opacity:0.5;
-      z-index:5;
+      transition: all 0.2s ease;
+      height:24px;
       width:24px;
-      height:20px;
       display:flex;
       align-items:center;
       justify-content:center;
-      cursor:pointer;
-      transition: all 0.2s ease;
     }
     
-    .regenerate-btn:hover {
-      opacity:0.8;
-      background:rgba(51,51,51,0.8);
+    .copy-btn { right:6px; }
+    .regenerate-btn { right:36px; }
+    .edit-btn { right:36px; }
+
+    .copy-btn:hover, .regenerate-btn:hover, .edit-btn:hover {
+      opacity:1; background:rgba(51,51,51,0.8);
     }
-    
-    .regenerate-btn:active {
-      transform: scale(0.95);
-    }
-    
-    /* 编辑按钮样式 */
-    .edit-btn {
-      position: absolute;
-      bottom:6px;
-      right:40px; /* 放在重新生成按钮左边 */
-      background:rgba(51,51,51,0.6);
-      color:#fff;
-      border:none;
-      border-radius:6px;
-      padding:2px 5px;
-      font-size:10px;
-      opacity:0.5;
-      z-index:5;
-      width:24px;
-      height:20px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .edit-btn:hover {
-      opacity:0.8;
-      background:rgba(51,51,51,0.8);
-    }
-    
-    .edit-btn:active {
-      transform: scale(0.95);
-    }
-    
+    .copy-btn:active, .regenerate-btn:active, .edit-btn:active { transform: scale(0.95); }
+
     .message-box {
       position:relative;
-      padding-bottom:20px !important;
+      padding-bottom:24px !important;
+      min-width: 60px;
     }
-    
+
+    /* 侧边栏对话列表项样式 */
     .tab {
-      padding:6px 10px;
+      padding:10px 12px;
       border-radius:8px;
       cursor:pointer;
       font-size:14px;
       display:flex;
       align-items:center;
-      gap:6px;
-      background:#333;
+      justify-content: space-between;
+      background:transparent;
+      color: #d1d5db;
+      transition: background 0.2s;
     }
-    
-    .tab.active { background:#007aff; color:white; }
-    .tab:hover { background:#444; }
-    .active.tab:hover { background:#007aff; }
-    
+
+    .tab.active { background:#3b82f6; color:white; }
+    .tab:hover:not(.active) { background:#374151; }
+
     .tab-del {
-      font-size:12px;
-      width:16px;
-      height:16px;
+      font-size:14px;
+      width:20px;
+      height:20px;
       display:flex;
       align-items:center;
       justify-content:center;
       border-radius:50%;
-      background:rgba(255,255,255,0.2);
+      background:rgba(255,255,255,0.1);
       cursor:pointer;
     }
-    
-    .tab-del:hover {
-      background:rgba(255,255,255,0.4);
-    }
-    
+    .tab-del:hover { background:rgba(255,255,255,0.3); }
+
     /* 编辑面板样式 */
     .edit-panel {
       position: fixed;
@@ -181,11 +121,7 @@
       justify-content: center;
       z-index: 100;
     }
-    
-    .edit-panel.hidden {
-      display: none;
-    }
-    
+    .edit-panel.hidden { display: none; }
     .edit-container {
       background: #1a1a1a;
       border-radius: 12px;
@@ -194,7 +130,6 @@
       max-width: 500px;
       border: 1px solid #333;
     }
-    
     .edit-textarea {
       width: 100%;
       min-height: 150px;
@@ -208,13 +143,7 @@
       resize: vertical;
       margin-bottom: 15px;
     }
-    
-    .edit-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-    }
-    
+    .edit-buttons { display: flex; gap: 10px; justify-content: flex-end; }
     .edit-btn-save, .edit-btn-cancel {
       padding: 8px 16px;
       border-radius: 6px;
@@ -222,17 +151,9 @@
       cursor: pointer;
       font-size: 14px;
     }
-    
-    .edit-btn-save {
-      background: #007aff;
-      color: white;
-    }
-    
-    .edit-btn-cancel {
-      background: #444;
-      color: white;
-    }
-    
+    .edit-btn-save { background: #007aff; color: white; }
+    .edit-btn-cancel { background: #444; color: white; }
+
     /* 快速到底部按钮 */
     .scroll-to-bottom-btn {
       position: fixed;
@@ -253,22 +174,12 @@
       transition: opacity 0.3s ease, transform 0.2s ease;
       z-index: 15;
       backdrop-filter: blur(4px);
+      pointer-events: none;
     }
-    
-    .scroll-to-bottom-btn.visible {
-      opacity: 0.7;
-    }
-    
-    .scroll-to-bottom-btn:hover {
-      opacity: 0.9;
-      background: rgba(51, 51, 51, 0.9);
-      transform: scale(1.05);
-    }
-    
-    .scroll-to-bottom-btn:active {
-      transform: scale(0.95);
-    }
-    
+    .scroll-to-bottom-btn.visible { opacity: 0.7; pointer-events: auto; }
+    .scroll-to-bottom-btn:hover { opacity: 0.9; background: rgba(51, 51, 51, 0.9); transform: scale(1.05); }
+    .scroll-to-bottom-btn:active { transform: scale(0.95); }
+
     /* 底部输入区域 */
     .input-container {
       position: fixed;
@@ -281,7 +192,6 @@
       border-top: 1px solid rgba(75, 85, 99, 0.5);
       z-index: 10;
     }
-    
     .input-wrapper {
       display: flex;
       gap: 12px;
@@ -292,21 +202,37 @@
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
-<div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-2 border-b border-gray-800">
-  <div class="flex items-center gap-2 overflow-x-auto pb-1" style="scrollbar-width: none;-ms-overflow-style: none;">
-    <div id="tabs" class="flex gap-2"></div>
-    <button id="addTab" class="text-white bg-gray-700 px-3 py-1 rounded-lg flex-shrink-0">+ 新建对话</button>
+
+<!-- 顶部导航栏 -->
+<div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
+  <button id="menuBtn" class="text-white text-2xl px-2 leading-none focus:outline-none">☰</button>
+  <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">DeepSeek Chat</h1>
+  <div class="w-8"></div> <!-- 占位，保持标题居中 -->
+</div>
+
+<!-- 侧边栏遮罩 -->
+<div id="sidebarOverlay" class="fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+
+<!-- 侧边栏 -->
+<div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
+  <div class="p-4 border-b border-gray-800 mt-12">
+    <button id="addTab" class="w-full text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
+      <span class="text-xl leading-none">+</span> 新建对话
+    </button>
   </div>
-  <div class="flex justify-between items-center px-2 mt-1">
-    <h1 class="text-lg font-medium text-white m-0">DeepSeek Chat</h1>
-    <div class="flex gap-2">
-      <button id="editKeyBtn" class="bg-purple-600/90 px-3 py-1 rounded-lg text-sm">修改API Key</button>
-      <button id="resetBtn" class="bg-red-600/90 px-3 py-1 rounded-lg text-sm">清空当前对话</button>
-    </div>
+  
+  <!-- 对话列表 -->
+  <div id="tabs" class="flex-1 overflow-y-auto p-2 space-y-1" style="scrollbar-width: none;-ms-overflow-style: none;"></div>
+  
+  <!-- 底部操作区 -->
+  <div class="p-4 border-t border-gray-800 space-y-3">
+    <button id="editKeyBtn" class="w-full bg-purple-600/90 hover:bg-purple-600 py-2 rounded-lg text-sm text-white transition-colors">修改API Key</button>
+    <button id="resetBtn" class="w-full bg-red-600/90 hover:bg-red-600 py-2 rounded-lg text-sm text-white transition-colors">清空当前对话</button>
   </div>
 </div>
 
-<div id="chat" class="pt-24 pb-32 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
+<!-- 聊天区域 -->
+<div id="chat" class="pt-16 pb-32 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
 <!-- 快速到底部按钮 -->
 <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="快速到底部">↓</button>
@@ -341,7 +267,6 @@
 </div>
 
 <script>
-// 确保DOM完全加载后再执行
 document.addEventListener('DOMContentLoaded', function() {
   let apiKey = localStorage.getItem("dsApiKey");
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
@@ -366,6 +291,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const editCancelBtn = document.getElementById("editCancelBtn");
   const editSaveBtn = document.getElementById("editSaveBtn");
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
+  
+  // 侧边栏相关元素
+  const menuBtn = document.getElementById("menuBtn");
+  const sidebar = document.getElementById("sidebar");
+  const sidebarOverlay = document.getElementById("sidebarOverlay");
+
+  // 复制图标SVG
+  const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
 
   // 初始化API Key
   if (!apiKey) {
@@ -373,6 +306,50 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     apiKeyInput.value = apiKey;
   }
+
+  // --- 侧边栏逻辑 ---
+  let isSidebarOpen = false;
+
+  function openSidebar() {
+    isSidebarOpen = true;
+    sidebar.classList.remove("-translate-x-full");
+    sidebarOverlay.classList.remove("opacity-0", "pointer-events-none");
+    sidebarOverlay.classList.add("opacity-100", "pointer-events-auto");
+  }
+
+  function closeSidebar() {
+    isSidebarOpen = false;
+    sidebar.classList.add("-translate-x-full");
+    sidebarOverlay.classList.remove("opacity-100", "pointer-events-auto");
+    sidebarOverlay.classList.add("opacity-0", "pointer-events-none");
+  }
+
+  menuBtn.addEventListener("click", openSidebar);
+  sidebarOverlay.addEventListener("click", closeSidebar);
+
+  // 手势滑动支持
+  let touchStartX = 0;
+  let touchEndX = 0;
+  
+  document.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+  }, { passive: true });
+
+  function handleSwipe() {
+    const swipeDist = touchEndX - touchStartX;
+    if (swipeDist > 50 && touchStartX < 30 && !isSidebarOpen) {
+      openSidebar();
+    }
+    if (swipeDist < -50 && isSidebarOpen) {
+      closeSidebar();
+    }
+  }
+  // --- 侧边栏逻辑结束 ---
 
   // 保存API Key
   saveKey.onclick = () => {
@@ -392,6 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 修改API Key
   editKeyBtn.onclick = () => {
+    closeSidebar();
     apiKeyInput.value = apiKey || "";
     keyPanel.classList.remove("hidden");
     apiKeyInput.focus();
@@ -402,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
     localStorage.setItem("dsTabs", JSON.stringify(tabData));
   }
 
-  // 渲染标签
+  // 渲染标签 (侧边栏内)
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
@@ -411,13 +389,13 @@ document.addEventListener('DOMContentLoaded', function() {
       tabData.active = "tab1";
       saveTabs();
     }
-    
+
     Object.keys(tabData.list).forEach(id => {
       const tabDiv = document.createElement("div");
-      tabDiv.className = `tab ${id === tabData.active ? "active" : ""} flex-shrink-0`;
+      tabDiv.className = `tab ${id === tabData.active ? "active" : ""}`;
       tabDiv.innerHTML = `
-        <span>对话 ${id.replace("tab", "")}</span>
-        <span class="tab-del" data-id="${id}">×</span>
+        <span class="truncate pr-2">对话 ${id.replace("tab", "")}</span>
+        <span class="tab-del flex-shrink-0" data-id="${id}">×</span>
       `;
       tabDiv.addEventListener("click", (e) => {
         if (e.target.classList.contains("tab-del")) return;
@@ -425,10 +403,11 @@ document.addEventListener('DOMContentLoaded', function() {
         saveTabs();
         renderChat();
         renderTabs();
+        if(window.innerWidth < 768) closeSidebar(); 
       });
       tabsEl.appendChild(tabDiv);
     });
-    
+
     document.querySelectorAll(".tab-del").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -455,7 +434,8 @@ document.addEventListener('DOMContentLoaded', function() {
   function copyText(text) {
     if (!text) return alert("暂无内容可复制");
     navigator.clipboard.writeText(text).then(() => {
-      alert("复制成功！");
+      // 可选：添加轻量级提示代替alert
+      console.log("复制成功");
     }).catch(err => {
       alert("复制失败，请手动复制！");
       console.error("复制错误：", err);
@@ -466,19 +446,14 @@ document.addEventListener('DOMContentLoaded', function() {
   function getLastUserMessageIndex() {
     const currentMsgs = tabData.list[tabData.active] || [];
     for (let i = currentMsgs.length - 1; i >= 0; i--) {
-      if (currentMsgs[i].role === 'user') {
-        return i;
-      }
+      if (currentMsgs[i].role === 'user') return i;
     }
     return -1;
   }
 
   // 滚动到底部函数
   function scrollToBottom() {
-    chat.scrollTo({
-      top: chat.scrollHeight,
-      behavior: 'smooth'
-    });
+    chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
   }
 
   // 检查滚动按钮显示状态
@@ -494,14 +469,10 @@ document.addEventListener('DOMContentLoaded', function() {
   // 编辑用户消息
   function editUserMessage(messageIndex) {
     const currentMsgs = tabData.list[tabData.active] || [];
-    if (messageIndex < 0 || messageIndex >= currentMsgs.length) {
-      return alert("消息索引无效。");
-    }
+    if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
     const targetMessage = currentMsgs[messageIndex];
-    if (targetMessage.role !== 'user') {
-      return alert("只能编辑用户消息。");
-    }
-    
+    if (targetMessage.role !== 'user') return alert("只能编辑用户消息。");
+
     editingMessageIndex = messageIndex;
     editTextarea.value = targetMessage.content;
     editPanel.classList.remove("hidden");
@@ -510,33 +481,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 重新生成回复
   function regenerateResponse(messageIndex) {
-    if (!apiKey) {
-      keyPanel.classList.remove("hidden");
-      return;
-    }
-    
+    if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
     const currentMsgs = tabData.list[tabData.active] || [];
-    if (currentMsgs.length === 0) {
-      return alert("当前对话为空，无法重新生成。");
-    }
-    
-    // 检查要重新生成的消息是否是AI回复
-    if (messageIndex < 0 || messageIndex >= currentMsgs.length) {
-      return alert("消息索引无效。");
-    }
-    
+    if (currentMsgs.length === 0) return alert("当前对话为空，无法重新生成。");
+    if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
     const targetMessage = currentMsgs[messageIndex];
-    if (targetMessage.role !== 'assistant') {
-      return alert("只能重新生成AI的回复。");
-    }
-    
-    // 移除该AI回复及其之后的所有消息
+    if (targetMessage.role !== 'assistant') return alert("只能重新生成AI的回复。");
+
     const messagesToKeep = currentMsgs.slice(0, messageIndex);
     tabData.list[tabData.active] = messagesToKeep;
     saveTabs();
     renderChat();
-    
-    // 重新发起请求
     fetchAndStreamResponse();
   }
 
@@ -544,30 +499,26 @@ document.addEventListener('DOMContentLoaded', function() {
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active] || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
-    
+
     chat.innerHTML = currentMsgs.map((m, i) => {
       const isUser = m.role === 'user';
       const isAssistant = m.role === 'assistant';
       const isLastAssistant = isAssistant && i === currentMsgs.length - 1;
       const isLastUserMessage = i === lastUserMsgIndex;
-      
+
       let buttons = '';
       if (isAssistant) {
-        // AI回复：复制按钮
-        buttons += `<button class="copy-btn" data-index="${i}" data-role="assistant">复制</button>`;
-        // 只有最后一条AI回复显示重新生成按钮
+        buttons += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
         if (isLastAssistant) {
-          buttons += `<button class="regenerate-btn" data-index="${i}" data-role="assistant">↻</button>`;
+          buttons += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
         }
       } else if (isUser) {
-        // 用户消息：复制按钮
-        buttons += `<button class="copy-btn" data-index="${i}" data-role="user">复制</button>`;
-        // 最后一条用户消息始终显示编辑按钮（无论AI是否已回复）
+        buttons += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
         if (isLastUserMessage) {
-          buttons += `<button class="edit-btn" data-index="${i}" data-role="user">✎</button>`;
+          buttons += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
         }
       }
-      
+
       return `
         <div class="message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
           ${buttons}
@@ -575,32 +526,34 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
       `;
     }).join("");
-    
-    // 重新绑定按钮事件
+
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
         const currentMsgs = tabData.list[tabData.active] || [];
-        if (currentMsgs[index]) {
-          copyText(currentMsgs[index].content);
-        }
+        if (currentMsgs[index]) copyText(currentMsgs[index].content);
+        
+        // 复制成功的小动画反馈
+        const originalHtml = this.innerHTML;
+        this.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
       });
     });
-    
+
     document.querySelectorAll('.edit-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
         editUserMessage(index);
       });
     });
-    
+
     document.querySelectorAll('.regenerate-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
         regenerateResponse(index);
       });
     });
-    
+
     chat.scrollTop = chat.scrollHeight;
     setTimeout(checkScrollButton, 50);
   }
@@ -608,41 +561,26 @@ document.addEventListener('DOMContentLoaded', function() {
   // 保存编辑并重新生成
   async function saveEditAndRegenerate() {
     const newContent = editTextarea.value.trim();
-    if (!newContent) {
-      return alert("消息内容不能为空！");
-    }
-    
+    if (!newContent) return alert("消息内容不能为空！");
     const currentMsgs = tabData.list[tabData.active] || [];
-    if (editingMessageIndex < 0 || editingMessageIndex >= currentMsgs.length) {
-      return alert("编辑的消息不存在。");
-    }
-    
-    // 更新消息内容
+    if (editingMessageIndex < 0 || editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
+
     currentMsgs[editingMessageIndex].content = newContent;
-    
-    // 移除该消息之后的所有消息（包括AI回复）
     const messagesToKeep = currentMsgs.slice(0, editingMessageIndex + 1);
     tabData.list[tabData.active] = messagesToKeep;
     saveTabs();
-    
-    // 关闭编辑面板
+
     editPanel.classList.add("hidden");
     editingMessageIndex = -1;
-    
-    // 重新渲染聊天界面
     renderChat();
-    
-    // 重新发起AI请求
     await fetchAndStreamResponse();
   }
 
-  // 取消编辑
   function cancelEdit() {
     editPanel.classList.add("hidden");
     editingMessageIndex = -1;
   }
 
-  // 自动调整输入框高度
   function autoHeight() {
     input.style.height = "auto";
     const scrollH = input.scrollHeight;
@@ -652,23 +590,22 @@ document.addEventListener('DOMContentLoaded', function() {
   input.addEventListener("input", autoHeight);
   autoHeight();
 
-  // 新建标签
+  // 新建对话
   addTab.onclick = () => {
     const tabIds = Object.keys(tabData.list);
     let maxIdNum = 0;
     tabIds.forEach(id => {
       const num = parseInt(id.replace('tab', ''), 10);
-      if (num > maxIdNum) {
-        maxIdNum = num;
-      }
+      if (num > maxIdNum) maxIdNum = num;
     });
-    
+
     const newId = `tab${maxIdNum + 1}`;
     tabData.list[newId] = [];
     tabData.active = newId;
     saveTabs();
     renderChat();
     renderTabs();
+    closeSidebar();
     input.focus();
   };
 
@@ -678,6 +615,7 @@ document.addEventListener('DOMContentLoaded', function() {
     tabData.list[tabData.active] = [];
     saveTabs();
     renderChat();
+    closeSidebar();
   };
 
   // API请求和流式处理
@@ -686,17 +624,17 @@ document.addEventListener('DOMContentLoaded', function() {
     isSending = true;
     sendBtn.disabled = true;
     sendBtn.textContent = "发送中...";
-    
+
     const currentMsgs = tabData.list[tabData.active] || [];
     const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-    
+
     const aiMsgDiv = document.createElement("div");
     aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-    aiMsgDiv.innerHTML = '<button class="copy-btn">复制</button>';
+    aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button>`;
     chat.appendChild(aiMsgDiv);
-    
+
     if (isAtBottom) chat.scrollTop = chat.scrollHeight;
-    
+
     let fullContent = "";
     try {
       const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
@@ -715,56 +653,52 @@ document.addEventListener('DOMContentLoaded', function() {
           max_tokens: 4096
         })
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(`API请求失败：${errorData.error?.message || '请检查API Key是否有效'}`);
       }
-      
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        
+
         const chunk = decoder.decode(value);
         const lines = chunk.split("\n").filter(line => line.trim() !== "");
-        
+
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const dataStr = line.slice(6);
           if (dataStr === "[DONE]") break;
-          
+
           try {
             const data = JSON.parse(dataStr);
             const content = data.choices[0].delta.content || "";
             fullContent += content;
-            
+
             aiMsgDiv.innerHTML = `
-              <button class="copy-btn">复制</button>
+              <button class="copy-btn" title="复制">${copyIconSvg}</button>
               ${fullContent.replace(/\n/g, '<br>')}
             `;
-            
+
             const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-            if (currentIsAtBottom) {
-              chat.scrollTop = chat.scrollHeight;
-            }
-          } catch (e) {
-            continue;
-          }
+            if (currentIsAtBottom) chat.scrollTop = chat.scrollHeight;
+          } catch (e) { continue; }
         }
       }
-      
+
       currentMsgs.push({ role: "assistant", content: fullContent });
       tabData.list[tabData.active] = currentMsgs;
       saveTabs();
       renderChat();
-      
+
     } catch (e) {
       aiMsgDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
       console.error("发送消息错误：", e);
-      
+
       if (e.message.includes("API请求失败") || e.message.includes("Key")) {
         setTimeout(() => {
           if (confirm("检测到API Key可能无效，是否立即修改？")) {
@@ -782,32 +716,21 @@ document.addEventListener('DOMContentLoaded', function() {
   // 发送消息
   async function sendMessage() {
     const text = input.value.trim();
-    if (!text) {
-      input.focus();
-      return;
-    }
-    
-    if (!apiKey) {
-      keyPanel.classList.remove("hidden");
-      return;
-    }
-    
+    if (!text) { input.focus(); return; }
+    if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
+
     const currentMsgs = tabData.list[tabData.active] || [];
     currentMsgs.push({ role: "user", content: text });
     tabData.list[tabData.active] = currentMsgs;
     saveTabs();
     renderChat();
-    
+
     input.value = "";
     autoHeight();
-    
     await fetchAndStreamResponse();
   }
 
-  // 绑定发送按钮事件
   sendBtn.addEventListener("click", sendMessage);
-  
-  // 绑定输入框回车事件
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -815,38 +738,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // 绑定编辑相关事件
   editCancelBtn.addEventListener("click", cancelEdit);
   editSaveBtn.addEventListener("click", saveEditAndRegenerate);
-
-  // 点击编辑面板背景关闭
-  editPanel.addEventListener("click", function(e) {
-    if (e.target === editPanel) {
-      cancelEdit();
-    }
-  });
-
-  // 按ESC键关闭编辑面板
+  editPanel.addEventListener("click", function(e) { if (e.target === editPanel) cancelEdit(); });
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && !editPanel.classList.contains('hidden')) {
-      cancelEdit();
-    }
+    if (e.key === 'Escape' && !editPanel.classList.contains('hidden')) cancelEdit();
   });
 
-  // 绑定滚动到底部按钮事件
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
-
-  // 监听滚动事件，显示/隐藏按钮
   chat.addEventListener("scroll", checkScrollButton);
 
-  // 初始化渲染
   renderTabs();
   renderChat();
-
-  // 初始化时检查是否需要显示按钮
   setTimeout(checkScrollButton, 100);
-  
-  // 让输入框自动获取焦点
   input.focus();
 });
 </script>
