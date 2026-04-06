@@ -199,6 +199,13 @@
       max-width: 800px;
       margin: 0 auto;
     }
+    
+    /* 隐藏数字输入框的上下箭头 */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
@@ -226,6 +233,21 @@
   
   <!-- 底部操作区 -->
   <div class="p-4 border-t border-gray-800 space-y-3">
+    <!-- 记忆条数设置 -->
+    <div>
+      <div class="text-xs text-gray-400 mb-1 ml-1">当前对话记忆条数</div>
+      <div class="flex gap-2">
+        <select id="memorySelect" class="bg-gray-800 text-white border border-gray-700 rounded-lg p-2 flex-1 text-sm outline-none focus:border-blue-500">
+          <option value="0">全部 (默认)</option>
+          <option value="200">200条</option>
+          <option value="100">100条</option>
+          <option value="50">50条</option>
+          <option value="custom">自定义</option>
+        </select>
+        <input type="number" id="memoryCustom" class="bg-gray-800 text-white border border-gray-700 rounded-lg p-2 w-16 text-sm outline-none focus:border-blue-500 hidden text-center" placeholder="条数" min="1">
+      </div>
+    </div>
+    
     <button id="editKeyBtn" class="w-full bg-purple-600/90 hover:bg-purple-600 py-2 rounded-lg text-sm text-white transition-colors">修改API Key</button>
     <button id="resetBtn" class="w-full bg-red-600/90 hover:bg-red-600 py-2 rounded-lg text-sm text-white transition-colors">清空当前对话</button>
   </div>
@@ -269,10 +291,23 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   let apiKey = localStorage.getItem("dsApiKey");
+  
+  // 初始化并兼容旧数据结构
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
     const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
-    return { active: "tab1", list: { tab1: oldMsgs } };
+    return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
+
+  // 数据结构迁移：将旧的纯数组结构升级为包含 memoryLimit 的对象结构
+  Object.keys(tabData.list).forEach(id => {
+    if (Array.isArray(tabData.list[id])) {
+      tabData.list[id] = {
+        messages: tabData.list[id],
+        memoryLimit: "0"
+      };
+    }
+  });
+
   let editingMessageIndex = -1;
   let isSending = false;
 
@@ -297,6 +332,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const sidebar = document.getElementById("sidebar");
   const sidebarOverlay = document.getElementById("sidebarOverlay");
 
+  // 记忆条数相关元素
+  const memorySelect = document.getElementById("memorySelect");
+  const memoryCustom = document.getElementById("memoryCustom");
+
   // 复制图标SVG
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
 
@@ -306,6 +345,51 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     apiKeyInput.value = apiKey;
   }
+
+  // 保存标签数据
+  function saveTabs() {
+    localStorage.setItem("dsTabs", JSON.stringify(tabData));
+  }
+
+  // --- 记忆条数逻辑 (针对当前对话) ---
+  function updateMemoryUI() {
+    const currentTab = tabData.list[tabData.active];
+    if (!currentTab) return;
+    
+    const limit = currentTab.memoryLimit || "0";
+    if (["0", "200", "100", "50"].includes(limit)) {
+      memorySelect.value = limit;
+      memoryCustom.classList.add("hidden");
+    } else {
+      memorySelect.value = "custom";
+      memoryCustom.value = limit;
+      memoryCustom.classList.remove("hidden");
+    }
+  }
+
+  memorySelect.addEventListener("change", (e) => {
+    const val = e.target.value;
+    if (val === "custom") {
+      memoryCustom.classList.remove("hidden");
+      memoryCustom.focus();
+      const customVal = parseInt(memoryCustom.value) || 10;
+      memoryCustom.value = customVal;
+      tabData.list[tabData.active].memoryLimit = customVal.toString();
+    } else {
+      memoryCustom.classList.add("hidden");
+      tabData.list[tabData.active].memoryLimit = val;
+    }
+    saveTabs();
+  });
+
+  memoryCustom.addEventListener("input", (e) => {
+    const val = parseInt(e.target.value);
+    if (!isNaN(val) && val >= 0) {
+      tabData.list[tabData.active].memoryLimit = val.toString();
+      saveTabs();
+    }
+  });
+  // --- 记忆条数逻辑结束 ---
 
   // --- 侧边栏逻辑 ---
   let isSidebarOpen = false;
@@ -327,7 +411,6 @@ document.addEventListener('DOMContentLoaded', function() {
   menuBtn.addEventListener("click", openSidebar);
   sidebarOverlay.addEventListener("click", closeSidebar);
 
-  // 手势滑动支持
   let touchStartX = 0;
   let touchEndX = 0;
   
@@ -375,17 +458,12 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
-  // 保存标签数据
-  function saveTabs() {
-    localStorage.setItem("dsTabs", JSON.stringify(tabData));
-  }
-
   // 渲染标签 (侧边栏内)
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
     if (tabIds.length === 0) {
-      tabData.list = { tab1: [] };
+      tabData.list = { tab1: { messages: [], memoryLimit: "0" } };
       tabData.active = "tab1";
       saveTabs();
     }
@@ -401,6 +479,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains("tab-del")) return;
         tabData.active = id;
         saveTabs();
+        updateMemoryUI(); // 切换对话时更新记忆条数UI
         renderChat();
         renderTabs();
         if(window.innerWidth < 768) closeSidebar(); 
@@ -423,6 +502,7 @@ document.addEventListener('DOMContentLoaded', function() {
             tabData.active = Object.keys(tabData.list)[0];
           }
           saveTabs();
+          updateMemoryUI();
           renderChat();
           renderTabs();
         }
@@ -434,7 +514,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function copyText(text) {
     if (!text) return alert("暂无内容可复制");
     navigator.clipboard.writeText(text).then(() => {
-      // 可选：添加轻量级提示代替alert
       console.log("复制成功");
     }).catch(err => {
       alert("复制失败，请手动复制！");
@@ -444,7 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 获取最后一条用户消息的索引
   function getLastUserMessageIndex() {
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     for (let i = currentMsgs.length - 1; i >= 0; i--) {
       if (currentMsgs[i].role === 'user') return i;
     }
@@ -468,7 +547,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 编辑用户消息
   function editUserMessage(messageIndex) {
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
     const targetMessage = currentMsgs[messageIndex];
     if (targetMessage.role !== 'user') return alert("只能编辑用户消息。");
@@ -482,14 +561,14 @@ document.addEventListener('DOMContentLoaded', function() {
   // 重新生成回复
   function regenerateResponse(messageIndex) {
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     if (currentMsgs.length === 0) return alert("当前对话为空，无法重新生成。");
     if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
     const targetMessage = currentMsgs[messageIndex];
     if (targetMessage.role !== 'assistant') return alert("只能重新生成AI的回复。");
 
     const messagesToKeep = currentMsgs.slice(0, messageIndex);
-    tabData.list[tabData.active] = messagesToKeep;
+    tabData.list[tabData.active].messages = messagesToKeep;
     saveTabs();
     renderChat();
     fetchAndStreamResponse();
@@ -497,7 +576,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 渲染聊天记录
   function renderChat() {
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
 
     chat.innerHTML = currentMsgs.map((m, i) => {
@@ -530,7 +609,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
-        const currentMsgs = tabData.list[tabData.active] || [];
+        const currentMsgs = tabData.list[tabData.active].messages || [];
         if (currentMsgs[index]) copyText(currentMsgs[index].content);
         
         // 复制成功的小动画反馈
@@ -562,12 +641,12 @@ document.addEventListener('DOMContentLoaded', function() {
   async function saveEditAndRegenerate() {
     const newContent = editTextarea.value.trim();
     if (!newContent) return alert("消息内容不能为空！");
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     if (editingMessageIndex < 0 || editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
 
     currentMsgs[editingMessageIndex].content = newContent;
     const messagesToKeep = currentMsgs.slice(0, editingMessageIndex + 1);
-    tabData.list[tabData.active] = messagesToKeep;
+    tabData.list[tabData.active].messages = messagesToKeep;
     saveTabs();
 
     editPanel.classList.add("hidden");
@@ -600,9 +679,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const newId = `tab${maxIdNum + 1}`;
-    tabData.list[newId] = [];
+    // 新建对话时，默认记忆条数为 "0"
+    tabData.list[newId] = { messages: [], memoryLimit: "0" };
     tabData.active = newId;
     saveTabs();
+    updateMemoryUI();
     renderChat();
     renderTabs();
     closeSidebar();
@@ -612,7 +693,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // 清空当前对话
   resetBtn.onclick = () => {
     if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
-    tabData.list[tabData.active] = [];
+    tabData.list[tabData.active].messages = [];
     saveTabs();
     renderChat();
     closeSidebar();
@@ -625,7 +706,16 @@ document.addEventListener('DOMContentLoaded', function() {
     sendBtn.disabled = true;
     sendBtn.textContent = "发送中...";
 
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
+    
+    // --- 核心逻辑：根据当前对话的设置截取发送给API的上下文 ---
+    let limit = parseInt(tabData.list[tabData.active].memoryLimit || "0");
+    let payloadMsgs = currentMsgs;
+    if (limit > 0 && currentMsgs.length > limit) {
+      payloadMsgs = currentMsgs.slice(-limit);
+    }
+    // ------------------------------------------------
+
     const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
 
     const aiMsgDiv = document.createElement("div");
@@ -647,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         body: JSON.stringify({
           model: "deepseek-chat",
-          messages: currentMsgs,
+          messages: payloadMsgs, // 使用截取后的 payloadMsgs
           stream: true,
           temperature: 0.7,
           max_tokens: 4096
@@ -690,8 +780,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
+      // 将完整的回复存入本地记录（不受截断影响）
       currentMsgs.push({ role: "assistant", content: fullContent });
-      tabData.list[tabData.active] = currentMsgs;
+      tabData.list[tabData.active].messages = currentMsgs;
       saveTabs();
       renderChat();
 
@@ -719,9 +810,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!text) { input.focus(); return; }
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
 
-    const currentMsgs = tabData.list[tabData.active] || [];
+    const currentMsgs = tabData.list[tabData.active].messages || [];
     currentMsgs.push({ role: "user", content: text });
-    tabData.list[tabData.active] = currentMsgs;
+    tabData.list[tabData.active].messages = currentMsgs;
     saveTabs();
     renderChat();
 
@@ -748,6 +839,8 @@ document.addEventListener('DOMContentLoaded', function() {
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
   chat.addEventListener("scroll", checkScrollButton);
 
+  // 初始加载
+  updateMemoryUI();
   renderTabs();
   renderChat();
   setTimeout(checkScrollButton, 100);
