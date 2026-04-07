@@ -333,6 +333,45 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // ==========================================
+  // 飞书打点统计逻辑 (无后端、保护隐私)
+  // ==========================================
+  
+  // 1. 获取或生成匿名用户ID
+  let dsUserId = localStorage.getItem('ds_user_id');
+  if (!dsUserId) {
+    // 生成类似 user_1a2b3c4d5e6f 的随机字符串
+    dsUserId = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem('ds_user_id', dsUserId);
+  }
+
+  // 2. 飞书 Webhook 打点函数
+  function trackEvent(eventType) {
+    const webhookUrl = 'https://bytedance.sg.larkoffice.com/base/automation/webhook/event/GnMPaByLZwehPShLu46lsgQQghd';
+    
+    fetch(webhookUrl, {
+      method: 'POST',
+      mode: 'no-cors', // 关键：解决纯前端跨域问题，静默发送不报错
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        event_type: eventType,
+        user_id: dsUserId
+      })
+    }).catch(err => {
+      // 即使网络错误也不影响用户正常使用
+      console.log('Tracking info:', err);
+    });
+  }
+
+  // 3. 页面加载完毕，自动上报一次“访问页面” (用于统计 DAU/UV)
+  trackEvent('访问页面');
+
+  // ==========================================
+  // 原有业务逻辑
+  // ==========================================
+
   let apiKey = localStorage.getItem("dsApiKey");
 
   // 初始化并兼容旧数据结构
@@ -341,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
 
-  // 数据结构迁移：将旧的纯数组结构升级为包含 memoryLimit 的对象结构
+  // 数据结构迁移
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
       tabData.list[id] = {
@@ -353,7 +392,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   let editingMessageIndex = -1;
   let isSending = false;
-  let abortController = null; // 用于中断请求
+  let abortController = null;
 
   const chat = document.getElementById("chat");
   const input = document.getElementById("input");
@@ -372,40 +411,31 @@ document.addEventListener('DOMContentLoaded', function() {
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
   const modelSelect = document.getElementById("modelSelect");
 
-  // 侧边栏相关元素
   const menuBtn = document.getElementById("menuBtn");
   const sidebar = document.getElementById("sidebar");
   const sidebarOverlay = document.getElementById("sidebarOverlay");
-
-  // 记忆条数相关元素
   const memorySelect = document.getElementById("memorySelect");
   const memoryCustom = document.getElementById("memoryCustom");
 
-  // 复制图标SVG
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-  // 删除图标SVG
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
 
-  // 初始化API Key
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
   } else {
     apiKeyInput.value = apiKey;
   }
 
-  // 初始化模型选择
   let savedModel = localStorage.getItem("dsModel") || "deepseek-chat";
   modelSelect.value = savedModel;
   modelSelect.addEventListener("change", (e) => {
     localStorage.setItem("dsModel", e.target.value);
   });
 
-  // 保存标签数据
   function saveTabs() {
     localStorage.setItem("dsTabs", JSON.stringify(tabData));
   }
 
-  // --- 记忆条数逻辑 (针对当前对话) ---
   function updateMemoryUI() {
     const currentTab = tabData.list[tabData.active];
     if (!currentTab) return;
@@ -444,7 +474,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // --- 侧边栏逻辑 ---
   let isSidebarOpen = false;
 
   function openSidebar() {
@@ -486,7 +515,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 保存API Key
   saveKey.onclick = () => {
     const newKey = apiKeyInput.value.trim();
     if (!newKey || !newKey.startsWith("sk-")) {
@@ -502,7 +530,6 @@ document.addEventListener('DOMContentLoaded', function() {
     alert("Key保存成功，可正常使用！");
   };
 
-  // 修改API Key
   editKeyBtn.onclick = () => {
     closeSidebar();
     apiKeyInput.value = apiKey || "";
@@ -510,7 +537,6 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
-  // 渲染标签 (侧边栏内)
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
@@ -531,7 +557,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.target.classList.contains("tab-del")) return;
         tabData.active = id;
         saveTabs();
-        updateMemoryUI(); // 切换对话时更新记忆条数UI
+        updateMemoryUI();
         renderChat();
         renderTabs();
         if(window.innerWidth < 768) closeSidebar();
@@ -562,7 +588,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 复制文本
   function copyText(text) {
     if (!text) return alert("暂无内容可复制");
     navigator.clipboard.writeText(text).then(() => {
@@ -573,7 +598,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // 获取最后一条用户消息的索引
   function getLastUserMessageIndex() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     for (let i = currentMsgs.length - 1; i >= 0; i--) {
@@ -582,12 +606,10 @@ document.addEventListener('DOMContentLoaded', function() {
     return -1;
   }
 
-  // 滚动到底部函数
   function scrollToBottom() {
     chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
   }
 
-  // 检查滚动按钮显示状态
   function checkScrollButton() {
     const distanceFromBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
     if (distanceFromBottom > 200) {
@@ -597,7 +619,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 编辑用户消息
   function editUserMessage(messageIndex) {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
@@ -610,7 +631,6 @@ document.addEventListener('DOMContentLoaded', function() {
     editTextarea.focus();
   }
 
-  // 重新生成回复
   function regenerateResponse(messageIndex) {
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -622,7 +642,6 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
-  // 渲染聊天记录
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
@@ -635,7 +654,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
       let buttons = '';
       
-      // 添加删除按钮（所有消息都支持）
       buttons += `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
 
       if (isAssistant) {
@@ -650,7 +668,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      // 历史版本控制 UI
       let versionHtml = '';
       if (isAssistant && m.history && m.history.length > 1) {
         const hIndex = m.historyIndex || 0;
@@ -674,7 +691,6 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
     }).join("");
 
-    // 绑定复制事件
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -687,7 +703,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // 绑定编辑事件
     document.querySelectorAll('.edit-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -695,7 +710,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // 绑定重新生成事件
     document.querySelectorAll('.regenerate-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -703,7 +717,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // 绑定删除事件
     document.querySelectorAll('.delete-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -715,7 +728,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // 绑定历史版本切换事件
     document.querySelectorAll('.prev-version-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         if (this.classList.contains('disabled')) return;
@@ -748,7 +760,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(checkScrollButton, 50);
   }
 
-  // 保存编辑并重新生成 (用户消息)
   async function saveEditAndRegenerate() {
     const newContent = editTextarea.value.trim();
     if (!newContent) return alert("消息内容不能为空！");
@@ -756,7 +767,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (editingMessageIndex < 0 || editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
 
     currentMsgs[editingMessageIndex].content = newContent;
-    // 用户编辑消息会截断后面的对话
     const messagesToKeep = currentMsgs.slice(0, editingMessageIndex + 1);
     tabData.list[tabData.active].messages = messagesToKeep;
     saveTabs();
@@ -781,7 +791,6 @@ document.addEventListener('DOMContentLoaded', function() {
   input.addEventListener("input", autoHeight);
   autoHeight();
 
-  // 新建对话
   addTab.onclick = () => {
     const tabIds = Object.keys(tabData.list);
     let maxIdNum = 0;
@@ -801,7 +810,6 @@ document.addEventListener('DOMContentLoaded', function() {
     input.focus();
   };
 
-  // 清空当前对话
   resetBtn.onclick = () => {
     if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
     tabData.list[tabData.active].messages = [];
@@ -810,7 +818,6 @@ document.addEventListener('DOMContentLoaded', function() {
     closeSidebar();
   };
 
-  // API请求和流式处理
   async function fetchAndStreamResponse(opts = {}) {
     isSending = true;
     sendBtn.textContent = "停止";
@@ -818,22 +825,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     abortController = new AbortController();
 
+    // 【新增】触发飞书打点：发送消息
+    trackEvent('发送消息');
+
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const isRegen = opts.regenerateIndex !== undefined;
     const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
-    const selectedModel = modelSelect.value; // 获取当前选中的模型
+    const selectedModel = modelSelect.value;
 
-    // --- 核心逻辑：根据当前对话的设置截取发送给API的上下文 ---
     let limit = parseInt(tabData.list[tabData.active].memoryLimit || "0");
     let payloadMsgs = isRegen ? currentMsgs.slice(0, targetIndex) : currentMsgs;
     
-    // 过滤掉自定义的 history 属性，避免污染 API 请求
     payloadMsgs = payloadMsgs.map(m => ({ role: m.role, content: m.content }));
 
     if (limit > 0 && payloadMsgs.length > limit) {
       payloadMsgs = payloadMsgs.slice(-limit);
     }
-    // ------------------------------------------------
 
     const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
     let aiMsgDiv;
@@ -871,7 +878,7 @@ document.addEventListener('DOMContentLoaded', function() {
           "Pragma": "no-cache"
         },
         body: JSON.stringify({
-          model: selectedModel, // 使用动态获取的模型
+          model: selectedModel,
           messages: payloadMsgs,
           stream: true,
           temperature: 0.7,
@@ -902,7 +909,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
           try {
             const data = JSON.parse(dataStr);
-            // 注意：deepseek-reasoner 可能会返回 reasoning_content，这里为了简单统一取 content
             const content = data.choices[0].delta.content || "";
             fullContent += content;
 
@@ -917,7 +923,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
 
-      // 正常完成时保存
       if (isRegen) {
         currentMsgs[targetIndex].content = fullContent;
         currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
@@ -935,7 +940,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        // 用户主动中断时，保存已生成的部分内容
         if (isRegen) {
           currentMsgs[targetIndex].content = fullContent;
           currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
@@ -982,7 +986,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // 发送消息
   async function sendMessage() {
     const text = input.value.trim();
     if (!text) { input.focus(); return; }
@@ -999,7 +1002,6 @@ document.addEventListener('DOMContentLoaded', function() {
     await fetchAndStreamResponse();
   }
 
-  // 发送按钮点击逻辑：如果正在发送则中断，否则发送消息
   sendBtn.addEventListener("click", () => {
     if (isSending) {
       if (abortController) abortController.abort();
@@ -1027,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', function() {
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
   chat.addEventListener("scroll", checkScrollButton);
 
-  // 初始加载
   updateMemoryUI();
   renderTabs();
   renderChat();
