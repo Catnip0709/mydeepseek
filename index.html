@@ -74,10 +74,11 @@
       justify-content:center;
     }
 
+    /* 调整按钮位置：复制在右，删除在中，编辑/重新生成在左 */
     .copy-btn { right:6px; }
-    .regenerate-btn { right:36px; }
-    .edit-btn { right:36px; }
-    .delete-btn { right:66px; }
+    .delete-btn { right:36px; }
+    .regenerate-btn { right:66px; }
+    .edit-btn { right:66px; }
 
     .copy-btn:hover, .regenerate-btn:hover, .edit-btn:hover, .delete-btn:hover {
       opacity:1; background:rgba(51,51,51,0.8);
@@ -240,6 +241,24 @@
       -webkit-appearance: none;
       margin: 0;
     }
+    
+    /* 思考过程样式 */
+    details.reasoning-details > summary {
+      list-style: none;
+    }
+    details.reasoning-details > summary::-webkit-details-marker {
+      display: none;
+    }
+    details.reasoning-details > summary::before {
+      content: '▶';
+      display: inline-block;
+      margin-right: 6px;
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    details.reasoning-details[open] > summary::before {
+      transform: rotate(90deg);
+    }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
@@ -256,7 +275,8 @@
 
 <!-- 侧边栏 -->
 <div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
-  <div class="p-4 border-b border-gray-800 mt-4">
+  <div class="p-4 border-b border-gray-800 mt-4 space-y-3">
+    <button id="editKeyBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm text-white transition-colors">修改API Key</button>
     <button id="addTab" class="w-full text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
       <span class="text-xl leading-none">+</span> 新建对话
     </button>
@@ -266,10 +286,18 @@
   <div id="tabs" class="flex-1 overflow-y-auto p-2 space-y-1" style="scrollbar-width: none;-ms-overflow-style: none;"></div>
 
   <!-- 底部操作区 -->
-  <div class="p-4 border-t border-gray-800 space-y-3">
-    <!-- 模型选择设置 -->
-    <div>
-      <div class="text-xs text-gray-400 mb-1 ml-1">选择模型</div>
+  <div class="p-4 border-t border-gray-800 space-y-4">
+    <!-- 深度思考设置 -->
+    <div class="flex items-center justify-between">
+      <div class="text-sm text-gray-300 ml-1">深度思考 (R1)</div>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
+        <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+      </label>
+    </div>
+
+    <!-- 模型选择设置 (已隐藏，由深度思考开关控制) -->
+    <div class="hidden">
       <select id="modelSelect" class="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 text-sm outline-none focus:border-blue-500">
         <option value="deepseek-chat">DeepSeek-V3 (chat)</option>
         <option value="deepseek-reasoner">DeepSeek-R1 (reasoner)</option>
@@ -291,7 +319,6 @@
       </div>
     </div>
 
-    <button id="editKeyBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm text-white transition-colors">修改API Key</button>
     <button id="resetBtn" class="w-full bg-red-600/90 hover:bg-red-600 py-2 rounded-lg text-sm text-white transition-colors">清空当前对话</button>
   </div>
 </div>
@@ -336,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // ==========================================
   // 飞书打点统计逻辑 (无后端、保护隐私)
   // ==========================================
-  
+
   // 1. 获取或生成匿名用户ID
   let dsUserId = localStorage.getItem('ds_user_id');
   if (!dsUserId) {
@@ -348,7 +375,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // 2. 飞书 Webhook 打点函数
   function trackEvent(eventType) {
     const webhookUrl = 'https://bytedance.sg.larkoffice.com/base/automation/webhook/event/GnMPaByLZwehPShLu46lsgQQghd';
-    
+
     fetch(webhookUrl, {
       method: 'POST',
       mode: 'no-cors', // 关键：解决纯前端跨域问题，静默发送不报错
@@ -410,6 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const editSaveBtn = document.getElementById("editSaveBtn");
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
   const modelSelect = document.getElementById("modelSelect");
+  const deepThinkToggle = document.getElementById("deepThinkToggle");
 
   const menuBtn = document.getElementById("menuBtn");
   const sidebar = document.getElementById("sidebar");
@@ -426,10 +454,14 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.value = apiKey;
   }
 
-  let savedModel = localStorage.getItem("dsModel") || "deepseek-chat";
+  // 深度思考默认关闭
+  let savedModel = "deepseek-chat";
   modelSelect.value = savedModel;
-  modelSelect.addEventListener("change", (e) => {
-    localStorage.setItem("dsModel", e.target.value);
+  deepThinkToggle.checked = false;
+
+  deepThinkToggle.addEventListener("change", (e) => {
+    const newModel = e.target.checked ? "deepseek-reasoner" : "deepseek-chat";
+    modelSelect.value = newModel;
   });
 
   function saveTabs() {
@@ -653,7 +685,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const isLastUserMessage = i === lastUserMsgIndex;
 
       let buttons = '';
-      
+
+      // 按钮顺序：复制(右) -> 删除(中) -> 编辑/重试(左)
       buttons += `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
 
       if (isAssistant) {
@@ -682,10 +715,21 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
       }
 
+      let reasoningHtml = '';
+      if (isAssistant && m.reasoningContent) {
+        reasoningHtml = `
+          <details class="reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900" open>
+            <summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>
+            <div class="reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2">${(m.reasoningContent||'').replace(/\n/g, '<br>')}</div>
+          </details>
+        `;
+      }
+
       return `
         <div id="msg-${i}" class="message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
           ${versionHtml}
           ${buttons}
+          ${reasoningHtml}
           <div class="msg-content">${(m.content||'').replace(/\n/g, '<br>')}</div>
         </div>
       `;
@@ -822,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function() {
     isSending = true;
     sendBtn.textContent = "停止";
     sendBtn.classList.add("stop-mode");
-    
+
     abortController = new AbortController();
 
     // 【新增】触发飞书打点：发送消息
@@ -835,7 +879,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     let limit = parseInt(tabData.list[tabData.active].memoryLimit || "0");
     let payloadMsgs = isRegen ? currentMsgs.slice(0, targetIndex) : currentMsgs;
-    
+
     payloadMsgs = payloadMsgs.map(m => ({ role: m.role, content: m.content }));
 
     if (limit > 0 && payloadMsgs.length > limit) {
@@ -854,9 +898,12 @@ document.addEventListener('DOMContentLoaded', function() {
       currentMsgs[targetIndex].history.push("");
       currentMsgs[targetIndex].historyIndex = currentMsgs[targetIndex].history.length - 1;
       currentMsgs[targetIndex].content = "";
-      
+      currentMsgs[targetIndex].reasoningContent = "";
+
       const contentDiv = aiMsgDiv.querySelector('.msg-content');
       if (contentDiv) contentDiv.innerHTML = "";
+      const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
+      if (reasoningDetails) reasoningDetails.remove();
     } else {
       aiMsgDiv = document.createElement("div");
       aiMsgDiv.id = `msg-${targetIndex}`;
@@ -868,6 +915,10 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isAtBottom) chat.scrollTop = chat.scrollHeight;
 
     let fullContent = "";
+    let fullReasoningContent = "";
+    let hasReasoning = false;
+    let reasoningContentDiv = null;
+
     try {
       const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
         method: "POST",
@@ -909,12 +960,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
           try {
             const data = JSON.parse(dataStr);
-            const content = data.choices[0].delta.content || "";
-            fullContent += content;
+            const delta = data.choices[0].delta;
+            
+            if (delta.reasoning_content) {
+              if (!hasReasoning) {
+                hasReasoning = true;
+                const details = document.createElement('details');
+                details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
+                details.open = true;
+                details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
+                const msgContentDiv = aiMsgDiv.querySelector('.msg-content');
+                aiMsgDiv.insertBefore(details, msgContentDiv);
+                reasoningContentDiv = details.querySelector('.reasoning-content');
+              }
+              fullReasoningContent += delta.reasoning_content;
+              reasoningContentDiv.innerHTML = fullReasoningContent.replace(/\n/g, '<br>');
+            }
 
-            const contentDiv = aiMsgDiv.querySelector('.msg-content');
-            if (contentDiv) {
-              contentDiv.innerHTML = fullContent.replace(/\n/g, '<br>');
+            if (delta.content) {
+              fullContent += delta.content;
+              const contentDiv = aiMsgDiv.querySelector('.msg-content');
+              if (contentDiv) {
+                contentDiv.innerHTML = fullContent.replace(/\n/g, '<br>');
+              }
             }
 
             const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
@@ -925,11 +993,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
       if (isRegen) {
         currentMsgs[targetIndex].content = fullContent;
+        currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
         currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
       } else {
-        currentMsgs.push({ 
-          role: "assistant", 
+        currentMsgs.push({
+          role: "assistant",
           content: fullContent,
+          reasoningContent: fullReasoningContent,
           history: [fullContent],
           historyIndex: 0
         });
@@ -942,11 +1012,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (e.name === 'AbortError') {
         if (isRegen) {
           currentMsgs[targetIndex].content = fullContent;
+          currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
           currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
         } else {
-          currentMsgs.push({ 
-            role: "assistant", 
+          currentMsgs.push({
+            role: "assistant",
             content: fullContent,
+            reasoningContent: fullReasoningContent,
             history: [fullContent],
             historyIndex: 0
           });
@@ -960,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (contentDiv) {
           contentDiv.innerHTML = errorMsg;
         }
-        
+
         if (isRegen) {
           currentMsgs[targetIndex].content = errorMsg;
           currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = errorMsg;
