@@ -267,6 +267,15 @@
 
   <!-- 底部操作区 -->
   <div class="p-4 border-t border-gray-800 space-y-3">
+    <!-- 模型选择设置 -->
+    <div>
+      <div class="text-xs text-gray-400 mb-1 ml-1">选择模型</div>
+      <select id="modelSelect" class="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 text-sm outline-none focus:border-blue-500">
+        <option value="deepseek-chat">DeepSeek-V3 (chat)</option>
+        <option value="deepseek-reasoner">DeepSeek-R1 (reasoner)</option>
+      </select>
+    </div>
+
     <!-- 记忆条数设置 -->
     <div>
       <div class="text-xs text-gray-400 mb-1 ml-1">当前对话记忆条数</div>
@@ -361,6 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const editCancelBtn = document.getElementById("editCancelBtn");
   const editSaveBtn = document.getElementById("editSaveBtn");
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
+  const modelSelect = document.getElementById("modelSelect");
 
   // 侧边栏相关元素
   const menuBtn = document.getElementById("menuBtn");
@@ -382,6 +392,13 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     apiKeyInput.value = apiKey;
   }
+
+  // 初始化模型选择
+  let savedModel = localStorage.getItem("dsModel") || "deepseek-chat";
+  modelSelect.value = savedModel;
+  modelSelect.addEventListener("change", (e) => {
+    localStorage.setItem("dsModel", e.target.value);
+  });
 
   // 保存标签数据
   function saveTabs() {
@@ -804,6 +821,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const isRegen = opts.regenerateIndex !== undefined;
     const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
+    const selectedModel = modelSelect.value; // 获取当前选中的模型
 
     // --- 核心逻辑：根据当前对话的设置截取发送给API的上下文 ---
     let limit = parseInt(tabData.list[tabData.active].memoryLimit || "0");
@@ -853,7 +871,7 @@ document.addEventListener('DOMContentLoaded', function() {
           "Pragma": "no-cache"
         },
         body: JSON.stringify({
-          model: "deepseek-chat",
+          model: selectedModel, // 使用动态获取的模型
           messages: payloadMsgs,
           stream: true,
           temperature: 0.7,
@@ -884,6 +902,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
           try {
             const data = JSON.parse(dataStr);
+            // 注意：deepseek-reasoner 可能会返回 reasoning_content，这里为了简单统一取 content
             const content = data.choices[0].delta.content || "";
             fullContent += content;
 
