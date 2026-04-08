@@ -800,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (currentMsgs.length > 0 && isTokenLimitReached()) {
       chatHtml += `
         <div class="text-xs text-gray-500 text-center mt-6 mb-4 px-2">
-          当前对话框token已达到98%，即将达到上限。建议总结并开启新对话：<br>
+          当前对话框token已达到98%，即将达到上限。建议总结并开启新对话，或调整对话记忆条数：<br>
           <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
             <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约2000字）。</span>
             <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">
