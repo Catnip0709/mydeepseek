@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
-  <title>DeepSeek Chat</title>
+  <title>My DeepSeek</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; }
@@ -266,11 +266,19 @@
 <!-- 顶部导航栏 -->
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
   <button id="menuBtn" class="text-white text-2xl px-2 leading-none focus:outline-none">☰</button>
-  <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">DeepSeek Chat</h1>
-  <!-- 右上角低调的捐赠/支持按钮 -->
-  <button id="openDonateBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="支持与捐赠">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-  </button>
+  <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">My DeepSeek</h1>
+  
+  <!-- 右上角按钮组 -->
+  <div class="flex items-center gap-1">
+    <!-- 介绍/关于按钮 -->
+    <button id="openInfoBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="关于本站">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+    </button>
+    <!-- 捐赠/支持按钮 -->
+    <button id="openDonateBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="支持与捐赠">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+    </button>
+  </div>
 </div>
 
 <!-- 侧边栏遮罩 -->
@@ -349,20 +357,39 @@
   </div>
 </div>
 
+<!-- 关于/介绍弹窗 -->
+<div id="infoPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
+  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
+    <button id="closeInfoBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+    <div class="text-center mb-4">
+      <h3 class="text-white text-base font-medium mb-3">关于 MyDeepSeek</h3>
+      <p class="text-gray-300 text-sm leading-relaxed text-left">
+        MyDeepSeek站点提供安全、开放、私密、免费的DeepSeek网页客户端，所有充值均在DeepSeek官网完成。无任何第三方充值和广告。
+      </p>
+      <p class="text-gray-300 text-sm leading-relaxed text-left">
+        所有充值均在DeepSeek官网完成，无任何第三方充值和广告，无需注册登录。
+      </p>
+      <p class="text-gray-300 text-sm leading-relaxed text-left mt-2">
+        作为个人开发者，期待您的反馈和沟通。如有bug或需求反馈，欢迎加入小红书群聊沟通。
+      </p>
+    </div>
+    <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
+      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.png?raw=true" class="w-full h-full object-contain">
+    </div>
+  </div>
+</div>
+
 <!-- 捐赠/支持弹窗 -->
 <div id="donatePanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
     <button id="closeDonateBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
-    
     <div class="text-center mb-4">
-      <h3 class="text-white text-base font-medium mb-2">本站提供极简、私密、无第三方的DeepSeek网页客户端</h3>
-      <p class="text-gray-300 text-sm leading-relaxed">感谢使用本站，无任何强制要求，若您觉得好用，可自愿捐赠支持</p>
-      <p class="text-gray-300 text-sm leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
+      <h3 class="text-white text-base font-medium mb-2">极简、私密、无第三方的DeepSeek网页客户端</h3>
+      <p class="text-gray-300 text-left leading-relaxed">感谢使用本站，无任何强制要求，若您觉得好用，可自愿捐赠支持</p>
+      <p class="text-gray-300 text-left leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
     </div>
-
-    <!-- 预留的收款码图片位置 -->
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/money.png?raw=true" class="w-full h-full object-contain">
+      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
@@ -384,7 +411,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // ==========================================
   // 飞书打点统计逻辑 (无后端、保护隐私)
   // ==========================================
-
   let dsUserId = localStorage.getItem('ds_user_id');
   if (!dsUserId) {
     dsUserId = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -406,7 +432,6 @@ document.addEventListener('DOMContentLoaded', function() {
   // ==========================================
   // 原有业务逻辑
   // ==========================================
-
   let apiKey = localStorage.getItem("dsApiKey");
 
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
@@ -459,10 +484,16 @@ document.addEventListener('DOMContentLoaded', function() {
   const sidebarOverlay = document.getElementById("sidebarOverlay");
   const memorySelect = document.getElementById("memorySelect");
   const memoryCustom = document.getElementById("memoryCustom");
-  
+
+  // 捐赠弹窗元素
   const openDonateBtn = document.getElementById("openDonateBtn");
   const donatePanel = document.getElementById("donatePanel");
   const closeDonateBtn = document.getElementById("closeDonateBtn");
+
+  // 介绍弹窗元素
+  const openInfoBtn = document.getElementById("openInfoBtn");
+  const infoPanel = document.getElementById("infoPanel");
+  const closeInfoBtn = document.getElementById("closeInfoBtn");
 
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
@@ -479,6 +510,13 @@ document.addEventListener('DOMContentLoaded', function() {
   closeDonateBtn.addEventListener("click", () => donatePanel.classList.add("hidden"));
   donatePanel.addEventListener("click", (e) => {
     if (e.target === donatePanel) donatePanel.classList.add("hidden");
+  });
+
+  // 介绍弹窗逻辑
+  openInfoBtn.addEventListener("click", () => infoPanel.classList.remove("hidden"));
+  closeInfoBtn.addEventListener("click", () => infoPanel.classList.add("hidden"));
+  infoPanel.addEventListener("click", (e) => {
+    if (e.target === infoPanel) infoPanel.classList.add("hidden");
   });
 
   let savedModel = "deepseek-chat";
@@ -958,7 +996,7 @@ document.addEventListener('DOMContentLoaded', function() {
       aiMsgDiv.id = `msg-${targetIndex}`;
       aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
       aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content"></div>`;
-      
+
       const promptWarning = chat.querySelector('.text-xs.text-gray-500.text-center');
       if (promptWarning) {
         chat.insertBefore(aiMsgDiv, promptWarning);
