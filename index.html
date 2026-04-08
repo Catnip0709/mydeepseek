@@ -241,7 +241,7 @@
       -webkit-appearance: none;
       margin: 0;
     }
-    
+
     /* 思考过程样式 */
     details.reasoning-details > summary {
       list-style: none;
@@ -267,7 +267,10 @@
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
   <button id="menuBtn" class="text-white text-2xl px-2 leading-none focus:outline-none">☰</button>
   <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">DeepSeek Chat</h1>
-  <div class="w-8"></div> <!-- 占位，保持标题居中 -->
+  <!-- 右上角低调的捐赠/支持按钮 -->
+  <button id="openDonateBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="支持与捐赠">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+  </button>
 </div>
 
 <!-- 侧边栏遮罩 -->
@@ -276,7 +279,7 @@
 <!-- 侧边栏 -->
 <div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
   <div class="p-4 border-b border-gray-800 mt-4 space-y-3">
-    <button id="editKeyBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm text-white transition-colors">修改API Key</button>
+    <button id="editKeyBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">修改API Key</button>
     <button id="addTab" class="w-full text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
       <span class="text-xl leading-none">+</span> 新建对话
     </button>
@@ -346,6 +349,24 @@
   </div>
 </div>
 
+<!-- 捐赠/支持弹窗 -->
+<div id="donatePanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
+  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
+    <button id="closeDonateBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
+    
+    <div class="text-center mb-4">
+      <h3 class="text-white text-base font-medium mb-2">本站提供极简、私密、无第三方的DeepSeek网页客户端</h3>
+      <p class="text-gray-300 text-sm leading-relaxed">感谢使用本站，无任何强制要求，若您觉得好用，可自愿捐赠支持</p>
+      <p class="text-gray-300 text-sm leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
+    </div>
+
+    <!-- 预留的收款码图片位置 -->
+    <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
+      <img src="https://private-user-images.githubusercontent.com/41519231/575235646-9c3ffbfc-7c5e-4c05-80f5-b4bebb67a847.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzU2NDg3OTEsIm5iZiI6MTc3NTY0ODQ5MSwicGF0aCI6Ii80MTUxOTIzMS81NzUyMzU2NDYtOWMzZmZiZmMtN2M1ZS00YzA1LTgwZjUtYjRiZWJiNjdhODQ3LnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA0MDglMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNDA4VDExNDEzMVomWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPTA2NjkyZGRjZTY0ZjZhZjVhZWQzYWFhMTU5MmM4Y2VlY2JkMjRjZmYyNDEyM2IyMGQ1M2JjYmRjNzViODEzNGQmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0In0.uOWYKOyDRfKDbB_Y0Ve1tv5g1Vrej9eGNzUtfg5Iqbc" class="w-full h-full object-contain">
+    </div>
+  </div>
+</div>
+
 <!-- 消息编辑面板 -->
 <div id="editPanel" class="edit-panel hidden">
   <div class="edit-container">
@@ -364,35 +385,22 @@ document.addEventListener('DOMContentLoaded', function() {
   // 飞书打点统计逻辑 (无后端、保护隐私)
   // ==========================================
 
-  // 1. 获取或生成匿名用户ID
   let dsUserId = localStorage.getItem('ds_user_id');
   if (!dsUserId) {
-    // 生成类似 user_1a2b3c4d5e6f 的随机字符串
     dsUserId = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
     localStorage.setItem('ds_user_id', dsUserId);
   }
 
-  // 2. 飞书 Webhook 打点函数
   function trackEvent(eventType) {
     const webhookUrl = 'https://bytedance.sg.larkoffice.com/base/automation/webhook/event/GnMPaByLZwehPShLu46lsgQQghd';
-
     fetch(webhookUrl, {
       method: 'POST',
-      mode: 'no-cors', // 关键：解决纯前端跨域问题，静默发送不报错
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        event_type: eventType,
-        user_id: dsUserId
-      })
-    }).catch(err => {
-      // 即使网络错误也不影响用户正常使用
-      console.log('Tracking info:', err);
-    });
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: eventType, user_id: dsUserId })
+    }).catch(err => { console.log('Tracking info:', err); });
   }
 
-  // 3. 页面加载完毕，自动上报一次“访问页面” (用于统计 DAU/UV)
   trackEvent('访问页面');
 
   // ==========================================
@@ -401,25 +409,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
   let apiKey = localStorage.getItem("dsApiKey");
 
-  // 初始化并兼容旧数据结构
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
     const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
     return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
 
-  // 数据结构迁移
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
-      tabData.list[id] = {
-        messages: tabData.list[id],
-        memoryLimit: "0"
-      };
+      tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0" };
     }
   });
 
   let editingMessageIndex = -1;
   let isSending = false;
   let abortController = null;
+
+  // Token 估算逻辑 (返回布尔值，不弹窗)
+  const MAX_CONTEXT_TOKENS = 131072;
+  function isTokenLimitReached() {
+    const currentMsgs = tabData.list[tabData.active].messages || [];
+    let estimatedTokens = 0;
+    currentMsgs.forEach(m => {
+      if (m.content) estimatedTokens += m.content.length;
+      if (m.reasoningContent) estimatedTokens += m.reasoningContent.length;
+    });
+    return estimatedTokens >= MAX_CONTEXT_TOKENS * 0.98;
+  }
 
   const chat = document.getElementById("chat");
   const input = document.getElementById("input");
@@ -444,9 +459,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const sidebarOverlay = document.getElementById("sidebarOverlay");
   const memorySelect = document.getElementById("memorySelect");
   const memoryCustom = document.getElementById("memoryCustom");
+  
+  const openDonateBtn = document.getElementById("openDonateBtn");
+  const donatePanel = document.getElementById("donatePanel");
+  const closeDonateBtn = document.getElementById("closeDonateBtn");
 
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+  const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
@@ -454,7 +474,13 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.value = apiKey;
   }
 
-  // 深度思考默认关闭
+  // 捐赠弹窗逻辑
+  openDonateBtn.addEventListener("click", () => donatePanel.classList.remove("hidden"));
+  closeDonateBtn.addEventListener("click", () => donatePanel.classList.add("hidden"));
+  donatePanel.addEventListener("click", (e) => {
+    if (e.target === donatePanel) donatePanel.classList.add("hidden");
+  });
+
   let savedModel = "deepseek-chat";
   modelSelect.value = savedModel;
   deepThinkToggle.checked = false;
@@ -678,15 +704,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
 
-    chat.innerHTML = currentMsgs.map((m, i) => {
+    let chatHtml = currentMsgs.map((m, i) => {
       const isUser = m.role === 'user';
       const isAssistant = m.role === 'assistant';
       const isLastAssistant = isAssistant && i === currentMsgs.length - 1;
       const isLastUserMessage = i === lastUserMsgIndex;
 
       let buttons = '';
-
-      // 按钮顺序：复制(右) -> 删除(中) -> 编辑/重试(左)
       buttons += `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
 
       if (isAssistant) {
@@ -735,6 +759,33 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
     }).join("");
 
+    if (currentMsgs.length > 0 && isTokenLimitReached()) {
+      chatHtml += `
+        <div class="text-xs text-gray-500 text-center mt-6 mb-4 px-2">
+          当前对话框token已达到98%，即将达到上限。建议总结并开启新对话：<br>
+          <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
+            <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约2000字）。</span>
+            <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">
+              ${copyIconSvg}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    chat.innerHTML = chatHtml;
+
+    const copyPromptBtn = document.getElementById('copyPromptBtn');
+    if (copyPromptBtn) {
+      copyPromptBtn.addEventListener('click', function() {
+        const text = document.getElementById('promptText').innerText;
+        copyText(text);
+        const originalHtml = this.innerHTML;
+        this.innerHTML = checkIconSvg;
+        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
+      });
+    }
+
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -742,7 +793,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentMsgs[index]) copyText(currentMsgs[index].content);
 
         const originalHtml = this.innerHTML;
-        this.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+        this.innerHTML = checkIconSvg;
         setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
       });
     });
@@ -868,8 +919,6 @@ document.addEventListener('DOMContentLoaded', function() {
     sendBtn.classList.add("stop-mode");
 
     abortController = new AbortController();
-
-    // 【新增】触发飞书打点：发送消息
     trackEvent('发送消息');
 
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -909,7 +958,13 @@ document.addEventListener('DOMContentLoaded', function() {
       aiMsgDiv.id = `msg-${targetIndex}`;
       aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
       aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content"></div>`;
-      chat.appendChild(aiMsgDiv);
+      
+      const promptWarning = chat.querySelector('.text-xs.text-gray-500.text-center');
+      if (promptWarning) {
+        chat.insertBefore(aiMsgDiv, promptWarning);
+      } else {
+        chat.appendChild(aiMsgDiv);
+      }
     }
 
     if (isAtBottom) chat.scrollTop = chat.scrollHeight;
@@ -961,7 +1016,7 @@ document.addEventListener('DOMContentLoaded', function() {
           try {
             const data = JSON.parse(dataStr);
             const delta = data.choices[0].delta;
-            
+
             if (delta.reasoning_content) {
               if (!hasReasoning) {
                 hasReasoning = true;
