@@ -124,15 +124,26 @@
       background:transparent;
       color: #d1d5db;
       transition: background 0.2s;
+      gap: 8px;
     }
 
     .tab.active { background:#3b82f6; color:white; }
     .tab:hover:not(.active) { background:#374151; }
 
+    .tab-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding-right: 6px;
+    }
+
     .tab-actions {
       display: flex;
       align-items: center;
       gap: 4px;
+      flex-shrink: 0;
     }
 
     .tab-btn {
@@ -639,13 +650,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
     const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
-    return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
+    return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "" } } };
   })();
 
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
-      tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0" };
+      tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0", title: "" };
+    } else {
+      if (typeof tabData.list[id].title === 'undefined') {
+        tabData.list[id].title = "";
+      }
+      if (typeof tabData.list[id].memoryLimit === 'undefined') {
+        tabData.list[id].memoryLimit = "0";
+      }
+      if (!Array.isArray(tabData.list[id].messages)) {
+        tabData.list[id].messages = [];
+      }
     }
+
     tabData.list[id].messages.forEach(msg => {
       if (msg.history && typeof msg.history[0] === 'string') {
         msg.history = msg.history.map(content => ({ content: content, reasoningContent: "" }));
@@ -670,6 +692,13 @@ document.addEventListener('DOMContentLoaded', function() {
       if (m.reasoningContent) estimatedTokens += m.reasoningContent.length;
     });
     return estimatedTokens >= MAX_CONTEXT_TOKENS * 0.98;
+  }
+
+  function getTabDisplayName(id) {
+    const tab = tabData.list[id];
+    if (!tab) return id;
+    const customTitle = (tab.title || '').trim();
+    return customTitle || `对话 ${id.replace("tab", "")}`;
   }
 
   const chat = document.getElementById("chat");
@@ -720,6 +749,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+  const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
 
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
@@ -857,6 +887,17 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
+  function renameTab(tabId) {
+    const currentName = tabData.list[tabId]?.title || "";
+    const nextName = prompt("请输入新的会话名称：", currentName || getTabDisplayName(tabId));
+    if (nextName === null) return;
+
+    const finalName = nextName.trim();
+    tabData.list[tabId].title = finalName;
+    saveTabs();
+    renderTabs();
+  }
+
   function exportChatToTxt(tabId) {
     const msgs = tabData.list[tabId].messages || [];
     if (msgs.length === 0) {
@@ -864,7 +905,7 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
 
-    let txtContent = `My DeepSeek 对话导出 - ${new Date().toLocaleString()}\n`;
+    let txtContent = `${getTabDisplayName(tabId)} - ${new Date().toLocaleString()}\n`;
     txtContent += `==================================================\n\n`;
 
     msgs.forEach(m => {
@@ -881,9 +922,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
+    const safeName = getTabDisplayName(tabId).replace(/[\\/:*?"<>|]/g, '_');
     const a = document.createElement("a");
     a.href = url;
-    a.download = `DeepSeek对话导出_${tabId}.txt`;
+    a.download = `${safeName}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -894,7 +936,7 @@ document.addEventListener('DOMContentLoaded', function() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
     if (tabIds.length === 0) {
-      tabData.list = { tab1: { messages: [], memoryLimit: "0" } };
+      tabData.list = { tab1: { messages: [], memoryLimit: "0", title: "" } };
       tabData.active = "tab1";
       saveTabs();
     }
@@ -903,14 +945,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const tabDiv = document.createElement("div");
       tabDiv.className = `tab ${id === tabData.active ? "active" : ""}`;
       tabDiv.innerHTML = `
-        <span class="truncate pr-2">对话 ${id.replace("tab", "")}</span>
+        <span class="tab-title" title="${escapeHtml(getTabDisplayName(id))}">${escapeHtml(getTabDisplayName(id))}</span>
         <div class="tab-actions">
+          <span class="tab-btn tab-rename" data-id="${id}" title="修改会话名称">${renameIconSvg}</span>
           <span class="tab-btn tab-export" data-id="${id}" title="导出对话">${downloadIconSvg}</span>
           <span class="tab-btn tab-del" data-id="${id}" title="删除对话">×</span>
         </div>
       `;
       tabDiv.addEventListener("click", (e) => {
-        if (e.target.closest('.tab-del') || e.target.closest('.tab-export')) return;
+        if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename')) return;
         tabData.active = id;
         saveTabs();
         updateMemoryUI();
@@ -919,6 +962,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if(window.innerWidth < 768) closeSidebar();
       });
       tabsEl.appendChild(tabDiv);
+    });
+
+    document.querySelectorAll(".tab-rename").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tabId = btn.dataset.id;
+        renameTab(tabId);
+      });
     });
 
     document.querySelectorAll(".tab-export").forEach(btn => {
@@ -938,7 +989,7 @@ document.addEventListener('DOMContentLoaded', function() {
           alert("至少保留1个对话，无法删除！");
           return;
         }
-        if (confirm(`确定删除「对话 ${delId.replace("tab", "")}」吗？删除后记录将永久消失！`)) {
+        if (confirm(`确定删除「${getTabDisplayName(delId)}」吗？删除后记录将永久消失！`)) {
           delete tabData.list[delId];
           if (delId === tabData.active) {
             tabData.active = Object.keys(tabData.list)[0];
@@ -1214,7 +1265,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     const newId = `tab${maxIdNum + 1}`;
-    tabData.list[newId] = { messages: [], memoryLimit: "0" };
+    tabData.list[newId] = { messages: [], memoryLimit: "0", title: "" };
     tabData.active = newId;
     saveTabs();
     updateMemoryUI();
@@ -1495,9 +1546,10 @@ document.addEventListener('DOMContentLoaded', function() {
       const div = document.createElement('div');
       div.className = 'prompt-item';
 
-      const preview = (item.content || '').length > 180
-        ? item.content.slice(0, 180) + '...'
-        : (item.content || '');
+      const contentText = item.content || '';
+      const preview = contentText.length > 100
+        ? contentText.slice(0, 100) + '...'
+        : contentText;
 
       div.innerHTML = `
         <div class="prompt-item-header">
