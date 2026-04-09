@@ -7,14 +7,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
   <title>My DeepSeek</title>
-  
-  <!-- 引入 Tailwind CSS 及 Typography 插件 (用于美化 Markdown) -->
+
   <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-  
-  <!-- 引入 Marked.js 用于解析 Markdown -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  
-  <!-- 引入 DOMPurify 用于防范 XSS 注入 (非常重要，配合 Markdown 使用) -->
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 
   <style>
@@ -55,13 +50,8 @@
     #sendBtn:active { background: #1d4ed8; transform: scale(0.98); }
     #sendBtn:disabled { background: #6b7280; cursor: not-allowed; }
 
-    /* 停止生成按钮样式 */
-    #sendBtn.stop-mode {
-      background: #ef4444; /* red-500 */
-    }
-    #sendBtn.stop-mode:hover {
-      background: #dc2626; /* red-600 */
-    }
+    #sendBtn.stop-mode { background: #ef4444; }
+    #sendBtn.stop-mode:hover { background: #dc2626; }
 
     .copy-btn, .regenerate-btn, .edit-btn, .delete-btn {
       position: absolute;
@@ -83,7 +73,6 @@
       justify-content:center;
     }
 
-    /* 调整按钮位置：复制在右，删除在中，编辑/重新生成在左 */
     .copy-btn { right:6px; }
     .delete-btn { right:36px; }
     .regenerate-btn { right:66px; }
@@ -101,7 +90,6 @@
       min-width: 60px;
     }
 
-    /* 历史版本控制样式 */
     .version-control {
       position: absolute;
       bottom: 6px;
@@ -125,7 +113,6 @@
     .version-btn:hover { color: #fff; }
     .version-btn.disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
 
-    /* 侧边栏对话列表项样式 */
     .tab {
       padding:10px 12px;
       border-radius:8px;
@@ -162,7 +149,6 @@
     }
     .tab-btn:hover { background:rgba(255,255,255,0.3); }
 
-    /* 编辑面板样式 */
     .edit-panel {
       position: fixed;
       inset: 0;
@@ -205,7 +191,6 @@
     .edit-btn-save { background: #007aff; color: white; }
     .edit-btn-cancel { background: #444; color: white; }
 
-    /* 快速到底部按钮 */
     .scroll-to-bottom-btn {
       position: fixed;
       bottom: 100px;
@@ -231,7 +216,6 @@
     .scroll-to-bottom-btn:hover { opacity: 0.9; background: rgba(51, 51, 51, 0.9); transform: scale(1.05); }
     .scroll-to-bottom-btn:active { transform: scale(0.95); }
 
-    /* 底部输入区域 */
     .input-container {
       position: fixed;
       bottom: 0;
@@ -251,14 +235,12 @@
       margin: 0 auto;
     }
 
-    /* 隐藏数字输入框的上下箭头 */
     input[type=number]::-webkit-inner-spin-button,
     input[type=number]::-webkit-outer-spin-button {
       -webkit-appearance: none;
       margin: 0;
     }
 
-    /* 思考过程样式 */
     details.reasoning-details > summary {
       list-style: none;
     }
@@ -276,51 +258,229 @@
       transform: rotate(90deg);
     }
 
-    /* Markdown 样式微调 (覆盖 Tailwind Typography 的部分默认值以适应暗黑模式) */
     .prose pre { background-color: #1f2937 !important; margin-top: 0.5em; margin-bottom: 0.5em; }
     .prose p { margin-top: 0.5em; margin-bottom: 0.5em; }
     .prose p:first-child { margin-top: 0; }
     .prose p:last-child { margin-bottom: 0; }
+
+    .panel-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 60;
+    }
+    .panel-modal.hidden { display: none; }
+
+    .prompt-panel-container {
+      width: 92%;
+      max-width: 760px;
+      max-height: 86vh;
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .prompt-panel-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px 18px;
+      border-bottom:1px solid #374151;
+      background:#0f172a;
+    }
+
+    .prompt-panel-body {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .prompt-toolbar {
+      display:flex;
+      gap:10px;
+      margin-bottom:14px;
+      flex-wrap: wrap;
+    }
+
+    .prompt-toolbar button {
+      border:none;
+      border-radius:10px;
+      padding:10px 14px;
+      cursor:pointer;
+      font-size:14px;
+      color:#fff;
+      transition: all .2s;
+    }
+
+    .prompt-add-btn { background:#2563eb; }
+    .prompt-add-btn:hover { background:#1d4ed8; }
+
+    .prompt-list {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .prompt-item {
+      background:#1f2937;
+      border:1px solid #374151;
+      border-radius:14px;
+      padding:14px;
+    }
+
+    .prompt-item-header {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
+    }
+
+    .prompt-title {
+      font-size:15px;
+      font-weight:600;
+      color:#fff;
+      word-break: break-word;
+    }
+
+    .prompt-preview {
+      color:#cbd5e1;
+      font-size:13px;
+      line-height:1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-top: 6px;
+    }
+
+    .prompt-actions {
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      flex-shrink:0;
+    }
+
+    .prompt-action-btn {
+      border:none;
+      border-radius:8px;
+      padding:7px 10px;
+      font-size:12px;
+      cursor:pointer;
+      color:#fff;
+      transition: all .2s;
+    }
+
+    .prompt-use-btn { background:#2563eb; }
+    .prompt-copy-btn { background:#059669; }
+    .prompt-edit-btn2 { background:#d97706; }
+    .prompt-delete-btn2 { background:#dc2626; }
+
+    .prompt-use-btn:hover { background:#1d4ed8; }
+    .prompt-copy-btn:hover { background:#047857; }
+    .prompt-edit-btn2:hover { background:#b45309; }
+    .prompt-delete-btn2:hover { background:#b91c1c; }
+
+    .prompt-empty {
+      text-align:center;
+      color:#9ca3af;
+      padding:40px 12px;
+      border:1px dashed #4b5563;
+      border-radius:14px;
+      background:#111827;
+    }
+
+    .prompt-form {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .prompt-input, .prompt-textarea {
+      width:100%;
+      background:#111827;
+      color:#fff;
+      border:1px solid #4b5563;
+      border-radius:10px;
+      padding:12px;
+      outline:none;
+    }
+
+    .prompt-input:focus, .prompt-textarea:focus {
+      border-color:#3b82f6;
+    }
+
+    .prompt-textarea {
+      min-height:180px;
+      resize:vertical;
+      line-height:1.6;
+    }
+
+    .prompt-form-actions {
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:6px;
+    }
+
+    .prompt-form-actions button {
+      border:none;
+      border-radius:10px;
+      padding:10px 16px;
+      cursor:pointer;
+      font-size:14px;
+      color:#fff;
+    }
+
+    .btn-gray { background:#4b5563; }
+    .btn-blue { background:#2563eb; }
+    .btn-gray:hover { background:#374151; }
+    .btn-blue:hover { background:#1d4ed8; }
+
+    @media (max-width: 640px) {
+      .prompt-item-header {
+        flex-direction: column;
+      }
+      .prompt-actions {
+        width:100%;
+      }
+    }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
 
-<!-- 顶部导航栏 -->
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
   <button id="menuBtn" class="text-white text-2xl px-2 leading-none focus:outline-none">☰</button>
   <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">My DeepSeek</h1>
 
-  <!-- 右上角按钮组 -->
   <div class="flex items-center gap-1">
-    <!-- 介绍/关于按钮 -->
     <button id="openInfoBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="关于本站">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
     </button>
-    <!-- 捐赠/支持按钮 -->
     <button id="openDonateBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="支持与捐赠">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
     </button>
   </div>
 </div>
 
-<!-- 侧边栏遮罩 -->
 <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 z-30 opacity-0 pointer-events-none transition-opacity duration-300"></div>
 
-<!-- 侧边栏 -->
 <div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
   <div class="p-4 border-b border-gray-800 mt-4 space-y-3">
     <button id="editKeyBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">修改API Key</button>
+    <button id="openPromptManagerBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">指令管理</button>
     <button id="addTab" class="w-full text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
       <span class="text-xl leading-none">+</span> 新建对话
     </button>
   </div>
 
-  <!-- 对话列表 -->
   <div id="tabs" class="flex-1 overflow-y-auto p-2 space-y-1" style="scrollbar-width: none;-ms-overflow-style: none;"></div>
 
-  <!-- 底部操作区 -->
   <div class="p-4 border-t border-gray-800 space-y-4">
-    <!-- 深度思考设置 -->
     <div class="flex items-center justify-between">
       <div class="text-sm text-gray-300 ml-1">深度思考 (R1)</div>
       <label class="relative inline-flex items-center cursor-pointer">
@@ -329,7 +489,6 @@
       </label>
     </div>
 
-    <!-- 模型选择设置 (已隐藏，由深度思考开关控制) -->
     <div class="hidden">
       <select id="modelSelect" class="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 text-sm outline-none focus:border-blue-500">
         <option value="deepseek-chat">DeepSeek-V3 (chat)</option>
@@ -337,7 +496,6 @@
       </select>
     </div>
 
-    <!-- 记忆条数设置 -->
     <div>
       <div class="text-xs text-gray-400 mb-1 ml-1">当前对话记忆条数</div>
       <div class="flex gap-2">
@@ -356,13 +514,10 @@
   </div>
 </div>
 
-<!-- 聊天区域 -->
 <div id="chat" class="pt-16 pb-32 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 
-<!-- 快速到底部按钮 -->
 <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="快速到底部">↓</button>
 
-<!-- 底部输入区域 -->
 <div class="input-container safe-area-bottom">
   <div class="input-wrapper">
     <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
@@ -370,12 +525,10 @@
   </div>
 </div>
 
-<!-- API Key 设置面板 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-md border border-gray-700">
     <h3 class="text-white text-lg font-medium mb-4 text-center">【MyDeepSeek】输入/修改 DeepSeek API Key</h3>
-    
-    <!-- 新增的提示文案区域 -->
+
     <div class="text-sm text-gray-300 mb-5 space-y-3 leading-relaxed bg-gray-800/50 p-4 rounded-lg border border-gray-700/50">
       <p>1. 登录 DeepSeek 官网：<a href="https://platform.deepseek.com/" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors">platform.deepseek.com</a>，创建 API Key，并在官方平台完成充值。</p>
       <p>2. 用浏览器打开本站：<a href="https://catnip0709.github.io/mydeepseek/" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors">catnip0709.github.io/mydeepseek</a>，在下方输入你的 API Key 即可开始对话。</p>
@@ -387,7 +540,6 @@
   </div>
 </div>
 
-<!-- 关于/介绍弹窗 -->
 <div id="infoPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
     <button id="closeInfoBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
@@ -404,12 +556,11 @@
       </p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.jpg?raw=true" class="w-full h-full object-contain">
+      <img src="https://raw.githubusercontent.com/Catnip0709/mydeepseek/main/redbook.jpg" alt="小红书群聊二维码" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
 
-<!-- 捐赠/支持弹窗 -->
 <div id="donatePanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
     <button id="closeDonateBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
@@ -419,12 +570,11 @@
       <p class="text-gray-300 text-left leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
+      <img src="https://raw.githubusercontent.com/Catnip0709/mydeepseek/main/alipay.jpg" alt="支付宝收款码" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
 
-<!-- 消息编辑面板 -->
 <div id="editPanel" class="edit-panel hidden">
   <div class="edit-container">
     <h3 class="text-white mb-3">编辑消息</h3>
@@ -436,11 +586,37 @@
   </div>
 </div>
 
+<div id="promptPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">指令管理</h3>
+      <button id="closePromptPanelBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+
+    <div class="prompt-panel-body">
+      <div id="promptListView">
+        <div class="prompt-toolbar">
+          <button id="addPromptBtn" class="prompt-add-btn">+ 新增指令</button>
+        </div>
+        <div id="promptList" class="prompt-list"></div>
+      </div>
+
+      <div id="promptFormView" class="hidden">
+        <div class="prompt-form">
+          <input id="promptTitleInput" class="prompt-input" type="text" placeholder="请输入指令标题（可不填）">
+          <textarea id="promptContentInput" class="prompt-textarea" placeholder="请输入指令内容..."></textarea>
+          <div class="prompt-form-actions">
+            <button id="cancelPromptEditBtn" class="btn-gray">取消</button>
+            <button id="savePromptBtn" class="btn-blue">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // ==========================================
-  // 飞书打点统计逻辑 (无后端、保护隐私)
-  // ==========================================
   let dsUserId = localStorage.getItem('ds_user_id');
   if (!dsUserId) {
     dsUserId = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -459,9 +635,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
   trackEvent('访问页面');
 
-  // ==========================================
-  // 原有业务逻辑及修复
-  // ==========================================
   let apiKey = localStorage.getItem("dsApiKey");
 
   let tabData = JSON.parse(localStorage.getItem("dsTabs")) || (() => {
@@ -469,7 +642,6 @@ document.addEventListener('DOMContentLoaded', function() {
     return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
 
-  // 向下兼容旧数据，将 history 升级为包含 content 和 reasoningContent 的对象
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
       tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0" };
@@ -485,7 +657,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let isSending = false;
   let abortController = null;
 
-  // Token 估算逻辑
+  const PROMPT_STORAGE_KEY = 'dsPrompts';
+  let promptData = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY)) || [];
+  let editingPromptId = null;
+
   const MAX_CONTEXT_TOKENS = 131072;
   function isTokenLimitReached() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -529,6 +704,18 @@ document.addEventListener('DOMContentLoaded', function() {
   const infoPanel = document.getElementById("infoPanel");
   const closeInfoBtn = document.getElementById("closeInfoBtn");
 
+  const openPromptManagerBtn = document.getElementById("openPromptManagerBtn");
+  const promptPanel = document.getElementById("promptPanel");
+  const closePromptPanelBtn = document.getElementById("closePromptPanelBtn");
+  const promptListView = document.getElementById("promptListView");
+  const promptFormView = document.getElementById("promptFormView");
+  const promptList = document.getElementById("promptList");
+  const addPromptBtn = document.getElementById("addPromptBtn");
+  const promptTitleInput = document.getElementById("promptTitleInput");
+  const promptContentInput = document.getElementById("promptContentInput");
+  const cancelPromptEditBtn = document.getElementById("cancelPromptEditBtn");
+  const savePromptBtn = document.getElementById("savePromptBtn");
+
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
@@ -563,6 +750,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function saveTabs() {
     localStorage.setItem("dsTabs", JSON.stringify(tabData));
+  }
+
+  function savePrompts() {
+    localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(promptData));
   }
 
   function updateMemoryUI() {
@@ -666,7 +857,6 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
-  // 导出对话为 TXT
   function exportChatToTxt(tabId) {
     const msgs = tabData.list[tabId].messages || [];
     if (msgs.length === 0) {
@@ -680,11 +870,11 @@ document.addEventListener('DOMContentLoaded', function() {
     msgs.forEach(m => {
       const roleName = m.role === 'user' ? '我' : 'DeepSeek';
       txtContent += `【${roleName}】:\n`;
-      
+
       if (m.reasoningContent) {
         txtContent += `[思考过程]:\n${m.reasoningContent}\n\n`;
       }
-      
+
       txtContent += `${m.content}\n\n`;
       txtContent += `--------------------------------------------------\n\n`;
     });
@@ -731,7 +921,6 @@ document.addEventListener('DOMContentLoaded', function() {
       tabsEl.appendChild(tabDiv);
     });
 
-    // 绑定导出按钮事件
     document.querySelectorAll(".tab-export").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -740,7 +929,6 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     });
 
-    // 绑定删除按钮事件
     document.querySelectorAll(".tab-del").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -818,13 +1006,11 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
-  // 【新增】安全的 Markdown 渲染函数
   function renderMarkdown(el, text) {
     if (!text) {
       el.innerHTML = '';
       return;
     }
-    // 使用 marked 解析，然后用 DOMPurify 清理，防止 XSS
     const rawHtml = marked.parse(text);
     const safeHtml = DOMPurify.sanitize(rawHtml);
     el.innerHTML = safeHtml;
@@ -834,7 +1020,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
 
-    chat.innerHTML = ""; // 清空聊天区
+    chat.innerHTML = "";
 
     currentMsgs.forEach((m, i) => {
       const isUser = m.role === 'user';
@@ -844,10 +1030,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const msgBox = document.createElement("div");
       msgBox.id = `msg-${i}`;
-      // 为消息内容添加 Tailwind Typography 的 prose 类
       msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
 
-      // 按钮组
       let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
       if (isAssistant) {
         buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
@@ -857,7 +1041,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isLastUserMessage) buttonsHtml += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
       }
 
-      // 版本控制
       let versionHtml = '';
       if (isAssistant && m.history && m.history.length > 1) {
         const hIndex = m.historyIndex || 0;
@@ -874,23 +1057,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
       msgBox.innerHTML = versionHtml + buttonsHtml;
 
-      // 思考过程 (Markdown渲染)
       if (isAssistant && m.reasoningContent) {
         const details = document.createElement('details');
         details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
         details.open = true;
         details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
         const reasoningDiv = document.createElement('div');
-        // 添加 prose 类以支持 Markdown 样式
         reasoningDiv.className = "reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
         renderMarkdown(reasoningDiv, m.reasoningContent);
         details.appendChild(reasoningDiv);
         msgBox.appendChild(details);
       }
 
-      // 消息内容 (Markdown渲染)
       const contentDiv = document.createElement('div');
-      // 添加 prose 类以支持 Markdown 样式
       contentDiv.className = "msg-content prose prose-invert max-w-none";
       renderMarkdown(contentDiv, m.content);
       msgBox.appendChild(contentDiv);
@@ -924,7 +1103,6 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     }
 
-    // 绑定事件
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -1027,7 +1205,7 @@ document.addEventListener('DOMContentLoaded', function() {
   input.addEventListener("input", autoHeight);
   autoHeight();
 
-  addTab.onclick = () => {
+  function createNewTab() {
     const tabIds = Object.keys(tabData.list);
     let maxIdNum = 0;
     tabIds.forEach(id => {
@@ -1042,6 +1220,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updateMemoryUI();
     renderChat();
     renderTabs();
+    return newId;
+  }
+
+  addTab.onclick = () => {
+    createNewTab();
     closeSidebar();
     input.focus();
   };
@@ -1260,6 +1443,190 @@ document.addEventListener('DOMContentLoaded', function() {
     await fetchAndStreamResponse();
   }
 
+  function openPromptPanel() {
+    promptPanel.classList.remove('hidden');
+    showPromptListView();
+    renderPromptList();
+  }
+
+  function closePromptPanel() {
+    promptPanel.classList.add('hidden');
+  }
+
+  function showPromptListView() {
+    promptListView.classList.remove('hidden');
+    promptFormView.classList.add('hidden');
+    editingPromptId = null;
+    promptTitleInput.value = '';
+    promptContentInput.value = '';
+  }
+
+  function showPromptFormView(prompt = null) {
+    promptListView.classList.add('hidden');
+    promptFormView.classList.remove('hidden');
+
+    if (prompt) {
+      editingPromptId = prompt.id;
+      promptTitleInput.value = prompt.title || '';
+      promptContentInput.value = prompt.content || '';
+    } else {
+      editingPromptId = null;
+      promptTitleInput.value = '';
+      promptContentInput.value = '';
+    }
+
+    setTimeout(() => promptTitleInput.focus(), 50);
+  }
+
+  function renderPromptList() {
+    promptList.innerHTML = '';
+
+    if (!promptData.length) {
+      promptList.innerHTML = `
+        <div class="prompt-empty">
+          <div class="text-base mb-2">还没有保存任何指令</div>
+          <div class="text-sm text-gray-500">你可以新建一些常用指令，比如翻译、润色、总结、角色设定等。</div>
+        </div>
+      `;
+      return;
+    }
+
+    promptData.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'prompt-item';
+
+      const preview = (item.content || '').length > 180
+        ? item.content.slice(0, 180) + '...'
+        : (item.content || '');
+
+      div.innerHTML = `
+        <div class="prompt-item-header">
+          <div class="flex-1 min-w-0">
+            <div class="prompt-title">${escapeHtml(item.title || '未命名指令')}</div>
+            <div class="prompt-preview">${escapeHtml(preview)}</div>
+          </div>
+          <div class="prompt-actions">
+            <button class="prompt-action-btn prompt-use-btn" data-id="${item.id}">新建会话并插入指令</button>
+            <button class="prompt-action-btn prompt-copy-btn" data-id="${item.id}">复制内容</button>
+            <button class="prompt-action-btn prompt-edit-btn2" data-id="${item.id}">编辑指令</button>
+            <button class="prompt-action-btn prompt-delete-btn2" data-id="${item.id}">删除指令</button>
+          </div>
+        </div>
+      `;
+
+      promptList.appendChild(div);
+    });
+
+    document.querySelectorAll('.prompt-use-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const item = promptData.find(p => p.id === id);
+        if (!item) return;
+        insertPromptToNewChat(item.content || '');
+      });
+    });
+
+    document.querySelectorAll('.prompt-copy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const item = promptData.find(p => p.id === id);
+        if (!item) return;
+        copyText(item.content || '');
+        const old = this.textContent;
+        this.textContent = '已复制';
+        setTimeout(() => this.textContent = old, 1200);
+      });
+    });
+
+    document.querySelectorAll('.prompt-edit-btn2').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const item = promptData.find(p => p.id === id);
+        if (!item) return;
+        showPromptFormView(item);
+      });
+    });
+
+    document.querySelectorAll('.prompt-delete-btn2').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const item = promptData.find(p => p.id === id);
+        if (!item) return;
+        if (!confirm(`确定删除指令「${item.title || '未命名指令'}」吗？`)) return;
+        promptData = promptData.filter(p => p.id !== id);
+        savePrompts();
+        renderPromptList();
+      });
+    });
+  }
+
+  function insertPromptToNewChat(text) {
+    if (!text) return;
+    createNewTab();
+    input.value = text;
+    autoHeight();
+    closePromptPanel();
+    closeSidebar();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function savePromptItem() {
+    const rawTitle = promptTitleInput.value.trim();
+    const title = rawTitle || '未命名指令';
+    const content = promptContentInput.value.trim();
+
+    if (!content) {
+      alert('请输入指令内容');
+      promptContentInput.focus();
+      return;
+    }
+
+    if (editingPromptId) {
+      const idx = promptData.findIndex(p => p.id === editingPromptId);
+      if (idx > -1) {
+        promptData[idx].title = title;
+        promptData[idx].content = content;
+        promptData[idx].updatedAt = Date.now();
+      }
+    } else {
+      promptData.unshift({
+        id: 'prompt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+        title,
+        content,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    }
+
+    savePrompts();
+    showPromptListView();
+    renderPromptList();
+  }
+
+  openPromptManagerBtn.addEventListener('click', () => {
+    closeSidebar();
+    openPromptPanel();
+  });
+
+  closePromptPanelBtn.addEventListener('click', closePromptPanel);
+  promptPanel.addEventListener('click', (e) => {
+    if (e.target === promptPanel) closePromptPanel();
+  });
+
+  addPromptBtn.addEventListener('click', () => showPromptFormView());
+  cancelPromptEditBtn.addEventListener('click', showPromptListView);
+  savePromptBtn.addEventListener('click', savePromptItem);
+
   sendBtn.addEventListener("click", () => {
     if (isSending) {
       if (abortController) abortController.abort();
@@ -1280,8 +1647,12 @@ document.addEventListener('DOMContentLoaded', function() {
   editCancelBtn.addEventListener("click", cancelEdit);
   editSaveBtn.addEventListener("click", saveEditAndRegenerate);
   editPanel.addEventListener("click", function(e) { if (e.target === editPanel) cancelEdit(); });
+
   document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape' && !editPanel.classList.contains('hidden')) cancelEdit();
+    if (e.key === 'Escape') {
+      if (!editPanel.classList.contains('hidden')) cancelEdit();
+      if (!promptPanel.classList.contains('hidden')) closePromptPanel();
+    }
   });
 
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
