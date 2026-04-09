@@ -267,7 +267,7 @@
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
   <button id="menuBtn" class="text-white text-2xl px-2 leading-none focus:outline-none">☰</button>
   <h1 class="text-lg font-medium text-white m-0 absolute left-1/2 transform -translate-x-1/2">My DeepSeek</h1>
-  
+
   <!-- 右上角按钮组 -->
   <div class="flex items-center gap-1">
     <!-- 介绍/关于按钮 -->
@@ -366,7 +366,7 @@
       <p class="text-gray-300 text-sm leading-relaxed text-left">
         MyDeepSeek站点提供安全、开放、私密、免费的DeepSeek网页客户端。
       </p>
-      <p class="text-gray-300 text-sm leading-relaxed text-left">
+      <p class="text-gray-300 text-sm leading-relaxed text-left mt-2">
         所有充值均在DeepSeek官网完成，无任何第三方充值和广告，无需注册登录。
       </p>
       <p class="text-gray-300 text-sm leading-relaxed text-left mt-2">
@@ -374,7 +374,7 @@
       </p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.jpg?raw=true" class="w-full h-full object-contain">
+        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
@@ -389,7 +389,7 @@
       <p class="text-gray-300 text-left leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
+        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
@@ -430,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
   trackEvent('访问页面');
 
   // ==========================================
-  // 原有业务逻辑
+  // 原有业务逻辑及修复
   // ==========================================
   let apiKey = localStorage.getItem("dsApiKey");
 
@@ -439,17 +439,23 @@ document.addEventListener('DOMContentLoaded', function() {
     return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
 
+  // 【修复4】向下兼容旧数据，将 history 升级为包含 content 和 reasoningContent 的对象
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
       tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0" };
     }
+    tabData.list[id].messages.forEach(msg => {
+      if (msg.history && typeof msg.history[0] === 'string') {
+        msg.history = msg.history.map(content => ({ content: content, reasoningContent: "" }));
+      }
+    });
   });
 
   let editingMessageIndex = -1;
   let isSending = false;
   let abortController = null;
 
-  // Token 估算逻辑 (返回布尔值，不弹窗)
+  // Token 估算逻辑
   const MAX_CONTEXT_TOKENS = 131072;
   function isTokenLimitReached() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -485,12 +491,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const memorySelect = document.getElementById("memorySelect");
   const memoryCustom = document.getElementById("memoryCustom");
 
-  // 捐赠弹窗元素
   const openDonateBtn = document.getElementById("openDonateBtn");
   const donatePanel = document.getElementById("donatePanel");
   const closeDonateBtn = document.getElementById("closeDonateBtn");
 
-  // 介绍弹窗元素
   const openInfoBtn = document.getElementById("openInfoBtn");
   const infoPanel = document.getElementById("infoPanel");
   const closeInfoBtn = document.getElementById("closeInfoBtn");
@@ -505,14 +509,12 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.value = apiKey;
   }
 
-  // 捐赠弹窗逻辑
   openDonateBtn.addEventListener("click", () => donatePanel.classList.remove("hidden"));
   closeDonateBtn.addEventListener("click", () => donatePanel.classList.add("hidden"));
   donatePanel.addEventListener("click", (e) => {
     if (e.target === donatePanel) donatePanel.classList.add("hidden");
   });
 
-  // 介绍弹窗逻辑
   openInfoBtn.addEventListener("click", () => infoPanel.classList.remove("hidden"));
   closeInfoBtn.addEventListener("click", () => infoPanel.classList.add("hidden"));
   infoPanel.addEventListener("click", (e) => {
@@ -738,31 +740,43 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
+  // 【修复1】彻底消灭 XSS，使用安全的文本渲染方式
+  function renderPlainTextWithBr(el, text) {
+    el.textContent = '';
+    const parts = String(text || '').split('\n');
+    parts.forEach((part, idx) => {
+      if (idx > 0) el.appendChild(document.createElement('br'));
+      el.appendChild(document.createTextNode(part));
+    });
+  }
+
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
 
-    let chatHtml = currentMsgs.map((m, i) => {
+    chat.innerHTML = ""; // 清空聊天区
+
+    currentMsgs.forEach((m, i) => {
       const isUser = m.role === 'user';
       const isAssistant = m.role === 'assistant';
       const isLastAssistant = isAssistant && i === currentMsgs.length - 1;
       const isLastUserMessage = i === lastUserMsgIndex;
 
-      let buttons = '';
-      buttons += `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
+      const msgBox = document.createElement("div");
+      msgBox.id = `msg-${i}`;
+      msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
 
+      // 按钮组
+      let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
       if (isAssistant) {
-        buttons += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
-        if (isLastAssistant) {
-          buttons += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
-        }
+        buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+        if (isLastAssistant) buttonsHtml += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
       } else if (isUser) {
-        buttons += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
-        if (isLastUserMessage) {
-          buttons += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
-        }
+        buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+        if (isLastUserMessage) buttonsHtml += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
       }
 
+      // 版本控制
       let versionHtml = '';
       if (isAssistant && m.history && m.history.length > 1) {
         const hIndex = m.historyIndex || 0;
@@ -777,53 +791,57 @@ document.addEventListener('DOMContentLoaded', function() {
         `;
       }
 
-      let reasoningHtml = '';
+      msgBox.innerHTML = versionHtml + buttonsHtml;
+
+      // 思考过程 (安全渲染)
       if (isAssistant && m.reasoningContent) {
-        reasoningHtml = `
-          <details class="reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900" open>
-            <summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>
-            <div class="reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2">${(m.reasoningContent||'').replace(/\n/g, '<br>')}</div>
-          </details>
-        `;
+        const details = document.createElement('details');
+        details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
+        details.open = true;
+        details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
+        const reasoningDiv = document.createElement('div');
+        reasoningDiv.className = "reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
+        renderPlainTextWithBr(reasoningDiv, m.reasoningContent);
+        details.appendChild(reasoningDiv);
+        msgBox.appendChild(details);
       }
 
-      return `
-        <div id="msg-${i}" class="message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white">
-          ${versionHtml}
-          ${buttons}
-          ${reasoningHtml}
-          <div class="msg-content">${(m.content||'').replace(/\n/g, '<br>')}</div>
-        </div>
-      `;
-    }).join("");
+      // 消息内容 (安全渲染)
+      const contentDiv = document.createElement('div');
+      contentDiv.className = "msg-content";
+      renderPlainTextWithBr(contentDiv, m.content);
+      msgBox.appendChild(contentDiv);
+
+      chat.appendChild(msgBox);
+    });
 
     if (currentMsgs.length > 0 && isTokenLimitReached()) {
-      chatHtml += `
-        <div class="text-xs text-gray-500 text-center mt-6 mb-4 px-2">
-          当前对话框token已达到98%，即将达到上限。建议总结并开启新对话，或调整对话记忆条数：<br>
-          <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
-            <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约2000字）。</span>
-            <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">
-              ${copyIconSvg}
-            </button>
-          </div>
+      const warningDiv = document.createElement("div");
+      warningDiv.className = "text-xs text-gray-500 text-center mt-6 mb-4 px-2";
+      warningDiv.innerHTML = `
+        当前对话框上下文即将达到上限。建议总结并开启新对话，或调整对话记忆条数：<br>
+        <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
+          <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约2000字）。</span>
+          <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">
+            ${copyIconSvg}
+          </button>
         </div>
       `;
+      chat.appendChild(warningDiv);
+
+      const copyPromptBtn = warningDiv.querySelector('#copyPromptBtn');
+      if (copyPromptBtn) {
+        copyPromptBtn.addEventListener('click', function() {
+          const text = document.getElementById('promptText').innerText;
+          copyText(text);
+          const originalHtml = this.innerHTML;
+          this.innerHTML = checkIconSvg;
+          setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
+        });
+      }
     }
 
-    chat.innerHTML = chatHtml;
-
-    const copyPromptBtn = document.getElementById('copyPromptBtn');
-    if (copyPromptBtn) {
-      copyPromptBtn.addEventListener('click', function() {
-        const text = document.getElementById('promptText').innerText;
-        copyText(text);
-        const originalHtml = this.innerHTML;
-        this.innerHTML = checkIconSvg;
-        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
-      });
-    }
-
+    // 绑定事件
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const index = parseInt(this.getAttribute('data-index'));
@@ -868,7 +886,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const msg = tabData.list[tabData.active].messages[index];
         if (msg.historyIndex > 0) {
           msg.historyIndex--;
-          msg.content = msg.history[msg.historyIndex];
+          msg.content = msg.history[msg.historyIndex].content;
+          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
           saveTabs();
           renderChat();
         }
@@ -882,7 +901,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const msg = tabData.list[tabData.active].messages[index];
         if (msg.historyIndex < msg.history.length - 1) {
           msg.historyIndex++;
-          msg.content = msg.history[msg.historyIndex];
+          msg.content = msg.history[msg.historyIndex].content;
+          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
           saveTabs();
           renderChat();
         }
@@ -979,16 +999,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (isRegen) {
       aiMsgDiv = document.getElementById(`msg-${targetIndex}`);
       if (!currentMsgs[targetIndex].history) {
-        currentMsgs[targetIndex].history = [currentMsgs[targetIndex].content];
+        currentMsgs[targetIndex].history = [{ content: currentMsgs[targetIndex].content, reasoningContent: currentMsgs[targetIndex].reasoningContent || "" }];
         currentMsgs[targetIndex].historyIndex = 0;
       }
-      currentMsgs[targetIndex].history.push("");
+      currentMsgs[targetIndex].history.push({ content: "", reasoningContent: "" });
       currentMsgs[targetIndex].historyIndex = currentMsgs[targetIndex].history.length - 1;
       currentMsgs[targetIndex].content = "";
       currentMsgs[targetIndex].reasoningContent = "";
 
       const contentDiv = aiMsgDiv.querySelector('.msg-content');
-      if (contentDiv) contentDiv.innerHTML = "";
+      if (contentDiv) contentDiv.textContent = "";
       const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
       if (reasoningDetails) reasoningDetails.remove();
     } else {
@@ -1038,18 +1058,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      
+      // 【修复2】引入 buffer 机制，解决 TCP 拆包导致的 JSON 解析失败问题
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split("\n").filter(line => line.trim() !== "");
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        
+        // 保留最后一行（可能是不完整的 JSON），放到下一次循环处理
+        buffer = lines.pop();
 
         for (const line of lines) {
+          if (line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
+          
           const dataStr = line.slice(6);
-          if (dataStr === "[DONE]") break;
+          if (dataStr === "[DONE]") {
+            finalizeMessage();
+            return;
+          }
 
           try {
             const data = JSON.parse(dataStr);
@@ -1067,72 +1098,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 reasoningContentDiv = details.querySelector('.reasoning-content');
               }
               fullReasoningContent += delta.reasoning_content;
-              reasoningContentDiv.innerHTML = fullReasoningContent.replace(/\n/g, '<br>');
+              renderPlainTextWithBr(reasoningContentDiv, fullReasoningContent);
             }
 
             if (delta.content) {
               fullContent += delta.content;
               const contentDiv = aiMsgDiv.querySelector('.msg-content');
               if (contentDiv) {
-                contentDiv.innerHTML = fullContent.replace(/\n/g, '<br>');
+                renderPlainTextWithBr(contentDiv, fullContent);
               }
             }
 
             const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
             if (currentIsAtBottom) chat.scrollTop = chat.scrollHeight;
-          } catch (e) { continue; }
+          } catch (e) { 
+            // 解析失败通常是因为 buffer 机制没覆盖到的极端异常，忽略继续
+            continue; 
+          }
         }
       }
-
-      if (isRegen) {
-        currentMsgs[targetIndex].content = fullContent;
-        currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
-        currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
-      } else {
-        currentMsgs.push({
-          role: "assistant",
-          content: fullContent,
-          reasoningContent: fullReasoningContent,
-          history: [fullContent],
-          historyIndex: 0
-        });
-      }
-      tabData.list[tabData.active].messages = currentMsgs;
-      saveTabs();
-      renderChat();
+      finalizeMessage();
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        if (isRegen) {
-          currentMsgs[targetIndex].content = fullContent;
-          currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
-          currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = fullContent;
-        } else {
-          currentMsgs.push({
-            role: "assistant",
-            content: fullContent,
-            reasoningContent: fullReasoningContent,
-            history: [fullContent],
-            historyIndex: 0
-          });
-        }
-        tabData.list[tabData.active].messages = currentMsgs;
-        saveTabs();
-        renderChat();
+        finalizeMessage();
       } else {
+        // 【修复3】错误信息只在 UI 层展示，不存入 messages 数据层
         const contentDiv = aiMsgDiv.querySelector('.msg-content');
-        const errorMsg = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
         if (contentDiv) {
-          contentDiv.innerHTML = errorMsg;
+          contentDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
         }
-
-        if (isRegen) {
-          currentMsgs[targetIndex].content = errorMsg;
-          currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = errorMsg;
-          tabData.list[tabData.active].messages = currentMsgs;
-          saveTabs();
-        }
-
         console.error("发送消息错误：", e);
 
         if (e.message.includes("API请求失败") || e.message.includes("Key")) {
@@ -1148,6 +1143,25 @@ document.addEventListener('DOMContentLoaded', function() {
       sendBtn.textContent = "发送";
       sendBtn.classList.remove("stop-mode");
       abortController = null;
+    }
+
+    function finalizeMessage() {
+      if (isRegen) {
+        currentMsgs[targetIndex].content = fullContent;
+        currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
+        currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = { content: fullContent, reasoningContent: fullReasoningContent };
+      } else {
+        currentMsgs.push({
+          role: "assistant",
+          content: fullContent,
+          reasoningContent: fullReasoningContent,
+          history: [{ content: fullContent, reasoningContent: fullReasoningContent }],
+          historyIndex: 0
+        });
+      }
+      tabData.list[tabData.active].messages = currentMsgs;
+      saveTabs();
+      renderChat();
     }
   }
 
