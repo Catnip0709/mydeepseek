@@ -372,10 +372,18 @@
 
 <!-- API Key 设置面板 -->
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
-  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700">
-    <h3 class="text-white mb-3">输入/修改 DeepSeek API Key</h3>
-    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-3" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-    <button id="saveKey" class="w-full bg-blue-500 py-3 rounded text-white">保存</button>
+  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-md border border-gray-700">
+    <h3 class="text-white text-lg font-medium mb-4 text-center">【MyDeepSeek】输入/修改 DeepSeek API Key</h3>
+    
+    <!-- 新增的提示文案区域 -->
+    <div class="text-sm text-gray-300 mb-5 space-y-3 leading-relaxed bg-gray-800/50 p-4 rounded-lg border border-gray-700/50">
+      <p>1. 登录 DeepSeek 官网：<a href="https://platform.deepseek.com/" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors">platform.deepseek.com</a>，创建 API Key，并在官方平台完成充值。</p>
+      <p>2. 用浏览器打开本站：<a href="https://catnip0709.github.io/mydeepseek/" target="_blank" class="text-blue-400 hover:text-blue-300 hover:underline transition-colors">catnip0709.github.io/mydeepseek</a>，在下方输入你的 API Key 即可开始对话。</p>
+      <p>3. 本站<strong class="text-white font-medium">完全免费无广告，不收取任何中间费用</strong>，所有充值仅在 DeepSeek 官方完成。</p>
+    </div>
+
+    <input id="apiKeyInput" class="w-full p-3 bg-gray-800 rounded border border-gray-700 text-white mb-4 outline-none focus:border-blue-500 transition-colors" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+    <button id="saveKey" class="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-white font-medium transition-colors">保存并开始使用</button>
   </div>
 </div>
 
@@ -396,7 +404,7 @@
       </p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.jpg?raw=true" class="w-full h-full object-contain">
+      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/redbook.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
@@ -406,11 +414,12 @@
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
     <button id="closeDonateBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
     <div class="text-center mb-4">
+      <h3 class="text-white text-base font-medium mb-2">极简、私密、无第三方的DeepSeek网页客户端</h3>
       <p class="text-gray-300 text-left leading-relaxed">感谢使用本站，无任何强制要求，若您觉得好用，可自愿捐赠支持</p>
       <p class="text-gray-300 text-left leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
+        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
