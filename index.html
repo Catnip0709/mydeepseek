@@ -7,7 +7,16 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="format-detection" content="telephone=no">
   <title>My DeepSeek</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- 引入 Tailwind CSS 及 Typography 插件 (用于美化 Markdown) -->
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  
+  <!-- 引入 Marked.js 用于解析 Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- 引入 DOMPurify 用于防范 XSS 注入 (非常重要，配合 Markdown 使用) -->
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+
   <style>
     body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; }
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
@@ -133,18 +142,25 @@
     .tab.active { background:#3b82f6; color:white; }
     .tab:hover:not(.active) { background:#374151; }
 
-    .tab-del {
+    .tab-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tab-btn {
       font-size:14px;
-      width:20px;
-      height:20px;
+      width:24px;
+      height:24px;
       display:flex;
       align-items:center;
       justify-content:center;
-      border-radius:50%;
+      border-radius:4px;
       background:rgba(255,255,255,0.1);
       cursor:pointer;
+      transition: background 0.2s;
     }
-    .tab-del:hover { background:rgba(255,255,255,0.3); }
+    .tab-btn:hover { background:rgba(255,255,255,0.3); }
 
     /* 编辑面板样式 */
     .edit-panel {
@@ -259,6 +275,12 @@
     details.reasoning-details[open] > summary::before {
       transform: rotate(90deg);
     }
+
+    /* Markdown 样式微调 (覆盖 Tailwind Typography 的部分默认值以适应暗黑模式) */
+    .prose pre { background-color: #1f2937 !important; margin-top: 0.5em; margin-bottom: 0.5em; }
+    .prose p { margin-top: 0.5em; margin-bottom: 0.5em; }
+    .prose p:first-child { margin-top: 0; }
+    .prose p:last-child { margin-bottom: 0; }
   </style>
 </head>
 <body class="max-w-full mx-0 safe-area-bottom">
@@ -384,12 +406,11 @@
   <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-sm border border-gray-700 relative flex flex-col items-center">
     <button id="closeDonateBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none">&times;</button>
     <div class="text-center mb-4">
-      <h3 class="text-white text-base font-medium mb-2">极简、私密、无第三方的DeepSeek网页客户端</h3>
       <p class="text-gray-300 text-left leading-relaxed">感谢使用本站，无任何强制要求，若您觉得好用，可自愿捐赠支持</p>
       <p class="text-gray-300 text-left leading-relaxed mt-1">每一份助力，都能让站点陪您更久 ❤️</p>
     </div>
     <div class="w-48 h-48 bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-700">
-        <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
+      <img src="https://github.com/Catnip0709/mydeepseek/blob/main/alipay.jpg?raw=true" class="w-full h-full object-contain">
     </div>
   </div>
 </div>
@@ -439,7 +460,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0" } } };
   })();
 
-  // 【修复4】向下兼容旧数据，将 history 升级为包含 content 和 reasoningContent 的对象
+  // 向下兼容旧数据，将 history 升级为包含 content 和 reasoningContent 的对象
   Object.keys(tabData.list).forEach(id => {
     if (Array.isArray(tabData.list[id])) {
       tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0" };
@@ -502,6 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+  const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
 
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
@@ -635,6 +657,40 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
+  // 导出对话为 TXT
+  function exportChatToTxt(tabId) {
+    const msgs = tabData.list[tabId].messages || [];
+    if (msgs.length === 0) {
+      alert("当前对话为空，无法导出。");
+      return;
+    }
+
+    let txtContent = `My DeepSeek 对话导出 - ${new Date().toLocaleString()}\n`;
+    txtContent += `==================================================\n\n`;
+
+    msgs.forEach(m => {
+      const roleName = m.role === 'user' ? '我' : 'DeepSeek';
+      txtContent += `【${roleName}】:\n`;
+      
+      if (m.reasoningContent) {
+        txtContent += `[思考过程]:\n${m.reasoningContent}\n\n`;
+      }
+      
+      txtContent += `${m.content}\n\n`;
+      txtContent += `--------------------------------------------------\n\n`;
+    });
+
+    const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `DeepSeek对话导出_${tabId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
@@ -649,10 +705,13 @@ document.addEventListener('DOMContentLoaded', function() {
       tabDiv.className = `tab ${id === tabData.active ? "active" : ""}`;
       tabDiv.innerHTML = `
         <span class="truncate pr-2">对话 ${id.replace("tab", "")}</span>
-        <span class="tab-del flex-shrink-0" data-id="${id}">×</span>
+        <div class="tab-actions">
+          <span class="tab-btn tab-export" data-id="${id}" title="导出对话">${downloadIconSvg}</span>
+          <span class="tab-btn tab-del" data-id="${id}" title="删除对话">×</span>
+        </div>
       `;
       tabDiv.addEventListener("click", (e) => {
-        if (e.target.classList.contains("tab-del")) return;
+        if (e.target.closest('.tab-del') || e.target.closest('.tab-export')) return;
         tabData.active = id;
         saveTabs();
         updateMemoryUI();
@@ -663,6 +722,16 @@ document.addEventListener('DOMContentLoaded', function() {
       tabsEl.appendChild(tabDiv);
     });
 
+    // 绑定导出按钮事件
+    document.querySelectorAll(".tab-export").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const exportId = btn.dataset.id;
+        exportChatToTxt(exportId);
+      });
+    });
+
+    // 绑定删除按钮事件
     document.querySelectorAll(".tab-del").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -740,14 +809,16 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
-  // 【修复1】彻底消灭 XSS，使用安全的文本渲染方式
-  function renderPlainTextWithBr(el, text) {
-    el.textContent = '';
-    const parts = String(text || '').split('\n');
-    parts.forEach((part, idx) => {
-      if (idx > 0) el.appendChild(document.createElement('br'));
-      el.appendChild(document.createTextNode(part));
-    });
+  // 【新增】安全的 Markdown 渲染函数
+  function renderMarkdown(el, text) {
+    if (!text) {
+      el.innerHTML = '';
+      return;
+    }
+    // 使用 marked 解析，然后用 DOMPurify 清理，防止 XSS
+    const rawHtml = marked.parse(text);
+    const safeHtml = DOMPurify.sanitize(rawHtml);
+    el.innerHTML = safeHtml;
   }
 
   function renderChat() {
@@ -764,6 +835,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const msgBox = document.createElement("div");
       msgBox.id = `msg-${i}`;
+      // 为消息内容添加 Tailwind Typography 的 prose 类
       msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
 
       // 按钮组
@@ -793,23 +865,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
       msgBox.innerHTML = versionHtml + buttonsHtml;
 
-      // 思考过程 (安全渲染)
+      // 思考过程 (Markdown渲染)
       if (isAssistant && m.reasoningContent) {
         const details = document.createElement('details');
         details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
         details.open = true;
         details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
         const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = "reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
-        renderPlainTextWithBr(reasoningDiv, m.reasoningContent);
+        // 添加 prose 类以支持 Markdown 样式
+        reasoningDiv.className = "reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
+        renderMarkdown(reasoningDiv, m.reasoningContent);
         details.appendChild(reasoningDiv);
         msgBox.appendChild(details);
       }
 
-      // 消息内容 (安全渲染)
+      // 消息内容 (Markdown渲染)
       const contentDiv = document.createElement('div');
-      contentDiv.className = "msg-content";
-      renderPlainTextWithBr(contentDiv, m.content);
+      // 添加 prose 类以支持 Markdown 样式
+      contentDiv.className = "msg-content prose prose-invert max-w-none";
+      renderMarkdown(contentDiv, m.content);
       msgBox.appendChild(contentDiv);
 
       chat.appendChild(msgBox);
@@ -1015,7 +1089,7 @@ document.addEventListener('DOMContentLoaded', function() {
       aiMsgDiv = document.createElement("div");
       aiMsgDiv.id = `msg-${targetIndex}`;
       aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-      aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content"></div>`;
+      aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content prose prose-invert max-w-none"></div>`;
 
       const promptWarning = chat.querySelector('.text-xs.text-gray-500.text-center');
       if (promptWarning) {
@@ -1058,8 +1132,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      
-      // 【修复2】引入 buffer 机制，解决 TCP 拆包导致的 JSON 解析失败问题
+
       let buffer = "";
 
       while (true) {
@@ -1068,14 +1141,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        
-        // 保留最后一行（可能是不完整的 JSON），放到下一次循环处理
+
         buffer = lines.pop();
 
         for (const line of lines) {
           if (line.trim() === "") continue;
           if (!line.startsWith("data: ")) continue;
-          
+
           const dataStr = line.slice(6);
           if (dataStr === "[DONE]") {
             finalizeMessage();
@@ -1092,28 +1164,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 const details = document.createElement('details');
                 details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
                 details.open = true;
-                details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
+                details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
                 const msgContentDiv = aiMsgDiv.querySelector('.msg-content');
                 aiMsgDiv.insertBefore(details, msgContentDiv);
                 reasoningContentDiv = details.querySelector('.reasoning-content');
               }
               fullReasoningContent += delta.reasoning_content;
-              renderPlainTextWithBr(reasoningContentDiv, fullReasoningContent);
+              renderMarkdown(reasoningContentDiv, fullReasoningContent);
             }
 
             if (delta.content) {
               fullContent += delta.content;
               const contentDiv = aiMsgDiv.querySelector('.msg-content');
               if (contentDiv) {
-                renderPlainTextWithBr(contentDiv, fullContent);
+                renderMarkdown(contentDiv, fullContent);
               }
             }
 
             const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
             if (currentIsAtBottom) chat.scrollTop = chat.scrollHeight;
-          } catch (e) { 
-            // 解析失败通常是因为 buffer 机制没覆盖到的极端异常，忽略继续
-            continue; 
+          } catch (e) {
+            continue;
           }
         }
       }
@@ -1123,7 +1194,6 @@ document.addEventListener('DOMContentLoaded', function() {
       if (e.name === 'AbortError') {
         finalizeMessage();
       } else {
-        // 【修复3】错误信息只在 UI 层展示，不存入 messages 数据层
         const contentDiv = aiMsgDiv.querySelector('.msg-content');
         if (contentDiv) {
           contentDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
