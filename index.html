@@ -175,7 +175,7 @@
       border-radius: 12px;
       padding: 20px;
       width: 90%;
-      max-width: 500px;
+      max-width: 560px;
       border: 1px solid #333;
     }
     .edit-textarea {
@@ -190,6 +190,21 @@
       line-height: 1.5;
       resize: vertical;
       margin-bottom: 15px;
+    }
+    .edit-input {
+      width:100%;
+      background:#2a2a2a;
+      border:1px solid #444;
+      border-radius:8px;
+      padding:12px;
+      color:#fff;
+      font-size:14px;
+      line-height:1.5;
+      margin-bottom:15px;
+      outline:none;
+    }
+    .edit-input:focus, .edit-textarea:focus {
+      border-color:#3b82f6;
     }
     .edit-buttons { display: flex; gap: 10px; justify-content: flex-end; }
     .edit-btn-save, .edit-btn-cancel {
@@ -374,6 +389,7 @@
       gap:8px;
       flex-wrap:wrap;
       flex-shrink:0;
+      align-items:center;
     }
 
     .prompt-action-btn {
@@ -386,15 +402,46 @@
       transition: all .2s;
     }
 
-    .prompt-use-btn { background:#2563eb; }
-    .prompt-copy-btn { background:#059669; }
-    .prompt-edit-btn2 { background:#d97706; }
-    .prompt-delete-btn2 { background:#dc2626; }
+    .prompt-use-btn {
+      background: rgba(59, 130, 246, 0.10);
+      color: #cfe0ff;
+      border: 1px solid rgba(96,165,250,0.18);
+      border-radius: 9px;
+      padding: 7px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .prompt-use-btn:hover {
+      background: rgba(59, 130, 246, 0.16);
+      border-color: rgba(96,165,250,0.28);
+      color: #e6f0ff;
+    }
 
-    .prompt-use-btn:hover { background:#1d4ed8; }
-    .prompt-copy-btn:hover { background:#047857; }
-    .prompt-edit-btn2:hover { background:#b45309; }
-    .prompt-delete-btn2:hover { background:#b91c1c; }
+    .prompt-icon-btn {
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      color: #94a3b8;
+      border-radius: 8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition: all .2s;
+      padding: 0;
+    }
+    .prompt-icon-btn:hover {
+      background: rgba(255,255,255,0.08);
+      color: #e5e7eb;
+      border-color: rgba(255,255,255,0.14);
+    }
+    .prompt-icon-btn.delete:hover {
+      background: rgba(220,38,38,0.10);
+      color: #fca5a5;
+      border-color: rgba(220,38,38,0.18);
+    }
 
     .prompt-empty {
       text-align:center;
@@ -452,12 +499,119 @@
     .btn-gray:hover { background:#374151; }
     .btn-blue:hover { background:#1d4ed8; }
 
+    .prompt-form-topbar {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:2px;
+    }
+
+    .prompt-form-label {
+      font-size:13px;
+      color:#9ca3af;
+    }
+
+    .prompt-ai-inline {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:#94a3b8;
+      flex-shrink:0;
+    }
+
+    .prompt-ai-opt-btn {
+      width:32px;
+      height:32px;
+      border-radius:9999px;
+      border:1px solid rgba(148,163,184,0.22);
+      background:rgba(255,255,255,0.04);
+      color:#9ca3af;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      transition:all .2s;
+      flex-shrink:0;
+    }
+
+    .prompt-ai-opt-btn:hover {
+      color:#dbeafe;
+      border-color:rgba(96,165,250,0.45);
+      background:rgba(59,130,246,0.10);
+      transform:translateY(-1px);
+    }
+
+    .prompt-ai-opt-btn:disabled {
+      opacity:0.5;
+      cursor:not-allowed;
+      transform:none;
+    }
+
+    .prompt-ai-label {
+      font-size:12px;
+      color:#7f8ea3;
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    .compare-grid {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-top:14px;
+    }
+
+    .compare-box {
+      background:#111827;
+      border:1px solid #374151;
+      border-radius:10px;
+      padding:12px;
+      min-height:180px;
+      white-space:pre-wrap;
+      word-break:break-word;
+      color:#e5e7eb;
+      font-size:13px;
+      line-height:1.6;
+      overflow-y:auto;
+      max-height:42vh;
+    }
+
+    .compare-title {
+      font-size:13px;
+      color:#9ca3af;
+      margin-bottom:8px;
+    }
+
+    .modal-desc {
+      font-size:13px;
+      color:#cbd5e1;
+      line-height:1.7;
+      margin-top:6px;
+    }
+
+    .loading-spinner {
+      width:16px;
+      height:16px;
+      border:2px solid rgba(255,255,255,.25);
+      border-top-color:#fff;
+      border-radius:50%;
+      animation:spin .8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 640px) {
       .prompt-item-header {
         flex-direction: column;
       }
       .prompt-actions {
         width:100%;
+      }
+      .compare-grid {
+        grid-template-columns:1fr;
       }
     }
   </style>
@@ -597,6 +751,49 @@
   </div>
 </div>
 
+<div id="renameTabPanel" class="edit-panel hidden">
+  <div class="edit-container">
+    <h3 class="text-white mb-3">修改会话名称</h3>
+    <input id="renameTabInput" class="edit-input" type="text" placeholder="请输入会话名称">
+    <div class="edit-buttons">
+      <button id="renameTabCancelBtn" class="edit-btn-cancel">取消</button>
+      <button id="renameTabSaveBtn" class="edit-btn-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="confirmPanel" class="edit-panel hidden">
+  <div class="edit-container">
+    <h3 id="confirmTitle" class="text-white mb-2">确认操作</h3>
+    <div id="confirmDesc" class="modal-desc"></div>
+    <div class="edit-buttons mt-5">
+      <button id="confirmCancelBtn" class="edit-btn-cancel">取消</button>
+      <button id="confirmOkBtn" class="edit-btn-save">确认</button>
+    </div>
+  </div>
+</div>
+
+<div id="promptOptimizePreviewPanel" class="edit-panel hidden">
+  <div class="edit-container" style="max-width: 920px;">
+    <h3 class="text-white mb-2">AI 优化建议</h3>
+    <div class="modal-desc">我根据你当前填写的内容做了一版轻量优化，尽量保持原意与原长度。你可以先对比，再决定是否替换。</div>
+    <div class="compare-grid">
+      <div>
+        <div class="compare-title">原内容</div>
+        <div id="originalPromptPreview" class="compare-box"></div>
+      </div>
+      <div>
+        <div class="compare-title">优化后</div>
+        <div id="optimizedPromptPreview" class="compare-box"></div>
+      </div>
+    </div>
+    <div class="edit-buttons mt-5">
+      <button id="discardOptimizedPromptBtn" class="edit-btn-cancel">保留原内容</button>
+      <button id="applyOptimizedPromptBtn" class="edit-btn-save">替换为优化结果</button>
+    </div>
+  </div>
+</div>
+
 <div id="promptPanel" class="panel-modal hidden">
   <div class="prompt-panel-container">
     <div class="prompt-panel-header">
@@ -614,6 +811,18 @@
 
       <div id="promptFormView" class="hidden">
         <div class="prompt-form">
+          <div class="prompt-form-topbar">
+            <div class="prompt-form-label">编辑指令</div>
+            <div class="prompt-ai-inline">
+              <button id="optimizePromptBtn" class="prompt-ai-opt-btn" type="button" title="智能优化">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+                  <path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"></path>
+                </svg>
+              </button>
+              <span class="prompt-ai-label">智能优化</span>
+            </div>
+          </div>
           <input id="promptTitleInput" class="prompt-input" type="text" placeholder="请输入指令标题（可不填）">
           <textarea id="promptContentInput" class="prompt-textarea" placeholder="请输入指令内容..."></textarea>
           <div class="prompt-form-actions">
@@ -657,15 +866,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (Array.isArray(tabData.list[id])) {
       tabData.list[id] = { messages: tabData.list[id], memoryLimit: "0", title: "" };
     } else {
-      if (typeof tabData.list[id].title === 'undefined') {
-        tabData.list[id].title = "";
-      }
-      if (typeof tabData.list[id].memoryLimit === 'undefined') {
-        tabData.list[id].memoryLimit = "0";
-      }
-      if (!Array.isArray(tabData.list[id].messages)) {
-        tabData.list[id].messages = [];
-      }
+      if (typeof tabData.list[id].title === 'undefined') tabData.list[id].title = "";
+      if (typeof tabData.list[id].memoryLimit === 'undefined') tabData.list[id].memoryLimit = "0";
+      if (!Array.isArray(tabData.list[id].messages)) tabData.list[id].messages = [];
     }
 
     tabData.list[id].messages.forEach(msg => {
@@ -682,6 +885,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const PROMPT_STORAGE_KEY = 'dsPrompts';
   let promptData = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY)) || [];
   let editingPromptId = null;
+
+  let renamingTabId = null;
+  let confirmResolve = null;
+  let optimizedCandidateText = '';
+  let optimizeInProgress = false;
 
   const MAX_CONTEXT_TOKENS = 131072;
   function isTokenLimitReached() {
@@ -744,9 +952,28 @@ document.addEventListener('DOMContentLoaded', function() {
   const promptContentInput = document.getElementById("promptContentInput");
   const cancelPromptEditBtn = document.getElementById("cancelPromptEditBtn");
   const savePromptBtn = document.getElementById("savePromptBtn");
+  const optimizePromptBtn = document.getElementById("optimizePromptBtn");
 
-  const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-  const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+  const renameTabPanel = document.getElementById("renameTabPanel");
+  const renameTabInput = document.getElementById("renameTabInput");
+  const renameTabCancelBtn = document.getElementById("renameTabCancelBtn");
+  const renameTabSaveBtn = document.getElementById("renameTabSaveBtn");
+
+  const confirmPanel = document.getElementById("confirmPanel");
+  const confirmTitle = document.getElementById("confirmTitle");
+  const confirmDesc = document.getElementById("confirmDesc");
+  const confirmCancelBtn = document.getElementById("confirmCancelBtn");
+  const confirmOkBtn = document.getElementById("confirmOkBtn");
+
+  const promptOptimizePreviewPanel = document.getElementById("promptOptimizePreviewPanel");
+  const originalPromptPreview = document.getElementById("originalPromptPreview");
+  const optimizedPromptPreview = document.getElementById("optimizedPromptPreview");
+  const discardOptimizedPromptBtn = document.getElementById("discardOptimizedPromptBtn");
+  const applyOptimizedPromptBtn = document.getElementById("applyOptimizedPromptBtn");
+
+  const copyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  const deleteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+  const editIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
@@ -755,6 +982,35 @@ document.addEventListener('DOMContentLoaded', function() {
     keyPanel.classList.remove("hidden");
   } else {
     apiKeyInput.value = apiKey;
+  }
+
+  function showToast(text) {
+    const toast = document.createElement('div');
+    toast.textContent = text;
+    toast.style.position = 'fixed';
+    toast.style.left = '50%';
+    toast.style.bottom = '110px';
+    toast.style.transform = 'translateX(-50%)';
+    toast.style.background = 'rgba(17,24,39,.95)';
+    toast.style.color = '#fff';
+    toast.style.padding = '10px 14px';
+    toast.style.borderRadius = '10px';
+    toast.style.fontSize = '13px';
+    toast.style.border = '1px solid #374151';
+    toast.style.zIndex = '120';
+    toast.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
+    toast.style.opacity = '0';
+    toast.style.transition = 'all .25s ease';
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.bottom = '120px';
+    });
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.bottom = '110px';
+      setTimeout(() => toast.remove(), 250);
+    }, 1800);
   }
 
   openDonateBtn.addEventListener("click", () => donatePanel.classList.remove("hidden"));
@@ -877,7 +1133,7 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKey = newKey;
     localStorage.setItem("dsApiKey", apiKey);
     keyPanel.classList.add("hidden");
-    alert("Key保存成功，可正常使用！");
+    showToast("API Key 已保存");
   };
 
   editKeyBtn.onclick = () => {
@@ -887,15 +1143,182 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.focus();
   };
 
-  function renameTab(tabId) {
-    const currentName = tabData.list[tabId]?.title || "";
-    const nextName = prompt("请输入新的会话名称：", currentName || getTabDisplayName(tabId));
-    if (nextName === null) return;
+  function openRenameTabPanel(tabId) {
+    renamingTabId = tabId;
+    renameTabInput.value = tabData.list[tabId]?.title || '';
+    renameTabPanel.classList.remove('hidden');
+    setTimeout(() => {
+      renameTabInput.focus();
+      renameTabInput.select();
+    }, 30);
+  }
 
-    const finalName = nextName.trim();
-    tabData.list[tabId].title = finalName;
+  function closeRenameTabPanel() {
+    renamingTabId = null;
+    renameTabPanel.classList.add('hidden');
+    renameTabInput.value = '';
+  }
+
+  function saveRenamedTab() {
+    if (!renamingTabId || !tabData.list[renamingTabId]) return;
+    const finalName = renameTabInput.value.trim();
+    tabData.list[renamingTabId].title = finalName;
     saveTabs();
     renderTabs();
+    closeRenameTabPanel();
+    showToast(finalName ? '会话名称已更新' : '已恢复默认会话名称');
+  }
+
+  function showConfirmModal({ title = '确认操作', desc = '确定继续吗？', okText = '确认', cancelText = '取消' } = {}) {
+    confirmTitle.textContent = title;
+    confirmDesc.textContent = desc;
+    confirmOkBtn.textContent = okText;
+    confirmCancelBtn.textContent = cancelText;
+    confirmPanel.classList.remove('hidden');
+
+    return new Promise(resolve => {
+      confirmResolve = resolve;
+    });
+  }
+
+  function closeConfirmModal(result) {
+    confirmPanel.classList.add('hidden');
+    if (confirmResolve) {
+      confirmResolve(result);
+      confirmResolve = null;
+    }
+  }
+
+  async function optimizePromptWithAI() {
+    if (optimizeInProgress) return;
+    const original = promptContentInput.value.trim();
+
+    if (!original) {
+      showToast('请先填写指令内容');
+      promptContentInput.focus();
+      return;
+    }
+
+    if (!apiKey) {
+      keyPanel.classList.remove("hidden");
+      return;
+    }
+
+    const confirmed = await showConfirmModal({
+      title: '智能优化当前指令',
+      desc: '我会在尽量不改变原意的前提下，帮你把当前内容整理得更清晰、更自然，并尽量保持接近原长度。是否继续？',
+      okText: '开始优化',
+      cancelText: '暂不需要'
+    });
+
+    if (!confirmed) return;
+
+    optimizeInProgress = true;
+    const oldHtml = optimizePromptBtn.innerHTML;
+    optimizePromptBtn.disabled = true;
+    optimizePromptBtn.innerHTML = `<div class="loading-spinner"></div>`;
+
+    try {
+      const optimized = await requestOptimizedPrompt(original);
+      if (!optimized || !optimized.trim()) {
+        throw new Error('AI 未返回有效结果');
+      }
+
+      optimizedCandidateText = optimized.trim();
+      originalPromptPreview.textContent = original;
+      optimizedPromptPreview.textContent = optimizedCandidateText;
+      promptOptimizePreviewPanel.classList.remove('hidden');
+    } catch (e) {
+      console.error(e);
+      alert('AI 优化失败：' + e.message);
+    } finally {
+      optimizeInProgress = false;
+      optimizePromptBtn.disabled = false;
+      optimizePromptBtn.innerHTML = oldHtml;
+    }
+  }
+
+  async function requestOptimizedPrompt(original) {
+    const originalLength = original.length;
+    const minLen = Math.max(1, Math.floor(originalLength * 0.9));
+    const maxLen = Math.max(minLen, Math.ceil(originalLength * 1.1));
+    const approxMaxTokens = Math.max(256, Math.min(1200, Math.ceil(maxLen * 2.2)));
+
+    const messages = [
+      {
+        role: "system",
+        content:
+`你是一个擅长优化提示词（Prompt）的助手。
+
+任务要求：
+1. 优化用户提供的 prompt，使表达更清晰、结构更自然、指令更明确。
+2. 保持用户原意，不要擅自新增明显超出原意的要求。
+3. 输出风格应当自然、直接、可立即使用。
+4. 控制字数与原文尽量接近，目标范围是原文长度的 90%~110%。
+5. 不要解释，不要分析，不要加前言，不要使用标题“优化后”，只输出优化后的 prompt 正文。
+6. 如果原文本身就是分点结构，可以保留分点；如果不是，也不要强行过度格式化。`
+      },
+      {
+        role: "user",
+        content:
+`请帮我优化下面这段 prompt。
+
+原文长度：${originalLength} 字
+目标长度范围：${minLen}~${maxLen} 字
+
+原文如下：
+${original}`
+      }
+    ];
+
+    const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages,
+        stream: false,
+        temperature: 0.5,
+        max_tokens: approxMaxTokens
+      })
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || '请求失败，请检查 API Key 或稍后重试');
+    }
+
+    const data = await res.json();
+    let content = data?.choices?.[0]?.message?.content || '';
+
+    content = String(content).trim()
+      .replace(/^```[\w-]*\n?/i, '')
+      .replace(/\n?```$/, '')
+      .trim();
+
+    return content;
+  }
+
+  function closeOptimizePreviewPanel() {
+    promptOptimizePreviewPanel.classList.add('hidden');
+    originalPromptPreview.textContent = '';
+    optimizedPromptPreview.textContent = '';
+    optimizedCandidateText = '';
+  }
+
+  function applyOptimizedPrompt() {
+    if (!optimizedCandidateText) {
+      closeOptimizePreviewPanel();
+      return;
+    }
+    promptContentInput.value = optimizedCandidateText;
+    closeOptimizePreviewPanel();
+    showToast('已替换为优化结果');
   }
 
   function exportChatToTxt(tabId) {
@@ -968,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', function() {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const tabId = btn.dataset.id;
-        renameTab(tabId);
+        openRenameTabPanel(tabId);
       });
     });
 
@@ -1558,10 +1981,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="prompt-preview">${escapeHtml(preview)}</div>
           </div>
           <div class="prompt-actions">
-            <button class="prompt-action-btn prompt-use-btn" data-id="${item.id}">新建会话并插入指令</button>
-            <button class="prompt-action-btn prompt-copy-btn" data-id="${item.id}">复制内容</button>
-            <button class="prompt-action-btn prompt-edit-btn2" data-id="${item.id}">编辑指令</button>
-            <button class="prompt-action-btn prompt-delete-btn2" data-id="${item.id}">删除指令</button>
+            <button class="prompt-use-btn" data-id="${item.id}">新建会话并插入指令</button>
+            <button class="prompt-icon-btn prompt-copy-btn" data-id="${item.id}" title="复制内容">${copyIconSvg}</button>
+            <button class="prompt-icon-btn prompt-edit-btn2" data-id="${item.id}" title="编辑指令">${editIconSvg}</button>
+            <button class="prompt-icon-btn prompt-delete-btn2 delete" data-id="${item.id}" title="删除指令">${deleteIconSvg}</button>
           </div>
         </div>
       `;
@@ -1584,9 +2007,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const item = promptData.find(p => p.id === id);
         if (!item) return;
         copyText(item.content || '');
-        const old = this.textContent;
-        this.textContent = '已复制';
-        setTimeout(() => this.textContent = old, 1200);
+        const old = this.innerHTML;
+        this.innerHTML = checkIconSvg;
+        setTimeout(() => this.innerHTML = old, 1200);
       });
     });
 
@@ -1678,6 +2101,28 @@ document.addEventListener('DOMContentLoaded', function() {
   addPromptBtn.addEventListener('click', () => showPromptFormView());
   cancelPromptEditBtn.addEventListener('click', showPromptListView);
   savePromptBtn.addEventListener('click', savePromptItem);
+  optimizePromptBtn.addEventListener('click', optimizePromptWithAI);
+
+  renameTabCancelBtn.addEventListener('click', closeRenameTabPanel);
+  renameTabSaveBtn.addEventListener('click', saveRenamedTab);
+  renameTabPanel.addEventListener('click', (e) => {
+    if (e.target === renameTabPanel) closeRenameTabPanel();
+  });
+  renameTabInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveRenamedTab();
+  });
+
+  confirmCancelBtn.addEventListener('click', () => closeConfirmModal(false));
+  confirmOkBtn.addEventListener('click', () => closeConfirmModal(true));
+  confirmPanel.addEventListener('click', (e) => {
+    if (e.target === confirmPanel) closeConfirmModal(false);
+  });
+
+  discardOptimizedPromptBtn.addEventListener('click', closeOptimizePreviewPanel);
+  applyOptimizedPromptBtn.addEventListener('click', applyOptimizedPrompt);
+  promptOptimizePreviewPanel.addEventListener('click', (e) => {
+    if (e.target === promptOptimizePreviewPanel) closeOptimizePreviewPanel();
+  });
 
   sendBtn.addEventListener("click", () => {
     if (isSending) {
@@ -1703,6 +2148,9 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       if (!editPanel.classList.contains('hidden')) cancelEdit();
+      if (!renameTabPanel.classList.contains('hidden')) closeRenameTabPanel();
+      if (!confirmPanel.classList.contains('hidden')) closeConfirmModal(false);
+      if (!promptOptimizePreviewPanel.classList.contains('hidden')) closeOptimizePreviewPanel();
       if (!promptPanel.classList.contains('hidden')) closePromptPanel();
     }
   });
