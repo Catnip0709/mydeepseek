@@ -881,6 +881,16 @@ document.addEventListener('DOMContentLoaded', function() {
   let editingMessageIndex = -1;
   let isSending = false;
   let abortController = null;
+  let abortReason = null;
+  let lastPageHiddenAt = 0;
+  let shouldToastOnVisible = false;
+
+  function abortStreaming(reason) {
+    abortReason = reason;
+    if (abortController) {
+      try { abortController.abort(); } catch (_) {}
+    }
+  }
 
   const PROMPT_STORAGE_KEY = 'dsPrompts';
   let promptData = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY)) || [];
@@ -1012,6 +1022,22 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(() => toast.remove(), 250);
     }, 1800);
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      lastPageHiddenAt = Date.now();
+      if (isSending && abortController) {
+        shouldToastOnVisible = true;
+        abortStreaming('background');
+      }
+      return;
+    }
+
+    if (shouldToastOnVisible) {
+      shouldToastOnVisible = false;
+      showToast('已从后台返回：刚才的生成已中断，可点击“重新生成”继续');
+    }
+  });
 
   openDonateBtn.addEventListener("click", () => donatePanel.classList.remove("hidden"));
   closeDonateBtn.addEventListener("click", () => donatePanel.classList.add("hidden"));
@@ -1490,6 +1516,10 @@ ${original}`
     el.innerHTML = safeHtml;
   }
 
+  function countChars(text) {
+    return String(text || '').replace(/\s/g, '').length;
+  }
+
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
@@ -1547,6 +1577,20 @@ ${original}`
       contentDiv.className = "msg-content prose prose-invert max-w-none";
       renderMarkdown(contentDiv, m.content);
       msgBox.appendChild(contentDiv);
+
+      if (isAssistant) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = "assistant-meta mt-2 text-xs text-gray-400";
+        metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字`;
+        msgBox.appendChild(metaDiv);
+
+        if (m.generationState === 'interrupted') {
+          const statusDiv = document.createElement('div');
+          statusDiv.className = "generation-status mt-1 text-xs text-amber-400";
+          statusDiv.textContent = '生成中断，可重新生成';
+          msgBox.appendChild(statusDiv);
+        }
+      }
 
       chat.appendChild(msgBox);
     });
@@ -1623,6 +1667,7 @@ ${original}`
           msg.historyIndex--;
           msg.content = msg.history[msg.historyIndex].content;
           msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
+          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
           saveTabs();
           renderChat();
         }
@@ -1638,6 +1683,7 @@ ${original}`
           msg.historyIndex++;
           msg.content = msg.history[msg.historyIndex].content;
           msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
+          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
           saveTabs();
           renderChat();
         }
@@ -1716,6 +1762,7 @@ ${original}`
     sendBtn.textContent = "停止";
     sendBtn.classList.add("stop-mode");
 
+    abortReason = null;
     abortController = new AbortController();
     trackEvent('发送消息');
 
@@ -1739,18 +1786,23 @@ ${original}`
     if (isRegen) {
       aiMsgDiv = document.getElementById(`msg-${targetIndex}`);
       if (!currentMsgs[targetIndex].history) {
-        currentMsgs[targetIndex].history = [{ content: currentMsgs[targetIndex].content, reasoningContent: currentMsgs[targetIndex].reasoningContent || "" }];
+        currentMsgs[targetIndex].history = [{ content: currentMsgs[targetIndex].content, reasoningContent: currentMsgs[targetIndex].reasoningContent || "", state: currentMsgs[targetIndex].generationState || 'complete' }];
         currentMsgs[targetIndex].historyIndex = 0;
       }
-      currentMsgs[targetIndex].history.push({ content: "", reasoningContent: "" });
+      currentMsgs[targetIndex].history.push({ content: "", reasoningContent: "", state: "generating" });
       currentMsgs[targetIndex].historyIndex = currentMsgs[targetIndex].history.length - 1;
       currentMsgs[targetIndex].content = "";
       currentMsgs[targetIndex].reasoningContent = "";
+      currentMsgs[targetIndex].generationState = "generating";
 
       const contentDiv = aiMsgDiv.querySelector('.msg-content');
       if (contentDiv) contentDiv.textContent = "";
       const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
       if (reasoningDetails) reasoningDetails.remove();
+      const metaEl = aiMsgDiv.querySelector('.assistant-meta');
+      if (metaEl) metaEl.remove();
+      const statusEl = aiMsgDiv.querySelector('.generation-status');
+      if (statusEl) statusEl.remove();
     } else {
       aiMsgDiv = document.createElement("div");
       aiMsgDiv.id = `msg-${targetIndex}`;
@@ -1771,6 +1823,19 @@ ${original}`
     let fullReasoningContent = "";
     let hasReasoning = false;
     let reasoningContentDiv = null;
+    let finalizeState = "complete";
+
+    function markInterrupted() {
+      finalizeState = "interrupted";
+    }
+
+    function isBackgroundRelatedError(err) {
+      if (abortReason === "background") return true;
+      if (Date.now() - lastPageHiddenAt > 6000) return false;
+      const msg = String(err && err.message ? err.message : "");
+      if (!msg) return true;
+      return /(load failed|failed to fetch|networkerror|cancelled|canceled)/i.test(msg);
+    }
 
     try {
       const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
@@ -1816,7 +1881,7 @@ ${original}`
 
           const dataStr = line.slice(6);
           if (dataStr === "[DONE]") {
-            finalizeMessage();
+            finalizeMessage(finalizeState);
             return;
           }
 
@@ -1854,11 +1919,15 @@ ${original}`
           }
         }
       }
-      finalizeMessage();
+      finalizeMessage(finalizeState);
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        finalizeMessage();
+        if (abortReason === 'background') markInterrupted();
+        finalizeMessage(finalizeState);
+      } else if (isBackgroundRelatedError(e)) {
+        markInterrupted();
+        finalizeMessage(finalizeState);
       } else {
         const contentDiv = aiMsgDiv.querySelector('.msg-content');
         if (contentDiv) {
@@ -1881,17 +1950,19 @@ ${original}`
       abortController = null;
     }
 
-    function finalizeMessage() {
+    function finalizeMessage(state = "complete") {
       if (isRegen) {
+        currentMsgs[targetIndex].generationState = state;
         currentMsgs[targetIndex].content = fullContent;
         currentMsgs[targetIndex].reasoningContent = fullReasoningContent;
-        currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = { content: fullContent, reasoningContent: fullReasoningContent };
+        currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = { content: fullContent, reasoningContent: fullReasoningContent, state };
       } else {
         currentMsgs.push({
           role: "assistant",
           content: fullContent,
           reasoningContent: fullReasoningContent,
-          history: [{ content: fullContent, reasoningContent: fullReasoningContent }],
+          generationState: state,
+          history: [{ content: fullContent, reasoningContent: fullReasoningContent, state }],
           historyIndex: 0
         });
       }
@@ -2126,7 +2197,7 @@ ${original}`
 
   sendBtn.addEventListener("click", () => {
     if (isSending) {
-      if (abortController) abortController.abort();
+      abortStreaming('manual');
     } else {
       sendMessage();
     }
