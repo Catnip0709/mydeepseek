@@ -98,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
   const modelSelect = document.getElementById("modelSelect");
   const deepThinkToggle = document.getElementById("deepThinkToggle");
+  const dayModeToggle = document.getElementById("dayModeToggle");
 
   const menuBtn = document.getElementById("menuBtn");
   const sidebar = document.getElementById("sidebar");
@@ -163,14 +164,24 @@ document.addEventListener('DOMContentLoaded', function() {
     toast.style.left = '50%';
     toast.style.bottom = '110px';
     toast.style.transform = 'translateX(-50%)';
-    toast.style.background = 'rgba(17,24,39,.95)';
-    toast.style.color = '#fff';
+    
+    const isDayMode = document.body.classList.contains('day-mode');
+    if (isDayMode) {
+      toast.style.background = 'rgba(255,255,255,.95)';
+      toast.style.color = '#111827';
+      toast.style.border = '1px solid #e5e7eb';
+      toast.style.boxShadow = '0 10px 30px rgba(0,0,0,.1)';
+    } else {
+      toast.style.background = 'rgba(17,24,39,.95)';
+      toast.style.color = '#fff';
+      toast.style.border = '1px solid #374151';
+      toast.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
+    }
+    
     toast.style.padding = '10px 14px';
     toast.style.borderRadius = '10px';
     toast.style.fontSize = '13px';
-    toast.style.border = '1px solid #374151';
     toast.style.zIndex = '120';
-    toast.style.boxShadow = '0 10px 30px rgba(0,0,0,.35)';
     toast.style.opacity = '0';
     toast.style.transition = 'all .25s ease';
     document.body.appendChild(toast);
@@ -220,6 +231,22 @@ document.addEventListener('DOMContentLoaded', function() {
   deepThinkToggle.addEventListener("change", (e) => {
     const newModel = e.target.checked ? "deepseek-reasoner" : "deepseek-chat";
     modelSelect.value = newModel;
+  });
+
+  const savedDayMode = localStorage.getItem("dsDayMode") === "true";
+  dayModeToggle.checked = savedDayMode;
+  if (savedDayMode) {
+    document.body.classList.add("day-mode");
+  }
+
+  dayModeToggle.addEventListener("change", (e) => {
+    const isDayMode = e.target.checked;
+    if (isDayMode) {
+      document.body.classList.add("day-mode");
+    } else {
+      document.body.classList.remove("day-mode");
+    }
+    localStorage.setItem("dsDayMode", isDayMode.toString());
   });
 
   function saveTabs() {

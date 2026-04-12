@@ -1,4 +1,5 @@
-body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; }
+body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; transition: background 0.3s, color 0.3s; }
+    body.day-mode { background:#f9fafb; color:#111827; }
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
@@ -611,3 +612,622 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
 /* generated from inline style="..." */
 .inl_0201436a24 { scrollbar-width: none;-ms-overflow-style: none; }
 .inl_fd9f6e7d33 { max-width: 920px; }
+
+/* ========== 日间模式样式 ========== */
+
+/* Header */
+body.day-mode .fixed.top-0.left-0.right-0 {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-bottom-color: #d1d5db !important;
+}
+body.day-mode h1 {
+  color: #111827 !important;
+}
+body.day-mode #menuBtn {
+  color: #111827 !important;
+}
+body.day-mode #openInfoBtn,
+body.day-mode #openDonateBtn {
+  color: #4b5563 !important;
+}
+body.day-mode #openInfoBtn:hover,
+body.day-mode #openDonateBtn:hover {
+  color: #111827 !important;
+}
+
+/* Sidebar */
+body.day-mode #sidebar {
+  background: #ffffff !important;
+  border-right-color: #d1d5db !important;
+}
+body.day-mode #sidebar .p-4.border-b {
+  border-bottom-color: #e5e7eb !important;
+}
+body.day-mode #sidebar .p-4.border-t {
+  border-top-color: #e5e7eb !important;
+}
+body.day-mode #sidebar .text-sm.text-gray-300 {
+  color: #374151 !important;
+  font-weight: 500;
+}
+body.day-mode #sidebar .bg-gray-700 {
+  background: #f3f4f6 !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 500;
+}
+body.day-mode #sidebar .bg-gray-700:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+body.day-mode #sidebar button:not(.bg-blue-600):not(.bg-red-600\/90):not(.bg-gray-700) {
+  color: #111827 !important;
+}
+body.day-mode #sidebar .w-9.h-5 {
+  background: #d1d5db !important;
+}
+body.day-mode #sidebar .peer:checked + .w-9.h-5 {
+  background: #3b82f6 !important;
+}
+body.day-mode #sidebar select,
+body.day-mode #sidebar input[type=number] {
+  background: #f9fafb !important;
+  color: #111827 !important;
+  border-color: #d1d5db !important;
+}
+body.day-mode #sidebar select:focus,
+body.day-mode #sidebar input[type=number]:focus {
+  border-color: #3b82f6 !important;
+}
+body.day-mode #sidebar .text-xs.text-gray-400 {
+  color: #4b5563 !important;
+  font-weight: 500;
+}
+body.day-mode #sidebar .bg-red-600\/90 {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+  font-weight: 500;
+}
+body.day-mode #sidebar .bg-red-600\/90:hover {
+  background: #fecaca !important;
+  border-color: #fca5a5 !important;
+  color: #b91c1c !important;
+}
+body.day-mode #sidebar .bg-blue-600 {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+  border: 1px solid #2563eb !important;
+  font-weight: 500;
+}
+body.day-mode #sidebar .bg-blue-600:hover {
+  background: #2563eb !important;
+  border-color: #1d4ed8 !important;
+}
+body.day-mode .bg-blue-600 {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+body.day-mode .bg-blue-600:hover {
+  background: #2563eb !important;
+}
+body.day-mode .btn-blue {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+body.day-mode .btn-blue:hover {
+  background: #2563eb !important;
+}
+
+/* Tabs */
+body.day-mode .tab {
+  color: #111827 !important;
+  font-weight: 500;
+}
+body.day-mode .tab:hover:not(.active) {
+  background: #f3f4f6 !important;
+}
+body.day-mode .tab.active {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+body.day-mode .tab-btn {
+  background: rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+}
+body.day-mode .tab-btn:hover {
+  background: rgba(0, 0, 0, 0.15) !important;
+  color: #111827 !important;
+}
+body.day-mode .tab.active .tab-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: white !important;
+}
+body.day-mode .tab.active .tab-btn:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  color: white !important;
+}
+
+/* Chat area */
+body.day-mode #chat {
+  background: #f3f4f6 !important;
+}
+
+/* Messages */
+body.day-mode .message-box.bg-gray-800 {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+body.day-mode .message-box.bg-blue-600 {
+  color: white !important;
+}
+body.day-mode .msg-content.prose.prose-invert {
+  color: #111827 !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert {
+  color: #ffffff !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h1,
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h2,
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h3,
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h4,
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h5,
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert h6 {
+  color: #ffffff !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert a {
+  color: #dbeafe !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert code {
+  color: #fecaca !important;
+  background: rgba(255,255,255,0.15) !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert pre {
+  background: rgba(0,0,0,0.25) !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert pre code {
+  color: #e5e7eb !important;
+  background: transparent !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert strong {
+  color: #ffffff !important;
+}
+body.day-mode .message-box.bg-blue-600 .msg-content.prose.prose-invert blockquote {
+  color: #e5e7eb !important;
+  border-left-color: rgba(255,255,255,0.3) !important;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h1,
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h2,
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h3,
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h4,
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h5,
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert h6 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert a {
+  color: #2563eb !important;
+  font-weight: 500;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert code {
+  color: #be123c !important;
+  background: #fef2f2 !important;
+  font-weight: 500;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert pre {
+  background: #1f2937 !important;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert pre code {
+  color: #e5e7eb !important;
+  background: transparent !important;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert strong {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert blockquote {
+  color: #374151 !important;
+  border-left-color: #d1d5db !important;
+  font-weight: 500;
+}
+
+/* Assistant meta */
+body.day-mode .assistant-meta {
+  color: #4b5563 !important;
+  font-weight: 500;
+}
+
+/* Generation status */
+body.day-mode .generation-status {
+  color: #b45309 !important;
+  font-weight: 500;
+}
+
+/* Reasoning details */
+body.day-mode .reasoning-details {
+  border-color: #d1d5db !important;
+  background: #f9fafb !important;
+}
+body.day-mode .reasoning-details summary {
+  color: #374151 !important;
+  font-weight: 600;
+}
+body.day-mode .reasoning-content {
+  border-top-color: #e5e7eb !important;
+  color: #374151 !important;
+}
+
+/* Message buttons */
+body.day-mode .copy-btn,
+body.day-mode .regenerate-btn,
+body.day-mode .edit-btn,
+body.day-mode .delete-btn {
+  background: rgba(0, 0, 0, 0.12) !important;
+  color: #1f2937 !important;
+}
+body.day-mode .copy-btn:hover,
+body.day-mode .regenerate-btn:hover,
+body.day-mode .edit-btn:hover {
+  background: rgba(0, 0, 0, 0.18) !important;
+  color: #111827 !important;
+}
+body.day-mode .delete-btn:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  color: #dc2626 !important;
+}
+
+/* User message (blue background) buttons in day mode */
+body.day-mode .message-box.bg-blue-600 .copy-btn,
+body.day-mode .message-box.bg-blue-600 .regenerate-btn,
+body.day-mode .message-box.bg-blue-600 .edit-btn,
+body.day-mode .message-box.bg-blue-600 .delete-btn {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+body.day-mode .message-box.bg-blue-600 .copy-btn:hover,
+body.day-mode .message-box.bg-blue-600 .regenerate-btn:hover,
+body.day-mode .message-box.bg-blue-600 .edit-btn:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  color: #ffffff !important;
+}
+body.day-mode .message-box.bg-blue-600 .delete-btn:hover {
+  background: rgba(248, 113, 113, 0.3) !important;
+  color: #fecaca !important;
+}
+
+/* Version control */
+body.day-mode .version-control {
+  background: rgba(0, 0, 0, 0.1) !important;
+  color: #1f2937 !important;
+  font-weight: 500;
+}
+body.day-mode .version-btn:hover {
+  color: #111827 !important;
+}
+
+/* Input container */
+body.day-mode .input-container {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border-top-color: #d1d5db !important;
+}
+body.day-mode #input {
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+  font-weight: 400;
+}
+body.day-mode #input::placeholder {
+  color: #9ca3af !important;
+}
+
+/* Scroll to bottom button */
+body.day-mode .scroll-to-bottom-btn {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #d1d5db !important;
+  color: #1f2937 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+body.day-mode .scroll-to-bottom-btn:hover {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+/* Edit panel */
+body.day-mode .edit-panel {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+body.day-mode .edit-container {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+body.day-mode .edit-container h3 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode .edit-textarea,
+body.day-mode .edit-input {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+  font-weight: 400;
+}
+body.day-mode .edit-textarea:focus,
+body.day-mode .edit-input:focus {
+  border-color: #3b82f6 !important;
+}
+body.day-mode .edit-btn-cancel {
+  background: #f3f4f6 !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 500;
+}
+body.day-mode .edit-btn-cancel:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+
+/* Panels (key, info, donate) */
+body.day-mode #keyPanel,
+body.day-mode #infoPanel,
+body.day-mode #donatePanel {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+body.day-mode #keyPanel .bg-gray-900,
+body.day-mode #infoPanel .bg-gray-900,
+body.day-mode #donatePanel .bg-gray-900 {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+body.day-mode #keyPanel h3,
+body.day-mode #infoPanel h3,
+body.day-mode #donatePanel h3 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode #keyPanel .text-gray-300,
+body.day-mode #infoPanel .text-gray-300,
+body.day-mode #donatePanel .text-gray-300 {
+  color: #374151 !important;
+  font-weight: 400;
+}
+body.day-mode #keyPanel .text-white,
+body.day-mode #infoPanel .text-white,
+body.day-mode #donatePanel .text-white {
+  color: #111827 !important;
+  font-weight: 500;
+}
+body.day-mode #apiKeyInput {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+  font-weight: 400;
+}
+body.day-mode #apiKeyInput::placeholder {
+  color: #9ca3af !important;
+}
+body.day-mode #apiKeyInput:focus {
+  border-color: #3b82f6 !important;
+}
+body.day-mode #keyPanel .bg-gray-800\/50 {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+
+/* Prompt panel */
+body.day-mode .panel-modal {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+body.day-mode .prompt-panel-container {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+body.day-mode .prompt-panel-header {
+  background: #f9fafb !important;
+  border-bottom-color: #e5e7eb !important;
+}
+body.day-mode .prompt-panel-header h3 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode .prompt-panel-header button {
+  color: #4b5563 !important;
+}
+body.day-mode .prompt-panel-header button:hover {
+  color: #111827 !important;
+}
+body.day-mode .prompt-item {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+body.day-mode .prompt-title {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode .prompt-preview {
+  color: #374151 !important;
+  font-weight: 400;
+}
+body.day-mode .prompt-input,
+body.day-mode .prompt-textarea {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+  font-weight: 400;
+}
+body.day-mode .prompt-input::placeholder,
+body.day-mode .prompt-textarea::placeholder {
+  color: #9ca3af !important;
+}
+body.day-mode .prompt-input:focus,
+body.day-mode .prompt-textarea:focus {
+  border-color: #3b82f6 !important;
+}
+body.day-mode .btn-gray {
+  background: #f3f4f6 !important;
+  color: #1f2937 !important;
+  border: 1px solid #e5e7eb !important;
+  font-weight: 500;
+}
+body.day-mode .btn-gray:hover {
+  background: #e5e7eb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+body.day-mode .prompt-form-label {
+  color: #4b5563 !important;
+  font-weight: 500;
+}
+body.day-mode .prompt-ai-opt-btn {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(107, 114, 128, 0.3) !important;
+  color: #4b5563 !important;
+}
+body.day-mode .prompt-ai-opt-btn:hover {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  color: #2563eb !important;
+}
+body.day-mode .prompt-ai-label {
+  color: #4b5563 !important;
+  font-weight: 500;
+}
+body.day-mode .prompt-icon-btn {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #4b5563 !important;
+}
+body.day-mode .prompt-icon-btn:hover {
+  background: rgba(0, 0, 0, 0.12) !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  color: #1f2937 !important;
+}
+body.day-mode .prompt-icon-btn.delete:hover {
+  background: rgba(220, 38, 38, 0.15) !important;
+  color: #dc2626 !important;
+  border-color: rgba(220, 38, 38, 0.25) !important;
+}
+body.day-mode .prompt-use-btn {
+  background: rgba(59, 130, 246, 0.15) !important;
+  color: #1d4ed8 !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  font-weight: 500;
+}
+body.day-mode .prompt-use-btn:hover {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #1e40af !important;
+}
+body.day-mode .prompt-empty {
+  color: #6b7280 !important;
+  border-color: #d1d5db !important;
+  background: #f9fafb !important;
+  font-weight: 500;
+}
+body.day-mode .compare-box {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+  color: #1f2937 !important;
+  font-weight: 400;
+}
+body.day-mode .compare-title {
+  color: #4b5563 !important;
+  font-weight: 600;
+}
+body.day-mode .modal-desc {
+  color: #374151 !important;
+  font-weight: 400;
+}
+
+/* Token limit warning */
+body.day-mode .text-xs.text-gray-500.text-center {
+  color: #4b5563 !important;
+  font-weight: 500;
+}
+body.day-mode .text-xs.text-gray-500.text-center .bg-gray-800 {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+}
+body.day-mode .text-xs.text-gray-500.text-center #promptText {
+  color: #374151 !important;
+  font-weight: 400;
+}
+body.day-mode .text-xs.text-gray-500.text-center #copyPromptBtn {
+  background: #f3f4f6 !important;
+  color: #4b5563 !important;
+}
+body.day-mode .text-xs.text-gray-500.text-center #copyPromptBtn:hover {
+  color: #1f2937 !important;
+  background: #e5e7eb !important;
+}
+
+/* Toast */
+body.day-mode .toast-like-element {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+  font-weight: 500;
+}
+
+/* Sidebar overlay */
+body.day-mode #sidebarOverlay {
+  background: rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Prose inversion fix for day mode */
+body.day-mode .prose.prose-invert {
+  color: inherit !important;
+}
+body.day-mode .prose.prose-invert :where(h1, h2, h3, h4, h5, h6) {
+  color: inherit !important;
+}
+body.day-mode .prose.prose-invert :where(a) {
+  color: #2563eb !important;
+}
+body.day-mode .prose.prose-invert :where(strong) {
+  color: inherit !important;
+}
+body.day-mode .prose.prose-invert :where(code) {
+  color: #be123c !important;
+  background: #fef2f2 !important;
+}
+body.day-mode .prose.prose-invert :where(pre) {
+  background: #1f2937 !important;
+}
+body.day-mode .prose.prose-invert :where(pre code) {
+  color: #e5e7eb !important;
+  background: transparent !important;
+}
+body.day-mode .prose.prose-invert :where(blockquote) {
+  color: #374151 !important;
+  border-left-color: #d1d5db !important;
+}
+
+/* FORCE SAVE KEY BUTTON WHITE */
+body.day-mode #saveKey,
+body.day-mode #keyPanel button.bg-blue-600,
+body.day-mode button#saveKey.bg-blue-600,
+body.day-mode button#saveKey {
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+}
+body.day-mode #saveKey:hover,
+body.day-mode #keyPanel button.bg-blue-600:hover,
+body.day-mode button#saveKey.bg-blue-600:hover,
+body.day-mode button#saveKey:hover {
+  background: #2563eb !important;
+  color: #ffffff !important;
+}
+body.day-mode #saveKey *,
+body.day-mode #keyPanel button.bg-blue-600 *,
+body.day-mode button#saveKey.bg-blue-600 *,
+body.day-mode button#saveKey * {
+  color: #ffffff !important;
+}
