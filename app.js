@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const settingsPanel = document.getElementById("settingsPanel");
   const settingsCloseBtn = document.getElementById("settingsCloseBtn");
   const settingsApiKeyInput = document.getElementById("settingsApiKeyInput");
+  const settingsCopyKeyBtn = document.getElementById("settingsCopyKeyBtn");
   const settingsSaveKeyBtn = document.getElementById("settingsSaveKeyBtn");
   const settingsDayModeToggle = document.getElementById("settingsDayModeToggle");
   const fontSizePreview = document.getElementById("fontSizePreview");
@@ -370,6 +371,16 @@ document.addEventListener('DOMContentLoaded', function() {
   if (settingsPanel) {
     settingsPanel.addEventListener("click", (e) => {
       if (e.target === settingsPanel) closeSettingsPanel();
+    });
+  }
+
+  if (settingsCopyKeyBtn) {
+    settingsCopyKeyBtn.addEventListener("click", () => {
+      if (!settingsApiKeyInput) return;
+      const key = settingsApiKeyInput.value.trim();
+      copyText(key)?.then(() => {
+        if (key) showToast("API Key 已复制");
+      });
     });
   }
 
@@ -818,7 +829,7 @@ ${original}`
 
   function copyText(text) {
     if (!text) return alert("暂无内容可复制");
-    navigator.clipboard.writeText(text).then(() => {
+    return navigator.clipboard.writeText(text).then(() => {
       console.log("复制成功");
     }).catch(err => {
       alert("复制失败，请手动复制！");
@@ -988,7 +999,7 @@ ${original}`
         if (userInputMeta) {
           const metaDiv = document.createElement('div');
           metaDiv.className = "message-meta user-input-meta mt-2 text-xs";
-          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} token；历史记忆约 ${userInputMeta.historyTokens} token；本轮输入共约 ${userInputMeta.totalInputTokens} token`;
+          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} tokens；历史记忆约 ${userInputMeta.historyTokens} tokens；本轮输入共约 ${userInputMeta.totalInputTokens} tokens`;
           msgBox.appendChild(metaDiv);
         }
       }

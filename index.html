@@ -45,14 +45,6 @@
   <div id="tabs" class="flex-1 overflow-y-auto p-2 space-y-1 inl_0201436a24"></div>
 
   <div class="p-4 border-t border-gray-800 space-y-4">
-    <div class="flex items-center justify-between">
-      <div class="text-sm text-gray-300 ml-1">深度思考 (R1)</div>
-      <label class="relative inline-flex items-center cursor-pointer">
-        <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
-        <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-      </label>
-    </div>
-
     <div class="hidden">
       <select id="modelSelect" class="w-full bg-gray-800 text-white border border-gray-700 rounded-lg p-2 text-sm outline-none focus:border-blue-500">
         <option value="deepseek-chat">DeepSeek-V3 (chat)</option>
@@ -72,8 +64,14 @@
     
     <div class="mb-6">
       <h4 class="text-white text-sm font-medium mb-3">API Key</h4>
-      <div class="flex gap-2">
+      <div class="flex gap-2 items-center">
         <input id="settingsApiKeyInput" class="flex-1 p-3 bg-gray-800 rounded border border-gray-700 text-white outline-none focus:border-blue-500 transition-colors" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+        <button id="settingsCopyKeyBtn" class="settings-icon-btn bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded text-gray-300 transition-colors" type="button" aria-label="复制 API Key" title="复制 API Key">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
         <button id="settingsSaveKeyBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded text-white font-medium transition-colors whitespace-nowrap">保存</button>
       </div>
     </div>
@@ -127,11 +125,23 @@
 <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="快速到底部">↓</button>
 
 <div class="input-container safe-area-bottom">
+  <div class="input-toolbar">
+    <label for="deepThinkToggle" class="deepthink-chip">
+      <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
+      <span class="deepthink-chip-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+        </svg>
+      </span>
+      <span class="deepthink-chip-text">深度思考</span>
+      <span class="deepthink-chip-badge">R1</span>
+    </label>
+    <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
+  </div>
   <div class="input-wrapper">
     <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
     <button id="sendBtn">发送</button>
   </div>
-  <div class="input-counter text-xs text-gray-500 text-right pr-2 pb-1" id="inputCounter">0 字</div>
 </div>
 
 <div id="keyPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">

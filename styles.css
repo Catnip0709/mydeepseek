@@ -307,6 +307,75 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
       border-top: 1px solid rgba(75, 85, 99, 0.5);
       z-index: 10;
     }
+    .input-toolbar {
+      max-width: 800px;
+      margin: 0 auto 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .toolbar-input-counter {
+      flex-shrink: 0;
+      margin-left: auto;
+      text-align: right;
+      font-size: 12px;
+      line-height: 1;
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+    .deepthink-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 0 12px;
+      border-radius: 9999px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #d1d5db;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    .deepthink-chip:hover {
+      background: #1f2937;
+      border-color: #4b5563;
+      color: #f3f4f6;
+    }
+    .deepthink-chip-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #93c5fd;
+      flex-shrink: 0;
+    }
+    .deepthink-chip-text {
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1;
+    }
+    .deepthink-chip-badge {
+      font-size: 11px;
+      line-height: 1;
+      padding: 3px 6px;
+      border-radius: 9999px;
+      background: rgba(59, 130, 246, 0.16);
+      color: #93c5fd;
+    }
+    .deepthink-chip:has(.peer:checked) {
+      background: rgba(37, 99, 235, 0.18);
+      border-color: #3b82f6;
+      color: #ffffff;
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2) inset;
+    }
+    .deepthink-chip:has(.peer:checked) .deepthink-chip-icon,
+    .deepthink-chip:has(.peer:checked) .deepthink-chip-badge {
+      color: #dbeafe;
+    }
+    .deepthink-chip:has(.peer:checked) .deepthink-chip-badge {
+      background: rgba(255, 255, 255, 0.18);
+    }
     .input-wrapper {
       display: flex;
       gap: 12px;
@@ -975,6 +1044,38 @@ body.day-mode .input-container {
   background: rgba(255, 255, 255, 0.98) !important;
   border-top-color: #d1d5db !important;
 }
+body.day-mode .toolbar-input-counter {
+  color: #6b7280 !important;
+}
+body.day-mode .deepthink-chip {
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  color: #374151 !important;
+}
+body.day-mode .deepthink-chip:hover {
+  background: #f9fafb !important;
+  border-color: #9ca3af !important;
+  color: #111827 !important;
+}
+body.day-mode .deepthink-chip-icon {
+  color: #2563eb !important;
+}
+body.day-mode .deepthink-chip-badge {
+  background: rgba(59, 130, 246, 0.12) !important;
+  color: #2563eb !important;
+}
+body.day-mode .deepthink-chip:has(.peer:checked) {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: #3b82f6 !important;
+  color: #1d4ed8 !important;
+}
+body.day-mode .deepthink-chip:has(.peer:checked) .deepthink-chip-icon,
+body.day-mode .deepthink-chip:has(.peer:checked) .deepthink-chip-badge {
+  color: #1d4ed8 !important;
+}
+body.day-mode .deepthink-chip:has(.peer:checked) .deepthink-chip-badge {
+  background: rgba(59, 130, 246, 0.18) !important;
+}
 body.day-mode #input {
   background: #ffffff !important;
   border-color: #d1d5db !important;
@@ -1127,6 +1228,23 @@ body.day-mode #settingsSaveKeyBtn {
 }
 body.day-mode #settingsSaveKeyBtn:hover {
   background: #2563eb !important;
+}
+.settings-icon-btn {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+body.day-mode #settingsCopyKeyBtn {
+  background: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  color: #6b7280 !important;
+}
+body.day-mode #settingsCopyKeyBtn:hover {
+  background: #e5e7eb !important;
+  color: #374151 !important;
 }
 body.day-mode #settingsCloseBtn {
   background: #f3f4f6 !important;
