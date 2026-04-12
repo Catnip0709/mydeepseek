@@ -100,8 +100,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const menuBtn = document.getElementById("menuBtn");
   const sidebar = document.getElementById("sidebar");
   const sidebarOverlay = document.getElementById("sidebarOverlay");
-  const memorySelect = document.getElementById("memorySelect");
-  const memoryCustom = document.getElementById("memoryCustom");
   const inputCounter = document.getElementById("inputCounter");
 
   const openDonateBtn = document.getElementById("openDonateBtn");
@@ -132,6 +130,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const settingsSaveKeyBtn = document.getElementById("settingsSaveKeyBtn");
   const settingsDayModeToggle = document.getElementById("settingsDayModeToggle");
   const fontSizePreview = document.getElementById("fontSizePreview");
+  const settingsMemorySelect = document.getElementById("settingsMemorySelect");
+  const settingsMemoryCustom = document.getElementById("settingsMemoryCustom");
 
   const renameTabPanel = document.getElementById("renameTabPanel");
   const renameTabInput = document.getElementById("renameTabInput");
@@ -283,6 +283,8 @@ document.addEventListener('DOMContentLoaded', function() {
     updateFontSizePreview(savedFontSize);
   }
 
+  let globalMemoryLimit = localStorage.getItem("dsGlobalMemoryLimit") || "0";
+
   function applyFontSize(size) {
     document.body.classList.remove("font-size-small", "font-size-smaller", "font-size-default", "font-size-larger", "font-size-large");
     document.body.classList.add(`font-size-${size}`);
@@ -330,6 +332,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     updateFontSizeButtons(currentFontSize);
     updateFontSizePreview(currentFontSize);
+    
+    const currentMemoryLimit = globalMemoryLimit;
+    if (settingsMemorySelect) {
+      if (["0", "200", "100", "50"].includes(currentMemoryLimit)) {
+        settingsMemorySelect.value = currentMemoryLimit;
+        if (settingsMemoryCustom) {
+          settingsMemoryCustom.classList.add("hidden");
+        }
+      } else {
+        settingsMemorySelect.value = "custom";
+        if (settingsMemoryCustom) {
+          settingsMemoryCustom.value = currentMemoryLimit;
+          settingsMemoryCustom.classList.remove("hidden");
+        }
+      }
+    }
+    
     if (settingsPanel) {
       settingsPanel.classList.remove("hidden");
     }
@@ -375,6 +394,37 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  if (settingsMemorySelect) {
+    settingsMemorySelect.addEventListener("change", (e) => {
+      const val = e.target.value;
+      if (val === "custom") {
+        if (settingsMemoryCustom) {
+          settingsMemoryCustom.classList.remove("hidden");
+          settingsMemoryCustom.focus();
+          const customVal = parseInt(settingsMemoryCustom.value) || 10;
+          settingsMemoryCustom.value = customVal;
+          globalMemoryLimit = customVal.toString();
+        }
+      } else {
+        if (settingsMemoryCustom) {
+          settingsMemoryCustom.classList.add("hidden");
+        }
+        globalMemoryLimit = val;
+      }
+      localStorage.setItem("dsGlobalMemoryLimit", globalMemoryLimit);
+    });
+  }
+
+  if (settingsMemoryCustom) {
+    settingsMemoryCustom.addEventListener("input", (e) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val) && val >= 0) {
+        globalMemoryLimit = val.toString();
+        localStorage.setItem("dsGlobalMemoryLimit", globalMemoryLimit);
+      }
+    });
+  }
+
   downloadCancelBtn.addEventListener("click", closeDownloadPanel);
   downloadPanel.addEventListener("click", (e) => {
     if (e.target === downloadPanel) closeDownloadPanel();
@@ -400,43 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
     localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(promptData));
   }
 
-  function updateMemoryUI() {
-    const currentTab = tabData.list[tabData.active];
-    if (!currentTab) return;
 
-    const limit = currentTab.memoryLimit || "0";
-    if (["0", "200", "100", "50"].includes(limit)) {
-      memorySelect.value = limit;
-      memoryCustom.classList.add("hidden");
-    } else {
-      memorySelect.value = "custom";
-      memoryCustom.value = limit;
-      memoryCustom.classList.remove("hidden");
-    }
-  }
-
-  memorySelect.addEventListener("change", (e) => {
-    const val = e.target.value;
-    if (val === "custom") {
-      memoryCustom.classList.remove("hidden");
-      memoryCustom.focus();
-      const customVal = parseInt(memoryCustom.value) || 10;
-      memoryCustom.value = customVal;
-      tabData.list[tabData.active].memoryLimit = customVal.toString();
-    } else {
-      memoryCustom.classList.add("hidden");
-      tabData.list[tabData.active].memoryLimit = val;
-    }
-    saveTabs();
-  });
-
-  memoryCustom.addEventListener("input", (e) => {
-    const val = parseInt(e.target.value);
-    if (!isNaN(val) && val >= 0) {
-      tabData.list[tabData.active].memoryLimit = val.toString();
-      saveTabs();
-    }
-  });
 
   let isSidebarOpen = false;
 
@@ -753,7 +767,6 @@ ${original}`
         if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename')) return;
         tabData.active = id;
         saveTabs();
-        updateMemoryUI();
         renderChat();
         renderTabs();
         updateInputCounter();
@@ -793,7 +806,6 @@ ${original}`
             tabData.active = Object.keys(tabData.list)[0];
           }
           saveTabs();
-          updateMemoryUI();
           renderChat();
           renderTabs();
           updateInputCounter();
@@ -1141,10 +1153,9 @@ ${original}`
     });
 
     const newId = `tab${maxIdNum + 1}`;
-    tabData.list[newId] = { messages: [], memoryLimit: "0", title: "" };
+    tabData.list[newId] = { messages: [], title: "" };
     tabData.active = newId;
     saveTabs();
-    updateMemoryUI();
     renderChat();
     renderTabs();
     updateInputCounter();
@@ -1171,7 +1182,7 @@ ${original}`
     const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
     const selectedModel = modelSelect.value;
 
-    let limit = parseInt(tabData.list[tabData.active].memoryLimit || "0");
+    let limit = parseInt(globalMemoryLimit || "0");
     let payloadMsgs = isRegen ? currentMsgs.slice(0, targetIndex) : currentMsgs;
 
     payloadMsgs = payloadMsgs.map(m => ({ role: m.role, content: m.content }));
@@ -1635,7 +1646,6 @@ ${original}`
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
   chat.addEventListener("scroll", checkScrollButton);
 
-  updateMemoryUI();
   renderTabs();
   renderChat();
   setTimeout(checkScrollButton, 100);
