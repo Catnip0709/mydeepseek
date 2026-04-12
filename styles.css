@@ -968,6 +968,7 @@ body.day-mode #sidebar .bg-blue-600:hover {
   background: #2563eb !important;
   border-color: #1d4ed8 !important;
 }
+
 body.day-mode .bg-blue-600 {
   background: #3b82f6 !important;
   color: white !important;
@@ -1689,4 +1690,319 @@ body.day-mode #keyPanel button.bg-blue-600 *,
 body.day-mode button#saveKey.bg-blue-600 *,
 body.day-mode button#saveKey * {
   color: #ffffff !important;
+}
+
+/* ========== 空对话提示样式 ========== */
+#emptyChatHint {
+  z-index: 10;
+  top: 50%;
+  bottom: auto;
+  transform: translate(-50%, -50%);
+}
+
+/* 日间模式 - 空对话提示 */
+body.day-mode #emptyChatHint .text-gray-500 {
+  color: #9ca3af !important;
+}
+
+/* ========== 指令市场样式 ========== */
+.prompt-market-container {
+  width: 92%;
+  max-width: 760px;
+  max-height: 86vh;
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.prompt-market-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid #374151;
+  background: #0f172a;
+}
+
+.prompt-market-header > div:first-child {
+  margin-left: 6px;
+}
+
+.prompt-market-header > div:last-child {
+  margin-right: -4px;
+}
+
+.prompt-market-refresh-btn {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.prompt-market-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05) rotate(180deg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.prompt-market-refresh-btn:active {
+  transform: scale(0.95);
+}
+
+.prompt-market-refresh-btn.spinning svg {
+  animation: spin 0.8s linear infinite;
+}
+
+.prompt-market-body {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.prompt-market-content {
+  background: #1f2937;
+  border: 1px solid #374151;
+  border-radius: 18px;
+  padding: 18px;
+  min-height: 120px;
+  max-height: 300px;
+  width: 100%;
+  resize: none;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+  outline: none;
+}
+
+.prompt-market-content:focus {
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.prompt-market-content::placeholder {
+  color: #6b7280;
+}
+
+.prompt-market-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.prompt-market-content::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 3px;
+}
+
+.prompt-market-content::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 3px;
+}
+
+.prompt-market-content::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+.prompt-market-prompt-content {
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 智能生成按钮 */
+.prompt-market-ai-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 9999px;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  background: rgba(59, 130, 246, 0.12);
+  color: #cfe0ff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.prompt-market-ai-btn:hover {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(96, 165, 250, 0.35);
+  color: #e6f0ff;
+}
+
+/* 生成按钮loading状态 */
+#confirmAiGenerateBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#confirmAiGenerateBtn .loading-spinner {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+#confirmAiGenerateBtn .loading-spinner.hidden {
+  display: none;
+}
+
+.prompt-market-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid #374151;
+  background: #0f172a;
+}
+
+.prompt-market-footer button {
+  flex: 1;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #fff;
+  transition: all 0.2s;
+}
+
+/* 日间模式 - 指令市场 */
+body.day-mode .prompt-market-container {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+body.day-mode .prompt-market-header {
+  background: #f9fafb !important;
+  border-bottom-color: #e5e7eb !important;
+}
+
+body.day-mode .prompt-market-header h3 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+
+body.day-mode .prompt-market-header button {
+  color: #4b5563 !important;
+}
+
+body.day-mode .prompt-market-header button:hover {
+  color: #111827 !important;
+}
+
+body.day-mode .prompt-market-refresh-btn {
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #4b5563 !important;
+}
+
+body.day-mode .prompt-market-refresh-btn:hover {
+  background: rgba(0, 0, 0, 0.1) !important;
+  color: #111827 !important;
+}
+
+body.day-mode .prompt-market-content {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+  color: #374151 !important;
+}
+
+body.day-mode .prompt-market-content:focus {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+body.day-mode .prompt-market-content::placeholder {
+  color: #9ca3af !important;
+}
+
+body.day-mode .prompt-market-footer {
+  background: #f9fafb !important;
+  border-top-color: #e5e7eb !important;
+}
+
+/* 日间模式 - 刷新按钮 */
+body.day-mode .prompt-market-refresh-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  color: #6b7280 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body.day-mode .prompt-market-refresh-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #111827 !important;
+}
+
+/* 日间模式 - 内容区域和滚动条 */
+body.day-mode .prompt-market-content {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+
+body.day-mode .prompt-market-content::-webkit-scrollbar-track {
+  background: #f9fafb !important;
+}
+
+body.day-mode .prompt-market-content::-webkit-scrollbar-thumb {
+  background: #d1d5db !important;
+}
+
+body.day-mode .prompt-market-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af !important;
+}
+
+/* 日间模式 - 智能生成按钮 */
+body.day-mode .prompt-market-ai-btn {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border-color: rgba(59, 130, 246, 0.25) !important;
+  color: #1d4ed8 !important;
+}
+
+body.day-mode .prompt-market-ai-btn:hover {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #1e40af !important;
+}
+
+/* 日间模式 - 智能生成对话框 */
+body.day-mode #aiGeneratePromptPanel label {
+  color: #374151 !important;
+}
+
+body.day-mode #aiGeneratePromptPanel .text-gray-500 {
+  color: #6b7280 !important;
+}
+
+@media (max-width: 640px) {
+  .prompt-market-footer {
+    flex-direction: column;
+  }
+}
+
+/* 日间模式下的按钮 */
+body.day-mode .prompt-market-footer .prompt-add-btn {
+  background: #2563eb !important;
+}
+body.day-mode .prompt-market-footer .prompt-add-btn:hover {
+  background: #1d4ed8 !important;
 }

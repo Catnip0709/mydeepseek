@@ -36,6 +36,7 @@
 
 <div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
   <div class="p-4 border-b border-gray-800 mt-4 space-y-3">
+    <button id="openPromptMarketBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">⭐ 指令市场 ⭐</button>
     <button id="openPromptManagerBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">指令管理</button>
     <button id="addTab" class="w-full text-white bg-blue-600 hover:bg-blue-700 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors">
       <span class="text-xl leading-none">+</span> 新建对话
@@ -121,6 +122,13 @@
 </div>
 
 <div id="chat" class="pt-16 pb-32 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
+
+<div id="emptyChatHint" class="fixed left-1/2 transform -translate-x-1/2 bottom-48 text-center hidden">
+  <div class="text-gray-500 text-sm space-y-1">
+    <div>不知道跟DS老师聊什么？</div>
+    <div><span class="text-blue-400 cursor-pointer hover:underline" id="openMarketFromHint">看看指令市场！</span></div>
+  </div>
+</div>
 
 <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="快速到底部">↓</button>
 
@@ -314,6 +322,65 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="promptMarketPanel" class="panel-modal hidden">
+  <div class="prompt-market-container">
+    <div class="prompt-market-header">
+      <div class="flex items-center gap-3">
+        <h3 class="text-white text-base font-semibold">指令市场</h3>
+        <button id="aiGeneratePromptBtn" class="prompt-market-ai-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+          </svg>
+          <span>智能生成</span>
+        </button>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="refreshPromptMarketBtn" class="prompt-market-refresh-btn" title="刷新">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button id="closePromptMarketBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+      </div>
+    </div>
+
+    <div class="prompt-market-body">
+      <textarea id="promptMarketContent" class="prompt-market-content" placeholder="点击刷新按钮获取随机指令..."></textarea>
+    </div>
+
+    <div class="prompt-market-footer">
+      <button id="saveToPromptManagerBtn" class="btn-gray">保存进指令管理</button>
+      <button id="createChatWithPromptBtn" class="btn-blue">新建对话并插入指令</button>
+    </div>
+  </div>
+</div>
+
+<div id="aiGeneratePromptPanel" class="panel-modal hidden">
+  <div class="prompt-market-container">
+    <div class="prompt-market-header">
+      <h3 class="text-white text-base font-semibold">智能生成指令</h3>
+      <button id="closeAiGenerateBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+
+    <div class="prompt-market-body">
+      <div class="mb-4">
+        <label class="text-gray-300 text-sm mb-2 block">请输入关键词或描述</label>
+        <textarea id="aiPromptInput" class="prompt-textarea" placeholder="一句话描述，或关键字，例如：武侠、古风、现代、虐心、悬疑、甜宠、病娇、穿越、重生、权谋、仙侠、末世、科幻、校园、豪门、复仇、治愈、破镜重圆、强制爱、灵异……" rows="3"></textarea>
+      </div>
+      <div class="text-xs text-gray-500 mb-4">AI会根据您的输入生成约100字的指令</div>
+    </div>
+
+    <div class="prompt-market-footer">
+      <button id="cancelAiGenerateBtn" class="btn-gray">取消</button>
+      <button id="confirmAiGenerateBtn" class="btn-blue">
+        <span id="aiGenerateBtnText">生成指令</span>
+        <div id="aiGenerateSpinner" class="loading-spinner hidden"></div>
+      </button>
     </div>
   </div>
 </div>
