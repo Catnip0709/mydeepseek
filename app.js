@@ -86,11 +86,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const sendBtn = document.getElementById("sendBtn");
   const tabsEl = document.getElementById("tabs");
   const addTab = document.getElementById("addTab");
-  const resetBtn = document.getElementById("resetBtn");
   const keyPanel = document.getElementById("keyPanel");
   const apiKeyInput = document.getElementById("apiKeyInput");
   const saveKey = document.getElementById("saveKey");
-  const editKeyBtn = document.getElementById("editKeyBtn");
   const editPanel = document.getElementById("editPanel");
   const editTextarea = document.getElementById("editTextarea");
   const editCancelBtn = document.getElementById("editCancelBtn");
@@ -98,7 +96,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
   const modelSelect = document.getElementById("modelSelect");
   const deepThinkToggle = document.getElementById("deepThinkToggle");
-  const dayModeToggle = document.getElementById("dayModeToggle");
 
   const menuBtn = document.getElementById("menuBtn");
   const sidebar = document.getElementById("sidebar");
@@ -127,6 +124,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const cancelPromptEditBtn = document.getElementById("cancelPromptEditBtn");
   const savePromptBtn = document.getElementById("savePromptBtn");
   const optimizePromptBtn = document.getElementById("optimizePromptBtn");
+
+  const settingsBtn = document.getElementById("settingsBtn");
+  const settingsPanel = document.getElementById("settingsPanel");
+  const settingsCloseBtn = document.getElementById("settingsCloseBtn");
+  const settingsApiKeyInput = document.getElementById("settingsApiKeyInput");
+  const settingsSaveKeyBtn = document.getElementById("settingsSaveKeyBtn");
+  const settingsDayModeToggle = document.getElementById("settingsDayModeToggle");
+  const fontSizePreview = document.getElementById("fontSizePreview");
 
   const renameTabPanel = document.getElementById("renameTabPanel");
   const renameTabInput = document.getElementById("renameTabInput");
@@ -241,21 +246,134 @@ document.addEventListener('DOMContentLoaded', function() {
     modelSelect.value = newModel;
   });
 
+  const fontSizes = {
+    small: '0.875rem',
+    smaller: '0.9375rem',
+    default: '1rem',
+    larger: '1.0625rem',
+    large: '1.125rem'
+  };
+
   const savedDayMode = localStorage.getItem("dsDayMode") === "true";
-  dayModeToggle.checked = savedDayMode;
+  if (settingsDayModeToggle) {
+    settingsDayModeToggle.checked = savedDayMode;
+  }
   if (savedDayMode) {
     document.body.classList.add("day-mode");
   }
 
-  dayModeToggle.addEventListener("change", (e) => {
-    const isDayMode = e.target.checked;
-    if (isDayMode) {
-      document.body.classList.add("day-mode");
-    } else {
-      document.body.classList.remove("day-mode");
+  if (settingsDayModeToggle) {
+    settingsDayModeToggle.addEventListener("change", (e) => {
+      const isDayMode = e.target.checked;
+      if (isDayMode) {
+        document.body.classList.add("day-mode");
+      } else {
+        document.body.classList.remove("day-mode");
+      }
+      localStorage.setItem("dsDayMode", isDayMode.toString());
+    });
+  }
+
+  const savedFontSize = localStorage.getItem("dsFontSize") || "default";
+  applyFontSize(savedFontSize);
+  if (document.querySelector('.font-size-option')) {
+    updateFontSizeButtons(savedFontSize);
+  }
+  if (fontSizePreview) {
+    updateFontSizePreview(savedFontSize);
+  }
+
+  function applyFontSize(size) {
+    document.body.classList.remove("font-size-small", "font-size-smaller", "font-size-default", "font-size-larger", "font-size-large");
+    document.body.classList.add(`font-size-${size}`);
+  }
+
+  function updateFontSizePreview(size) {
+    if (fontSizePreview) {
+      fontSizePreview.style.fontSize = fontSizes[size];
     }
-    localStorage.setItem("dsDayMode", isDayMode.toString());
+  }
+
+  function updateFontSizeButtons(activeSize) {
+    document.querySelectorAll('.font-size-option').forEach(btn => {
+      const btnSize = btn.getAttribute('data-size');
+      if (btnSize === activeSize) {
+        btn.classList.add('active');
+        btn.classList.add('bg-blue-600', 'border-blue-500', 'text-white');
+        btn.classList.remove('border-gray-700', 'text-gray-400');
+      } else {
+        btn.classList.remove('active');
+        btn.classList.remove('bg-blue-600', 'border-blue-500', 'text-white');
+        btn.classList.add('border-gray-700', 'text-gray-400');
+      }
+    });
+  }
+
+  document.querySelectorAll('.font-size-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const size = btn.getAttribute('data-size');
+      applyFontSize(size);
+      updateFontSizeButtons(size);
+      updateFontSizePreview(size);
+      localStorage.setItem("dsFontSize", size);
+    });
   });
+
+  function openSettingsPanel() {
+    if (settingsApiKeyInput) {
+      settingsApiKeyInput.value = apiKey || "";
+    }
+    const currentFontSize = localStorage.getItem("dsFontSize") || "default";
+    const currentDayMode = localStorage.getItem("dsDayMode") === "true";
+    if (settingsDayModeToggle) {
+      settingsDayModeToggle.checked = currentDayMode;
+    }
+    updateFontSizeButtons(currentFontSize);
+    updateFontSizePreview(currentFontSize);
+    if (settingsPanel) {
+      settingsPanel.classList.remove("hidden");
+    }
+    closeSidebar();
+  }
+
+  function closeSettingsPanel() {
+    if (settingsPanel) {
+      settingsPanel.classList.add("hidden");
+    }
+  }
+
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", openSettingsPanel);
+  }
+  if (settingsCloseBtn) {
+    settingsCloseBtn.addEventListener("click", closeSettingsPanel);
+  }
+  if (settingsPanel) {
+    settingsPanel.addEventListener("click", (e) => {
+      if (e.target === settingsPanel) closeSettingsPanel();
+    });
+  }
+
+  if (settingsSaveKeyBtn) {
+    settingsSaveKeyBtn.addEventListener("click", () => {
+      if (!settingsApiKeyInput) return;
+      const newKey = settingsApiKeyInput.value.trim();
+      if (!newKey || !newKey.startsWith("sk-")) {
+        return alert("请输入有效的以sk-开头的API Key！");
+      }
+      if (newKey.length < 20) {
+        alert("API Key长度过短，可能是无效的Key，请检查！");
+        return;
+      }
+      apiKey = newKey;
+      localStorage.setItem("dsApiKey", apiKey);
+      if (apiKeyInput) {
+        apiKeyInput.value = apiKey;
+      }
+      showToast("API Key 已保存");
+      closeSettingsPanel();
+    });
+  }
 
   downloadCancelBtn.addEventListener("click", closeDownloadPanel);
   downloadPanel.addEventListener("click", (e) => {
@@ -374,13 +492,6 @@ document.addEventListener('DOMContentLoaded', function() {
     localStorage.setItem("dsApiKey", apiKey);
     keyPanel.classList.add("hidden");
     showToast("API Key 已保存");
-  };
-
-  editKeyBtn.onclick = () => {
-    closeSidebar();
-    apiKeyInput.value = apiKey || "";
-    keyPanel.classList.remove("hidden");
-    apiKeyInput.focus();
   };
 
   function openRenameTabPanel(tabId) {
@@ -1046,15 +1157,6 @@ ${original}`
     input.focus();
   };
 
-  resetBtn.onclick = () => {
-    if (!confirm("确定清空当前对话的所有记录吗？清空后无法恢复！")) return;
-    tabData.list[tabData.active].messages = [];
-    saveTabs();
-    renderChat();
-    closeSidebar();
-    updateInputCounter();
-  };
-
   async function fetchAndStreamResponse(opts = {}) {
     isSending = true;
     sendBtn.textContent = "停止";
@@ -1236,7 +1338,7 @@ ${original}`
         if (e.message.includes("API请求失败") || e.message.includes("Key")) {
           setTimeout(() => {
             if (confirm("检测到API Key可能无效，是否立即修改？")) {
-              editKeyBtn.click();
+              openSettingsPanel();
             }
           }, 1000);
         }

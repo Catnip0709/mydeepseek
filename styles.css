@@ -10,6 +10,51 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
     body.day-mode .input-counter {
       color: #6b7280 !important;
     }
+    .font-size-option {
+      cursor: pointer;
+      user-select: none;
+    }
+    .font-size-option:hover:not(.active) {
+      border-color: #6b7280;
+      color: #e5e7eb;
+    }
+    .font-size-option.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
+      color: white;
+    }
+    body.day-mode .font-size-option:not(.active) {
+      border-color: #d1d5db;
+      color: #4b5563;
+    }
+    body.day-mode .font-size-option:hover:not(.active) {
+      border-color: #9ca3af;
+      color: #111827;
+    }
+    .msg-content,
+    .reasoning-content {
+      transition: font-size 0.2s ease;
+    }
+    body.font-size-small .msg-content,
+    body.font-size-small .reasoning-content {
+      font-size: 0.875rem !important;
+    }
+    body.font-size-smaller .msg-content,
+    body.font-size-smaller .reasoning-content {
+      font-size: 0.9375rem !important;
+    }
+    body.font-size-default .msg-content,
+    body.font-size-default .reasoning-content {
+      font-size: 1rem !important;
+    }
+    body.font-size-larger .msg-content,
+    body.font-size-larger .reasoning-content {
+      font-size: 1.0625rem !important;
+    }
+    body.font-size-large .msg-content,
+    body.font-size-large .reasoning-content {
+      font-size: 1.125rem !important;
+    }
 
     #input {
       min-height:44px;
@@ -1024,6 +1069,64 @@ body.day-mode #apiKeyInput:focus {
 body.day-mode #keyPanel .bg-gray-800\/50 {
   background: #f9fafb !important;
   border-color: #e5e7eb !important;
+}
+body.day-mode #settingsPanel {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+body.day-mode #settingsPanel .bg-gray-900 {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+body.day-mode #settingsPanel h3,
+body.day-mode #settingsPanel h4 {
+  color: #111827 !important;
+  font-weight: 600;
+}
+body.day-mode #settingsApiKeyInput {
+  background: #f9fafb !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+body.day-mode #settingsApiKeyInput::placeholder {
+  color: #9ca3af !important;
+}
+body.day-mode #settingsApiKeyInput:focus {
+  border-color: #3b82f6 !important;
+}
+body.day-mode #settingsSaveKeyBtn {
+  background: #3b82f6 !important;
+  color: white !important;
+}
+body.day-mode #settingsSaveKeyBtn:hover {
+  background: #2563eb !important;
+}
+body.day-mode #settingsCloseBtn {
+  background: #f3f4f6 !important;
+  color: #374151 !important;
+}
+body.day-mode #settingsCloseBtn:hover {
+  background: #e5e7eb !important;
+}
+body.day-mode #fontSizePreview {
+  color: #374151 !important;
+}
+body.day-mode .settings-day-mode-container {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+body.day-mode .settings-day-mode-container .text-gray-300 {
+  color: #374151 !important;
+}
+body.day-mode .bg-gray-800 {
+  background: #f9fafb !important;
+  border-color: #e5e7eb !important;
+}
+body.day-mode .bg-gray-800 .text-gray-400 {
+  color: #6b7280 !important;
+}
+body.day-mode .bg-gray-800 .text-gray-300 {
+  color: #374151 !important;
 }
 
 /* Prompt panel */
