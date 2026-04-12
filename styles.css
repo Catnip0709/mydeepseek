@@ -128,8 +128,16 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
       min-width: 60px;
     }
 
-    .assistant-meta {
+    .message-meta {
       margin-bottom: 12px;
+    }
+
+    .assistant-meta {
+      color: #9ca3af;
+    }
+
+    .user-input-meta {
+      color: rgba(255, 255, 255, 0.82);
     }
 
     .generation-status {
@@ -889,7 +897,9 @@ body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert blockquot
 /* Assistant meta */
 body.day-mode .assistant-meta {
   color: #4b5563 !important;
-  font-weight: 500;
+}
+body.day-mode .user-input-meta {
+  color: rgba(255, 255, 255, 0.88) !important;
 }
 
 /* Generation status */

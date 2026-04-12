@@ -66,10 +66,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const MAX_CONTEXT_TOKENS = 131072;
   function isTokenLimitReached() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
+    const payloadMsgs = buildPayloadMessages(currentMsgs);
     let estimatedTokens = 0;
-    currentMsgs.forEach(m => {
-      if (m.content) estimatedTokens += m.content.length;
-      if (m.reasoningContent) estimatedTokens += m.reasoningContent.length;
+    payloadMsgs.forEach(m => {
+      estimatedTokens += estimateTokensByText(m.content);
     });
     return estimatedTokens >= MAX_CONTEXT_TOKENS * 0.98;
   }
@@ -412,6 +412,7 @@ document.addEventListener('DOMContentLoaded', function() {
         globalMemoryLimit = val;
       }
       localStorage.setItem("dsGlobalMemoryLimit", globalMemoryLimit);
+      renderChat();
     });
   }
 
@@ -421,6 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!isNaN(val) && val >= 0) {
         globalMemoryLimit = val.toString();
         localStorage.setItem("dsGlobalMemoryLimit", globalMemoryLimit);
+        renderChat();
       }
     });
   }
@@ -882,6 +884,47 @@ ${original}`
     return String(text || '').replace(/\s/g, '').length;
   }
 
+  function estimateTokensByChars(charCount) {
+    return Math.ceil(charCount / 1.5);
+  }
+
+  function estimateTokensByText(text) {
+    return estimateTokensByChars(countChars(text));
+  }
+
+  function buildPayloadMessages(messages, endExclusive = messages.length) {
+    let payloadMsgs = messages.slice(0, endExclusive).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    const limit = parseInt(globalMemoryLimit || "0");
+    if (limit > 0 && payloadMsgs.length > limit) {
+      payloadMsgs = payloadMsgs.slice(-limit);
+    }
+
+    return payloadMsgs;
+  }
+
+  function buildUserInputMeta(messages, userIndex) {
+    const currentMessage = messages[userIndex];
+    if (!currentMessage || currentMessage.role !== 'user') return null;
+
+    const payloadMsgs = buildPayloadMessages(messages, userIndex + 1);
+    const inputChars = countChars(currentMessage.content);
+    const inputTokens = estimateTokensByChars(inputChars);
+    const historyTokens = payloadMsgs
+      .slice(0, -1)
+      .reduce((sum, msg) => sum + estimateTokensByText(msg.content), 0);
+
+    return {
+      inputChars,
+      inputTokens,
+      historyTokens,
+      totalInputTokens: inputTokens + historyTokens
+    };
+  }
+
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
@@ -940,11 +983,21 @@ ${original}`
       renderMarkdown(contentDiv, m.content);
       msgBox.appendChild(contentDiv);
 
+      if (isUser) {
+        const userInputMeta = buildUserInputMeta(currentMsgs, i);
+        if (userInputMeta) {
+          const metaDiv = document.createElement('div');
+          metaDiv.className = "message-meta user-input-meta mt-2 text-xs";
+          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} token；历史记忆约 ${userInputMeta.historyTokens} token；本轮输入共约 ${userInputMeta.totalInputTokens} token`;
+          msgBox.appendChild(metaDiv);
+        }
+      }
+
       if (isAssistant) {
         const metaDiv = document.createElement('div');
-        metaDiv.className = "assistant-meta mt-2 text-xs text-gray-400";
+        metaDiv.className = "message-meta assistant-meta mt-2 text-xs text-gray-400";
         const totalChars = countChars(m.reasoningContent) + countChars(m.content);
-        const tokenEstimate = Math.ceil(totalChars / 1.5);
+        const tokenEstimate = estimateTokensByChars(totalChars);
         metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字，约 ${tokenEstimate} tokens`;
         msgBox.appendChild(metaDiv);
 
@@ -1066,6 +1119,9 @@ ${original}`
 
     currentMsgs[editingMessageIndex].content = newContent;
     const messagesToKeep = currentMsgs.slice(0, editingMessageIndex + 1);
+    if (messagesToKeep[editingMessageIndex]?.role === 'user') {
+      messagesToKeep[editingMessageIndex].inputMeta = buildUserInputMeta(messagesToKeep, editingMessageIndex);
+    }
     tabData.list[tabData.active].messages = messagesToKeep;
     saveTabs();
 
@@ -1089,7 +1145,7 @@ ${original}`
   function updateInputCounter() {
     const text = input.value;
     const charCount = text.length;
-    const tokenEstimate = Math.ceil(charCount / 1.5);
+    const tokenEstimate = estimateTokensByChars(charCount);
     if (charCount > 0) {
       inputCounter.textContent = `${charCount} 字 / 约 ${tokenEstimate} tokens`;
     } else {
@@ -1182,14 +1238,7 @@ ${original}`
     const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
     const selectedModel = modelSelect.value;
 
-    let limit = parseInt(globalMemoryLimit || "0");
-    let payloadMsgs = isRegen ? currentMsgs.slice(0, targetIndex) : currentMsgs;
-
-    payloadMsgs = payloadMsgs.map(m => ({ role: m.role, content: m.content }));
-
-    if (limit > 0 && payloadMsgs.length > limit) {
-      payloadMsgs = payloadMsgs.slice(-limit);
-    }
+    const payloadMsgs = buildPayloadMessages(currentMsgs, isRegen ? targetIndex : currentMsgs.length);
 
     const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
     let aiMsgDiv;
@@ -1334,7 +1383,7 @@ ${original}`
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        if (abortReason === 'background') markInterrupted();
+        if (abortReason === 'background' || abortReason === 'manual') markInterrupted();
         finalizeMessage(finalizeState);
       } else if (isBackgroundRelatedError(e)) {
         markInterrupted();
@@ -1391,6 +1440,7 @@ ${original}`
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const isFirstMessage = currentMsgs.length === 0;
     currentMsgs.push({ role: "user", content: text });
+    currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
     tabData.list[tabData.active].messages = currentMsgs;
     saveTabs();
     renderChat();
