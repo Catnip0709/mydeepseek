@@ -138,6 +138,13 @@ document.addEventListener('DOMContentLoaded', function() {
   const confirmCancelBtn = document.getElementById("confirmCancelBtn");
   const confirmOkBtn = document.getElementById("confirmOkBtn");
 
+  const downloadPanel = document.getElementById("downloadPanel");
+  const downloadCancelBtn = document.getElementById("downloadCancelBtn");
+  const downloadAllBtn = document.getElementById("downloadAllBtn");
+  const downloadAiOnlyBtn = document.getElementById("downloadAiOnlyBtn");
+  const includeReasoningToggle = document.getElementById("includeReasoningToggle");
+  let pendingDownloadTabId = null;
+
   const promptOptimizePreviewPanel = document.getElementById("promptOptimizePreviewPanel");
   const originalPromptPreview = document.getElementById("originalPromptPreview");
   const optimizedPromptPreview = document.getElementById("optimizedPromptPreview");
@@ -247,6 +254,23 @@ document.addEventListener('DOMContentLoaded', function() {
       document.body.classList.remove("day-mode");
     }
     localStorage.setItem("dsDayMode", isDayMode.toString());
+  });
+
+  downloadCancelBtn.addEventListener("click", closeDownloadPanel);
+  downloadPanel.addEventListener("click", (e) => {
+    if (e.target === downloadPanel) closeDownloadPanel();
+  });
+  downloadAllBtn.addEventListener("click", () => {
+    if (pendingDownloadTabId) {
+      exportChatToTxt(pendingDownloadTabId, 'all', includeReasoningToggle.checked);
+      closeDownloadPanel();
+    }
+  });
+  downloadAiOnlyBtn.addEventListener("click", () => {
+    if (pendingDownloadTabId) {
+      exportChatToTxt(pendingDownloadTabId, 'ai_only', includeReasoningToggle.checked);
+      closeDownloadPanel();
+    }
   });
 
   function saveTabs() {
@@ -536,7 +560,7 @@ ${original}`
     showToast('已替换为优化结果');
   }
 
-  function exportChatToTxt(tabId) {
+  function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
     const msgs = tabData.list[tabId].messages || [];
     if (msgs.length === 0) {
       alert("当前对话为空，无法导出。");
@@ -547,11 +571,16 @@ ${original}`
     txtContent += `==================================================\n\n`;
 
     msgs.forEach(m => {
+      if (mode === 'ai_only' && m.role === 'user') {
+        return;
+      }
+      
       const roleName = m.role === 'user' ? '我' : 'DeepSeek';
       txtContent += `【${roleName}】:\n`;
 
-      if (m.reasoningContent) {
+      if (includeReasoning && m.reasoningContent) {
         txtContent += `[思考过程]:\n${m.reasoningContent}\n\n`;
+        txtContent += `[正文]:\n`;
       }
 
       txtContent += `${m.content}\n\n`;
@@ -560,14 +589,32 @@ ${original}`
 
     const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
+    const modeSuffix = mode === 'ai_only' ? '_AI回复' : '';
+    const reasoningSuffix = includeReasoning ? '' : '_不含思考';
     const safeName = getTabDisplayName(tabId).replace(/[\\/:*?"<>|]/g, '_');
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${safeName}.txt`;
+    a.download = `${safeName}${modeSuffix}${reasoningSuffix}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function openDownloadPanel(tabId) {
+    const msgs = tabData.list[tabId].messages || [];
+    if (msgs.length === 0) {
+      alert("当前对话为空，无法导出。");
+      return;
+    }
+    pendingDownloadTabId = tabId;
+    includeReasoningToggle.checked = true;
+    downloadPanel.classList.remove("hidden");
+  }
+
+  function closeDownloadPanel() {
+    downloadPanel.classList.add("hidden");
+    pendingDownloadTabId = null;
   }
 
   function renderTabs() {
@@ -614,7 +661,7 @@ ${original}`
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const exportId = btn.dataset.id;
-        exportChatToTxt(exportId);
+        openDownloadPanel(exportId);
       });
     });
 

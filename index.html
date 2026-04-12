@@ -180,6 +180,33 @@
   </div>
 </div>
 
+<div id="downloadPanel" class="edit-panel hidden">
+  <div class="edit-container">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-white">导出对话</h3>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <span class="text-sm text-gray-400">导出思考过程</span>
+        <div class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="includeReasoningToggle" class="sr-only peer" checked>
+          <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </div>
+      </label>
+    </div>
+    <div class="modal-desc mb-4">请选择导出内容：</div>
+    <div class="download-options">
+      <button id="downloadAllBtn" class="download-option-btn bg-blue-600">
+        下载所有对话
+      </button>
+      <button id="downloadAiOnlyBtn" class="download-option-btn">
+        仅下载DeepSeek回复
+      </button>
+    </div>
+    <div class="edit-buttons mt-5">
+      <button id="downloadCancelBtn" class="edit-btn-cancel">取消</button>
+    </div>
+  </div>
+</div>
+
 <div id="promptOptimizePreviewPanel" class="edit-panel hidden">
   <div class="edit-container inl_fd9f6e7d33">
     <h3 class="text-white mb-2">AI 优化建议</h3>

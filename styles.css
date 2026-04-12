@@ -1210,6 +1210,59 @@ body.day-mode .prose.prose-invert :where(blockquote) {
   border-left-color: #d1d5db !important;
 }
 
+/* Download panel */
+.download-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.download-option-btn {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #4b5563;
+  border-radius: 10px;
+  background: #1f2937;
+  color: #f5f5f7;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.download-option-btn:hover {
+  background: #374151;
+  border-color: #6b7280;
+}
+.download-option-btn.bg-blue-600 {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+.download-option-btn.bg-blue-600:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+body.day-mode .download-option-btn {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #1f2937;
+}
+body.day-mode .download-option-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+body.day-mode .download-option-btn.bg-blue-600 {
+  background: #3b82f6 !important;
+  border-color: #3b82f6 !important;
+  color: white !important;
+}
+body.day-mode .download-option-btn.bg-blue-600:hover {
+  background: #2563eb !important;
+  border-color: #2563eb !important;
+}
+body.day-mode #downloadPanel .text-gray-400 {
+  color: #6b7280 !important;
+}
+
 /* FORCE SAVE KEY BUTTON WHITE */
 body.day-mode #saveKey,
 body.day-mode #keyPanel button.bg-blue-600,
