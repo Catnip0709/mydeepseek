@@ -105,6 +105,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const sidebarOverlay = document.getElementById("sidebarOverlay");
   const memorySelect = document.getElementById("memorySelect");
   const memoryCustom = document.getElementById("memoryCustom");
+  const inputCounter = document.getElementById("inputCounter");
 
   const openDonateBtn = document.getElementById("openDonateBtn");
   const donatePanel = document.getElementById("donatePanel");
@@ -644,6 +645,7 @@ ${original}`
         updateMemoryUI();
         renderChat();
         renderTabs();
+        updateInputCounter();
         if(window.innerWidth < 768) closeSidebar();
       });
       tabsEl.appendChild(tabDiv);
@@ -683,6 +685,7 @@ ${original}`
           updateMemoryUI();
           renderChat();
           renderTabs();
+          updateInputCounter();
         }
       });
     });
@@ -817,7 +820,9 @@ ${original}`
       if (isAssistant) {
         const metaDiv = document.createElement('div');
         metaDiv.className = "assistant-meta mt-2 text-xs text-gray-400";
-        metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字`;
+        const totalChars = countChars(m.reasoningContent) + countChars(m.content);
+        const tokenEstimate = Math.ceil(totalChars / 1.5);
+        metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字，约 ${tokenEstimate} tokens`;
         msgBox.appendChild(metaDiv);
 
         if (m.generationState === 'interrupted') {
@@ -953,13 +958,68 @@ ${original}`
   }
 
   function autoHeight() {
-    input.style.height = "auto";
+    input.style.height = "44px";
     const scrollH = input.scrollHeight;
     input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
   }
 
-  input.addEventListener("input", autoHeight);
+  function updateInputCounter() {
+    const text = input.value;
+    const charCount = text.length;
+    const tokenEstimate = Math.ceil(charCount / 1.5);
+    if (charCount > 0) {
+      inputCounter.textContent = `${charCount} 字 / 约 ${tokenEstimate} tokens`;
+    } else {
+      inputCounter.textContent = "0 字";
+    }
+  }
+
+  async function generateTitleForCurrentTab() {
+    const currentMsgs = tabData.list[tabData.active].messages || [];
+    if (currentMsgs.length < 2) return;
+    
+    const firstUserMsg = currentMsgs.find(m => m.role === 'user');
+    if (!firstUserMsg) return;
+    
+    try {
+      const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${firstUserMsg.content}` }
+          ],
+          stream: false,
+          temperature: 0.5,
+          max_tokens: 50
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        let title = data?.choices?.[0]?.message?.content || '';
+        title = title.trim().replace(/^["「『]|["」』]$/g, '');
+        if (title && title.length <= 30) {
+          tabData.list[tabData.active].title = title;
+          saveTabs();
+          renderTabs();
+        }
+      }
+    } catch (e) {
+      console.log('生成标题失败，不影响功能', e);
+    }
+  }
+
+  input.addEventListener("input", () => {
+    autoHeight();
+    updateInputCounter();
+  });
   autoHeight();
+  updateInputCounter();
 
   function createNewTab() {
     const tabIds = Object.keys(tabData.list);
@@ -976,6 +1036,7 @@ ${original}`
     updateMemoryUI();
     renderChat();
     renderTabs();
+    updateInputCounter();
     return newId;
   }
 
@@ -991,6 +1052,7 @@ ${original}`
     saveTabs();
     renderChat();
     closeSidebar();
+    updateInputCounter();
   };
 
   async function fetchAndStreamResponse(opts = {}) {
@@ -1214,6 +1276,7 @@ ${original}`
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
 
     const currentMsgs = tabData.list[tabData.active].messages || [];
+    const isFirstMessage = currentMsgs.length === 0;
     currentMsgs.push({ role: "user", content: text });
     tabData.list[tabData.active].messages = currentMsgs;
     saveTabs();
@@ -1221,7 +1284,12 @@ ${original}`
 
     input.value = "";
     autoHeight();
+    updateInputCounter();
     await fetchAndStreamResponse();
+    
+    if (isFirstMessage) {
+      generateTitleForCurrentTab();
+    }
   }
 
   function openPromptPanel() {

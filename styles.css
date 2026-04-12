@@ -3,6 +3,13 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat { -webkit-overflow-scrolling:touch; scroll-behavior:smooth; }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    .input-counter {
+      user-select: none;
+      transition: color 0.3s;
+    }
+    body.day-mode .input-counter {
+      color: #6b7280 !important;
+    }
 
     #input {
       min-height:44px;
@@ -243,7 +250,7 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
       right: 0;
       background: rgba(0, 0, 0, 0.9);
       backdrop-filter: blur(10px);
-      padding: 12px 16px;
+      padding: 10px 16px 8px;
       border-top: 1px solid rgba(75, 85, 99, 0.5);
       z-index: 10;
     }
