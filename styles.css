@@ -328,11 +328,21 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
       bottom: 0;
       left: 0;
       right: 0;
-      background: transparent;
+      background: #000;
       backdrop-filter: none;
       padding: 10px 14px 12px;
       border-top: none;
       z-index: 10;
+    }
+    .input-container::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 100%;
+      height: 44px;
+      pointer-events: none;
+      background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.82) 72%, #000 100%);
     }
     .input-shell {
       width: 100%;
@@ -1152,8 +1162,11 @@ body.day-mode .version-btn:hover {
 
 /* Input container */
 body.day-mode .input-container {
-  background: transparent !important;
+  background: #f9fafb !important;
   border-top-color: transparent !important;
+}
+body.day-mode .input-container::before {
+  background: linear-gradient(to bottom, rgba(249, 250, 251, 0) 0%, rgba(249, 250, 251, 0.9) 72%, #f9fafb 100%) !important;
 }
 body.day-mode .input-shell {
   background: rgba(255, 255, 255, 0.98) !important;
