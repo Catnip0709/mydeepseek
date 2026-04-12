@@ -760,7 +760,7 @@ ${original}`
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
     if (tabIds.length === 0) {
-      tabData.list = { tab1: { messages: [], memoryLimit: "0", title: "" } };
+      tabData.list = { tab1: { messages: [], title: "" } };
       tabData.active = "tab1";
       saveTabs();
     }
@@ -808,15 +808,18 @@ ${original}`
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         const delId = btn.dataset.id;
-        const tabIds = Object.keys(tabData.list);
-        if (tabIds.length <= 1) {
-          alert("至少保留1个对话，无法删除！");
-          return;
-        }
         if (confirm(`确定删除「${getTabDisplayName(delId)}」吗？删除后记录将永久消失！`)) {
           delete tabData.list[delId];
+
+          const remainingTabIds = Object.keys(tabData.list);
+          if (remainingTabIds.length === 0) {
+            const newId = createNewTab();
+            tabData.active = newId;
+            return;
+          }
+
           if (delId === tabData.active) {
-            tabData.active = Object.keys(tabData.list)[0];
+            tabData.active = remainingTabIds[0];
           }
           saveTabs();
           renderChat();

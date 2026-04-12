@@ -59,20 +59,20 @@
 </div>
 
 <div id="settingsPanel" class="fixed inset-0 bg-black/95 flex items-center justify-center z-50 hidden">
-  <div class="bg-gray-900 p-6 rounded-2xl w-[90%] max-w-md border border-gray-700">
+  <div class="settings-panel-card bg-gray-900 p-6 rounded-2xl w-[90%] max-w-md border border-gray-700">
     <h3 class="text-white text-lg font-medium mb-5 text-center">设置</h3>
     
     <div class="mb-6">
       <h4 class="text-white text-sm font-medium mb-3">API Key</h4>
-      <div class="flex gap-2 items-center">
-        <input id="settingsApiKeyInput" class="flex-1 p-3 bg-gray-800 rounded border border-gray-700 text-white outline-none focus:border-blue-500 transition-colors" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
+      <div class="settings-api-row flex gap-2 items-center">
+        <input id="settingsApiKeyInput" class="min-w-0 flex-1 p-3 bg-gray-800 rounded border border-gray-700 text-white outline-none focus:border-blue-500 transition-colors" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
         <button id="settingsCopyKeyBtn" class="settings-icon-btn bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded text-gray-300 transition-colors" type="button" aria-label="复制 API Key" title="复制 API Key">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="9" y="9" width="11" height="11" rx="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
-        <button id="settingsSaveKeyBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded text-white font-medium transition-colors whitespace-nowrap">保存</button>
+        <button id="settingsSaveKeyBtn" class="settings-save-key-btn bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded text-white font-medium transition-colors whitespace-nowrap">保存</button>
       </div>
     </div>
     
@@ -89,7 +89,7 @@
     
     <div class="mb-6">
       <h4 class="text-white text-sm font-medium mb-3">对话框字号</h4>
-      <div class="grid grid-cols-5 gap-2 mb-3">
+      <div class="settings-font-grid grid grid-cols-5 gap-2 mb-3">
         <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="small">小</button>
         <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="smaller">较小</button>
         <button class="font-size-option active py-2 rounded border border-blue-500 text-white text-sm transition-colors bg-blue-600" data-size="default">默认</button>
@@ -125,22 +125,24 @@
 <button id="scrollToBottomBtn" class="scroll-to-bottom-btn" title="快速到底部">↓</button>
 
 <div class="input-container safe-area-bottom">
-  <div class="input-toolbar">
-    <label for="deepThinkToggle" class="deepthink-chip">
-      <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
-      <span class="deepthink-chip-icon" aria-hidden="true">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
-        </svg>
-      </span>
-      <span class="deepthink-chip-text">深度思考</span>
-      <span class="deepthink-chip-badge">R1</span>
-    </label>
-    <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
-  </div>
-  <div class="input-wrapper">
-    <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
-    <button id="sendBtn">发送</button>
+  <div class="input-shell">
+    <div class="input-toolbar">
+      <label for="deepThinkToggle" class="deepthink-chip">
+        <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
+        <span class="deepthink-chip-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+          </svg>
+        </span>
+        <span class="deepthink-chip-text">深度思考</span>
+        <span class="deepthink-chip-badge">R1</span>
+      </label>
+      <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
+    </div>
+    <div class="input-wrapper">
+      <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
+      <button id="sendBtn">发送</button>
+    </div>
   </div>
 </div>
 
