@@ -17,6 +17,27 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
     .font-size-option {
       cursor: pointer;
       user-select: none;
+      padding: 8px 4px;
+      line-height: 1.2;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .font-size-option[data-size="small"] {
+      font-size: 0.75rem;
+    }
+    .font-size-option[data-size="smaller"] {
+      font-size: 0.875rem;
+    }
+    .font-size-option[data-size="default"] {
+      font-size: 1rem;
+    }
+    .font-size-option[data-size="larger"] {
+      font-size: 1.125rem;
+    }
+    .font-size-option[data-size="large"] {
+      font-size: 1.25rem;
     }
     .font-size-option:hover:not(.active) {
       border-color: #6b7280;
@@ -61,6 +82,10 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
     .msg-content,
     .reasoning-content {
       transition: font-size 0.2s ease;
+      line-height: 1.6;
+    }
+    .reasoning-content {
+      line-height: 1.8;
     }
     body.font-size-small .msg-content,
     body.font-size-small .reasoning-content {
@@ -98,7 +123,13 @@ body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margi
     #input:focus-visible {
       outline: none !important;
       box-shadow: none !important;
-      border: none !important;
+    }
+    
+    /* Token预估隐藏样式 */
+    body.hide-token-estimate .input-counter,
+    body.hide-token-estimate .toolbar-input-counter,
+    body.hide-token-estimate .message-meta {
+      display: none !important;
     }
 
     #sendBtn {

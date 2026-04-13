@@ -90,16 +90,12 @@
     
     <div class="mb-6">
       <h4 class="text-white text-sm font-medium mb-3">对话框字号</h4>
-      <div class="settings-font-grid grid grid-cols-5 gap-2 mb-3">
-        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="small">小</button>
-        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="smaller">较小</button>
-        <button class="font-size-option active py-2 rounded border border-blue-500 text-white text-sm transition-colors bg-blue-600" data-size="default">默认</button>
-        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="larger">较大</button>
-        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 text-sm transition-colors" data-size="large">大</button>
-      </div>
-      <div class="bg-gray-800 p-3 rounded-lg border border-gray-700">
-        <div class="text-xs text-gray-400 mb-1">预览效果：</div>
-        <div id="fontSizePreview" class="msg-content text-gray-300 leading-relaxed">这是一段用于预览字号的示例文字。你可以直观地看到选择不同字号后的显示效果。</div>
+      <div class="settings-font-grid grid grid-cols-5 gap-2">
+        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 transition-colors" data-size="small">小</button>
+        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 transition-colors" data-size="smaller">较小</button>
+        <button class="font-size-option active py-2 rounded border border-blue-500 text-white transition-colors bg-blue-600" data-size="default">默认</button>
+        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 transition-colors" data-size="larger">较大</button>
+        <button class="font-size-option py-2 rounded border border-gray-700 text-gray-400 transition-colors" data-size="large">大</button>
       </div>
     </div>
     
@@ -114,6 +110,17 @@
           <option value="custom">自定义</option>
         </select>
         <input type="number" id="settingsMemoryCustom" class="w-20 p-3 bg-gray-800 rounded border border-gray-700 text-white outline-none focus:border-blue-500 transition-colors text-sm hidden text-center" placeholder="条数" min="1">
+      </div>
+    </div>
+    
+    <div class="mb-6">
+      <h4 class="text-white text-sm font-medium mb-3">显示设置</h4>
+      <div class="settings-day-mode-container flex items-center justify-between bg-gray-800 p-3 rounded-lg border border-gray-700">
+        <div class="text-sm text-gray-300">显示Token预估</div>
+        <label class="relative inline-flex items-center cursor-pointer">
+          <input type="checkbox" id="settingsTokenEstimateToggle" class="sr-only peer" checked>
+          <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
       </div>
     </div>
     

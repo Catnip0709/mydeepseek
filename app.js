@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const settingsCopyKeyBtn = document.getElementById("settingsCopyKeyBtn");
   const settingsSaveKeyBtn = document.getElementById("settingsSaveKeyBtn");
   const settingsDayModeToggle = document.getElementById("settingsDayModeToggle");
-  const fontSizePreview = document.getElementById("fontSizePreview");
+  const settingsTokenEstimateToggle = document.getElementById("settingsTokenEstimateToggle");
   const settingsMemorySelect = document.getElementById("settingsMemorySelect");
   const settingsMemoryCustom = document.getElementById("settingsMemoryCustom");
 
@@ -247,14 +247,6 @@ document.addEventListener('DOMContentLoaded', function() {
     modelSelect.value = newModel;
   });
 
-  const fontSizes = {
-    small: '0.875rem',
-    smaller: '0.9375rem',
-    default: '1rem',
-    larger: '1.0625rem',
-    large: '1.125rem'
-  };
-
   const savedDayMode = localStorage.getItem("dsDayMode") === "true";
   if (settingsDayModeToggle) {
     settingsDayModeToggle.checked = savedDayMode;
@@ -275,13 +267,30 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
+  const showTokenEstimate = localStorage.getItem("dsShowTokenEstimate") !== "false";
+  if (settingsTokenEstimateToggle) {
+    settingsTokenEstimateToggle.checked = showTokenEstimate;
+  }
+  if (!showTokenEstimate) {
+    document.body.classList.add("hide-token-estimate");
+  }
+
+  if (settingsTokenEstimateToggle) {
+    settingsTokenEstimateToggle.addEventListener("change", (e) => {
+      const show = e.target.checked;
+      if (show) {
+        document.body.classList.remove("hide-token-estimate");
+      } else {
+        document.body.classList.add("hide-token-estimate");
+      }
+      localStorage.setItem("dsShowTokenEstimate", show.toString());
+    });
+  }
+
   const savedFontSize = localStorage.getItem("dsFontSize") || "default";
   applyFontSize(savedFontSize);
   if (document.querySelector('.font-size-option')) {
     updateFontSizeButtons(savedFontSize);
-  }
-  if (fontSizePreview) {
-    updateFontSizePreview(savedFontSize);
   }
 
   let globalMemoryLimit = localStorage.getItem("dsGlobalMemoryLimit") || "0";
@@ -289,12 +298,6 @@ document.addEventListener('DOMContentLoaded', function() {
   function applyFontSize(size) {
     document.body.classList.remove("font-size-small", "font-size-smaller", "font-size-default", "font-size-larger", "font-size-large");
     document.body.classList.add(`font-size-${size}`);
-  }
-
-  function updateFontSizePreview(size) {
-    if (fontSizePreview) {
-      fontSizePreview.style.fontSize = fontSizes[size];
-    }
   }
 
   function updateFontSizeButtons(activeSize) {
@@ -317,7 +320,6 @@ document.addEventListener('DOMContentLoaded', function() {
       const size = btn.getAttribute('data-size');
       applyFontSize(size);
       updateFontSizeButtons(size);
-      updateFontSizePreview(size);
       localStorage.setItem("dsFontSize", size);
     });
   });
@@ -332,7 +334,6 @@ document.addEventListener('DOMContentLoaded', function() {
       settingsDayModeToggle.checked = currentDayMode;
     }
     updateFontSizeButtons(currentFontSize);
-    updateFontSizePreview(currentFontSize);
     
     const currentMemoryLimit = globalMemoryLimit;
     if (settingsMemorySelect) {
