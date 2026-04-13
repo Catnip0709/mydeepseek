@@ -1,4 +1,50 @@
 body { background:#000; color:#f5f5f7; -webkit-font-smoothing:antialiased; margin:0; padding:0; overflow-x: hidden; transition: background 0.3s, color 0.3s; }
+
+/* 搜索高亮样式 */
+.search-highlight {
+  background: #fbbf24;
+  color: #000;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.search-result-active {
+  animation: searchPulse 1s ease-in-out infinite;
+}
+
+@keyframes searchPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+  50% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+}
+
+/* 日间模式搜索框 */
+body.day-mode #searchBox {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+body.day-mode #searchInput {
+  color: #111827;
+}
+
+body.day-mode #searchInput::placeholder {
+  color: #9ca3af;
+}
+
+/* 日间模式搜索结果 */
+body.day-mode #searchResultsInfo {
+  background: rgba(59, 130, 246, 0.95);
+}
+
+/* 当搜索结果显示时，调整聊天区域的顶部padding */
+body.search-active #chat {
+  padding-top: 108px !important;
+}
+
+/* 当搜索结果显示时，调整空对话提示的位置 */
+body.search-active #emptyChatHint {
+  bottom: 180px;
+}
     body.day-mode { background:#f9fafb; color:#111827; }
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat {
@@ -1767,8 +1813,8 @@ body.day-mode #emptyChatHint .text-gray-500 {
 }
 
 .prompt-market-refresh-btn {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.06);
   color: #cbd5e1;
@@ -1780,6 +1826,7 @@ body.day-mode #emptyChatHint .text-gray-500 {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-right: 10px;
 }
 
 .prompt-market-refresh-btn:hover {

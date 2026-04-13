@@ -63,6 +63,11 @@ document.addEventListener('DOMContentLoaded', function() {
   let optimizedCandidateText = '';
   let optimizeInProgress = false;
 
+  // 搜索功能变量
+  let searchQuery = '';
+  let searchResults = [];
+  let currentSearchIndex = -1;
+
   const MAX_CONTEXT_TOKENS = 131072;
   function isTokenLimitReached() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -164,6 +169,17 @@ document.addEventListener('DOMContentLoaded', function() {
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
+
+  // 搜索功能元素
+  const searchToggleBtn = document.getElementById('searchToggleBtn');
+  const searchBox = document.getElementById('searchBox');
+  const searchInput = document.getElementById('searchInput');
+  const closeSearchBtn = document.getElementById('closeSearchBtn');
+  const searchResultsInfo = document.getElementById('searchResultsInfo');
+  const searchResultsText = document.getElementById('searchResultsText');
+  const prevSearchResult = document.getElementById('prevSearchResult');
+  const nextSearchResult = document.getElementById('nextSearchResult');
+  const appTitle = document.getElementById('appTitle');
 
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
@@ -917,14 +933,59 @@ ${original}`
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
-  function renderMarkdown(el, text) {
+  function renderMarkdown(el, text, msgIndex, type) {
     if (!text) {
       el.innerHTML = '';
       return;
     }
     const rawHtml = marked.parse(text);
-    const safeHtml = DOMPurify.sanitize(rawHtml);
+    let safeHtml = DOMPurify.sanitize(rawHtml);
+    
+    // 如果有搜索查询，添加高亮
+    if (searchQuery) {
+      safeHtml = addSearchHighlightToHtml(safeHtml, msgIndex, type);
+    }
+    
     el.innerHTML = safeHtml;
+  }
+
+  function addSearchHighlightToHtml(html, msgIndex, type) {
+    if (!searchQuery) return html;
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    function highlightTextNodes(node) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent;
+        const regex = new RegExp(`(${escapeRegExp(searchQuery)})`, 'gi');
+        if (regex.test(text)) {
+          const newHtml = text.replace(regex, (match) => {
+            return `<span class="search-highlight">${match}</span>`;
+          });
+          const newNode = document.createElement('span');
+          newNode.innerHTML = newHtml;
+          node.parentNode.replaceChild(newNode, node);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && 
+                 node.tagName !== 'SCRIPT' && 
+                 node.tagName !== 'STYLE' &&
+                 node.tagName !== 'CODE' &&
+                 !node.classList.contains('search-highlight')) {
+        for (let i = node.childNodes.length - 1; i >= 0; i--) {
+          highlightTextNodes(node.childNodes[i]);
+        }
+      }
+    }
+    
+    highlightTextNodes(tempDiv);
+    
+    // 如果是当前搜索结果，添加动画
+    if (isCurrentSearchResult(msgIndex, type)) {
+      tempDiv.classList.add('search-result-active');
+    }
+    
+    return tempDiv.innerHTML;
   }
 
   function countChars(text) {
@@ -1020,14 +1081,14 @@ ${original}`
         details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
         const reasoningDiv = document.createElement('div');
         reasoningDiv.className = "reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
-        renderMarkdown(reasoningDiv, m.reasoningContent);
+        renderMarkdown(reasoningDiv, m.reasoningContent, i, 'reasoning');
         details.appendChild(reasoningDiv);
         msgBox.appendChild(details);
       }
 
       const contentDiv = document.createElement('div');
       contentDiv.className = "msg-content prose prose-invert max-w-none";
-      renderMarkdown(contentDiv, m.content);
+      renderMarkdown(contentDiv, m.content, i, 'content');
       msgBox.appendChild(contentDiv);
 
       if (isUser) {
@@ -1754,29 +1815,13 @@ ${original}`
   scrollToBottomBtn.addEventListener("click", scrollToBottom);
   chat.addEventListener("scroll", checkScrollButton);
 
-  // 指令市场预设指令
-  let MARKET_PROMPTS = [];
+  // 指令市场预设指令从 prompts.js 加载
+  // MARKET_PROMPTS 在 prompts.js 中定义
 
-  // 从 prompt.txt 加载指令
+  // 从 prompts.js 加载指令（已在页面中引入，此函数保留用于兼容性）
   async function loadPromptsFromFile() {
-    try {
-      const response = await fetch('./prompt.txt');
-      if (!response.ok) {
-        throw new Error('无法加载 prompt.txt');
-      }
-      const text = await response.text();
-      const parts = text.split('##########');
-      MARKET_PROMPTS = parts
-        .map(part => part.trim())
-        .filter(part => part.length > 0)
-        .map(content => ({ content }));
-    } catch (e) {
-      console.error('加载 prompt.txt 失败，使用默认指令', e);
-      // 如果加载失败，使用默认指令
-      MARKET_PROMPTS = [
-        { content: "请与我对话..." }
-      ];
-    }
+    // 数据已在 prompts.js 中定义
+    return;
   }
 
   // 指令市场相关元素
@@ -2078,6 +2123,164 @@ ${original}`
     if (e.target === aiGeneratePromptPanel) closeAiGeneratePanel();
   });
   confirmAiGenerateBtn.addEventListener('click', generatePromptWithAI);
+
+  // ========== 搜索功能实现 ==========
+  
+  function openSearch() {
+    appTitle.classList.add('hidden');
+    searchBox.classList.remove('hidden');
+    searchInput.value = searchQuery;
+    document.body.classList.add('search-active');
+    setTimeout(() => searchInput.focus(), 50);
+  }
+
+  function closeSearch() {
+    appTitle.classList.remove('hidden');
+    searchBox.classList.add('hidden');
+    searchResultsInfo.classList.add('hidden');
+    document.body.classList.remove('search-active');
+    searchQuery = '';
+    searchResults = [];
+    currentSearchIndex = -1;
+    renderChat();
+  }
+
+  function performSearch(query) {
+    searchQuery = query.trim().toLowerCase();
+    searchResults = [];
+    currentSearchIndex = -1;
+
+    if (!searchQuery) {
+      searchResultsInfo.classList.add('hidden');
+      renderChat();
+      return;
+    }
+
+    const currentMsgs = tabData.list[tabData.active].messages || [];
+    
+    currentMsgs.forEach((msg, msgIndex) => {
+      const content = msg.content.toLowerCase();
+      const reasoning = (msg.reasoningContent || '').toLowerCase();
+      
+      if (content.includes(searchQuery)) {
+        searchResults.push({
+          msgIndex,
+          type: 'content',
+          text: msg.content
+        });
+      }
+      
+      if (reasoning.includes(searchQuery)) {
+        searchResults.push({
+          msgIndex,
+          type: 'reasoning',
+          text: msg.reasoningContent
+        });
+      }
+    });
+
+    document.body.classList.add('search-active');
+    if (searchResults.length > 0) {
+      currentSearchIndex = 0;
+      updateSearchResultsInfo();
+      searchResultsInfo.classList.remove('hidden');
+      renderChat();
+      scrollToCurrentSearchResult();
+    } else {
+      searchResultsText.textContent = '未找到匹配结果';
+      searchResultsInfo.classList.remove('hidden');
+      renderChat();
+    }
+  }
+
+  function updateSearchResultsInfo() {
+    if (searchResults.length > 0) {
+      searchResultsText.textContent = `${currentSearchIndex + 1} / ${searchResults.length} 个结果`;
+    }
+  }
+
+  function scrollToCurrentSearchResult() {
+    if (currentSearchIndex < 0 || currentSearchIndex >= searchResults.length) return;
+    
+    const result = searchResults[currentSearchIndex];
+    const msgEl = document.getElementById(`msg-${result.msgIndex}`);
+    
+    if (msgEl) {
+      msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function prevSearchResultHandler() {
+    if (searchResults.length === 0) return;
+    
+    currentSearchIndex--;
+    if (currentSearchIndex < 0) {
+      currentSearchIndex = searchResults.length - 1;
+    }
+    
+    updateSearchResultsInfo();
+    renderChat();
+    scrollToCurrentSearchResult();
+  }
+
+  function nextSearchResultHandler() {
+    if (searchResults.length === 0) return;
+    
+    currentSearchIndex++;
+    if (currentSearchIndex >= searchResults.length) {
+      currentSearchIndex = 0;
+    }
+    
+    updateSearchResultsInfo();
+    renderChat();
+    scrollToCurrentSearchResult();
+  }
+
+  function highlightSearchText(text) {
+    if (!searchQuery) return escapeHtml(text);
+    
+    const regex = new RegExp(`(${escapeRegExp(searchQuery)})`, 'gi');
+    return escapeHtml(text).replace(regex, (match) => {
+      return `<span class="search-highlight">${match}</span>`;
+    });
+  }
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function isCurrentSearchResult(msgIndex, type) {
+    if (currentSearchIndex < 0 || currentSearchIndex >= searchResults.length) return false;
+    const result = searchResults[currentSearchIndex];
+    return result.msgIndex === msgIndex && result.type === type;
+  }
+
+  // 搜索功能事件监听
+  searchToggleBtn.addEventListener('click', openSearch);
+  closeSearchBtn.addEventListener('click', closeSearch);
+  
+  searchInput.addEventListener('input', (e) => {
+    performSearch(e.target.value);
+  });
+
+  prevSearchResult.addEventListener('click', prevSearchResultHandler);
+  nextSearchResult.addEventListener('click', nextSearchResultHandler);
+
+  // Ctrl+F 快捷键打开搜索
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      openSearch();
+    }
+  });
+
+  // ESC 键关闭搜索
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !searchBox.classList.contains('hidden')) {
+      e.preventDefault();
+      closeSearch();
+    }
+  });
 
   // 页面加载时预加载指令
   loadPromptsFromFile();
