@@ -222,6 +222,17 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function isStorageFull() {
+    let totalUsed = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        totalUsed += (localStorage.getItem(key) || '').length * 2;
+      }
+    }
+    return totalUsed / (5 * 1024 * 1024) >= 0.99;
+  }
+
   storageWarningIcon.addEventListener('click', function() {
     alert('当前聊天内容接近本地存储上限，请及时导出并清理过期会话。');
   });
@@ -993,7 +1004,9 @@ ${original}`
       el.textContent = text;
       return;
     }
-    const rawHtml = marked.parse(text);
+    // 处理换行，确保在 Markdown 中显示为换行
+    const textWithLineBreaks = text.replace(/\n/g, '  \n');
+    const rawHtml = marked.parse(textWithLineBreaks);
     let safeHtml = DOMPurify.sanitize(rawHtml);
     
     // 如果有搜索查询，添加高亮
@@ -1625,6 +1638,10 @@ ${original}`
     const text = input.value.trim();
     if (!text) { input.focus(); return; }
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
+    if (isStorageFull()) {
+      alert('本地存储空间已满，无法保存新消息。请先导出重要对话，再清理过期会话后继续使用。');
+      return;
+    }
 
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const isFirstMessage = currentMsgs.length === 0;
