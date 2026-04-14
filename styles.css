@@ -953,6 +953,46 @@ body.search-active #emptyChatHint {
 .inl_0201436a24 { scrollbar-width: none;-ms-overflow-style: none; }
 .inl_fd9f6e7d33 { max-width: 920px; }
 
+/* ========== 存储用量样式 ========== */
+.storage-usage-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 1px 0 8px;
+  user-select: none;
+}
+
+.storage-usage-text {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1;
+  transition: color 0.3s;
+}
+
+.storage-usage-text.storage-warning {
+  color: #ef4444;
+  font-weight: 500;
+}
+
+.storage-warning-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ef4444;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.storage-warning-icon:hover {
+  opacity: 0.7;
+}
+
+.storage-warning-icon.hidden {
+  display: none;
+}
+
 /* ========== 日间模式样式 ========== */
 
 /* Header */
@@ -1044,6 +1084,14 @@ body.day-mode #sidebar .bg-blue-600 {
 body.day-mode #sidebar .bg-blue-600:hover {
   background: #2563eb !important;
   border-color: #1d4ed8 !important;
+}
+
+/* 日间模式 - 存储用量 */
+body.day-mode .storage-usage-text {
+  color: #9ca3af !important;
+}
+body.day-mode .storage-usage-text.storage-warning {
+  color: #dc2626 !important;
 }
 
 body.day-mode .bg-blue-600 {

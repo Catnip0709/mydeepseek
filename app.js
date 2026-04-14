@@ -56,7 +56,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const PROMPT_STORAGE_KEY = 'dsPrompts';
-  let promptData = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY)) || [];
+  let promptData;
+  try {
+    const rawPromptData = JSON.parse(localStorage.getItem(PROMPT_STORAGE_KEY));
+    promptData = Array.isArray(rawPromptData) ? rawPromptData : [];
+  } catch (e) {
+    console.warn('dsPrompts 数据损坏，已重置:', e);
+    promptData = [];
+  }
   let editingPromptId = null;
 
   let renamingTabId = null;
@@ -181,6 +188,45 @@ document.addEventListener('DOMContentLoaded', function() {
   const prevSearchResult = document.getElementById('prevSearchResult');
   const nextSearchResult = document.getElementById('nextSearchResult');
   const appTitle = document.getElementById('appTitle');
+
+  // 存储用量相关元素
+  const storageUsageText = document.getElementById('storageUsageText');
+  const storageWarningIcon = document.getElementById('storageWarningIcon');
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function updateStorageUsage() {
+    let totalUsed = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        totalUsed += (localStorage.getItem(key) || '').length * 2; // UTF-16 每字符2字节
+      }
+    }
+    const limit = 5 * 1024 * 1024; // 5MB
+    const percent = Math.min(Math.round((totalUsed / limit) * 100), 100);
+    const isWarning = percent >= 95;
+
+    storageUsageText.textContent = '本地存储容量 ' + formatBytes(totalUsed) + '/5MB(' + percent + '%)';
+
+    if (isWarning) {
+      storageUsageText.classList.add('storage-warning');
+      storageWarningIcon.classList.remove('hidden');
+    } else {
+      storageUsageText.classList.remove('storage-warning');
+      storageWarningIcon.classList.add('hidden');
+    }
+  }
+
+  storageWarningIcon.addEventListener('click', function() {
+    alert('当前聊天内容接近本地存储上限，请及时导出并清理过期会话。');
+  });
+
+  updateStorageUsage();
 
   if (!apiKey) {
     keyPanel.classList.remove("hidden");
@@ -415,6 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       apiKey = newKey;
       localStorage.setItem("dsApiKey", apiKey);
+      updateStorageUsage();
       if (apiKeyInput) {
         apiKeyInput.value = apiKey;
       }
@@ -475,10 +522,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function saveTabs() {
     localStorage.setItem("dsTabs", JSON.stringify(tabData));
+    updateStorageUsage();
   }
 
   function savePrompts() {
     localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(promptData));
+    updateStorageUsage();
   }
 
 
@@ -535,6 +584,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     apiKey = newKey;
     localStorage.setItem("dsApiKey", apiKey);
+    updateStorageUsage();
     keyPanel.classList.add("hidden");
     showToast("API Key 已保存");
   };
@@ -937,6 +987,10 @@ ${original}`
   function renderMarkdown(el, text, msgIndex, type) {
     if (!text) {
       el.innerHTML = '';
+      return;
+    }
+    if (typeof marked === 'undefined' || typeof DOMPurify === 'undefined') {
+      el.textContent = text;
       return;
     }
     const rawHtml = marked.parse(text);
@@ -1351,6 +1405,14 @@ ${original}`
 
     abortReason = null;
     abortController = new AbortController();
+
+    // 60秒无响应自动超时
+    const fetchTimeout = setTimeout(() => {
+      if (abortController && !isSending) return;
+      abortReason = 'timeout';
+      abortController.abort();
+    }, 120000);
+
     trackEvent('发送消息');
 
     const currentMsgs = tabData.list[tabData.active].messages || [];
@@ -1504,6 +1566,12 @@ ${original}`
     } catch (e) {
       if (e.name === 'AbortError') {
         if (abortReason === 'background' || abortReason === 'manual') markInterrupted();
+        else if (abortReason === 'timeout') {
+          const contentDiv = aiMsgDiv.querySelector('.msg-content');
+          if (contentDiv) {
+            contentDiv.innerHTML = '<span class="text-red-400">❌ 请求超时，请检查网络后重试</span>';
+          }
+        }
         finalizeMessage(finalizeState);
       } else if (isBackgroundRelatedError(e)) {
         markInterrupted();
@@ -1524,6 +1592,7 @@ ${original}`
         }
       }
     } finally {
+      clearTimeout(fetchTimeout);
       isSending = false;
       sendBtn.textContent = "发送";
       sendBtn.classList.remove("stop-mode");
@@ -1817,7 +1886,10 @@ ${original}`
   chat.addEventListener("scroll", checkScrollButton);
 
   // 指令市场预设指令从 prompts.js 加载
-  // MARKET_PROMPTS 在 prompts.js 中定义
+  // MARKET_PROMPTS 在 prompts.js 中定义，如果加载失败则使用空数组
+  if (typeof MARKET_PROMPTS === 'undefined') {
+    window.MARKET_PROMPTS = [];
+  }
 
   // 从 prompts.js 加载指令（已在页面中引入，此函数保留用于兼容性）
   async function loadPromptsFromFile() {
@@ -2083,6 +2155,9 @@ ${original}`
       }
     ];
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -2097,8 +2172,10 @@ ${original}`
         stream: false,
         temperature: 0.8,
         max_tokens: 300
-      })
+      }),
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
