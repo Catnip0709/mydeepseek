@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+  try {
   let dsUserId = localStorage.getItem('ds_user_id');
   if (!dsUserId) {
     dsUserId = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
@@ -2289,4 +2290,44 @@ ${original}`
   renderChat();
   setTimeout(checkScrollButton, 100);
   input.focus();
+  } catch (e) {
+    console.error('MyDeepSeek 初始化失败:', e);
+    try {
+      const raw = localStorage.getItem("dsTabs");
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.list && typeof parsed.list === 'object') {
+        Object.keys(parsed.list).forEach(function(id) {
+          const tab = parsed.list[id];
+          if (Array.isArray(tab)) {
+            parsed.list[id] = { messages: tab, memoryLimit: "0", title: "" };
+          } else {
+            tab.messages = Array.isArray(tab.messages) ? tab.messages : [];
+            tab.memoryLimit = tab.memoryLimit || "0";
+            tab.title = tab.title || "";
+            tab.messages.forEach(function(msg) {
+              if (!msg.role) msg.role = 'user';
+              if (!msg.content) msg.content = '';
+              if (msg.history && typeof msg.history[0] === 'string') {
+                msg.history = msg.history.map(function(c) { return { content: c, reasoningContent: "" }; });
+              }
+              if (msg.historyIndex === undefined) msg.historyIndex = 0;
+              if (!msg.generationState) msg.generationState = 'complete';
+            });
+          }
+        });
+        if (parsed.active && !parsed.list[parsed.active]) {
+          const firstKey = Object.keys(parsed.list)[0];
+          if (firstKey) parsed.active = firstKey;
+        }
+        localStorage.setItem("dsTabs", JSON.stringify(parsed));
+        location.reload();
+      } else {
+        throw new Error('tabData 结构无效');
+      }
+    } catch (repairErr) {
+      console.error('数据修复失败，执行重置:', repairErr);
+      localStorage.removeItem("dsTabs");
+      location.reload();
+    }
+  }
 });
