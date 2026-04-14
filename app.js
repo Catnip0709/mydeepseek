@@ -1337,7 +1337,8 @@ ${original}`
   }
 
   async function generateTitleForCurrentTab() {
-    const currentMsgs = tabData.list[tabData.active].messages || [];
+    const titleTabId = tabData.active;
+    const currentMsgs = tabData.list[titleTabId].messages || [];
     if (currentMsgs.length < 2) return;
     
     const firstUserMsg = currentMsgs.find(m => m.role === 'user');
@@ -1366,7 +1367,7 @@ ${original}`
         let title = data?.choices?.[0]?.message?.content || '';
         title = title.trim().replace(/^["「『]|["」』]$/g, '');
         if (title && title.length <= 30) {
-          tabData.list[tabData.active].title = title;
+          tabData.list[titleTabId].title = title;
           saveTabs();
           renderTabs();
         }
@@ -1416,6 +1417,9 @@ ${original}`
     sendBtn.textContent = "停止";
     sendBtn.classList.add("stop-mode");
 
+    // 锁定当前 tab，防止流式输出期间用户切换 tab 导致数据写入错误
+    const lockedTabId = tabData.active;
+
     abortReason = null;
     abortController = new AbortController();
 
@@ -1428,7 +1432,7 @@ ${original}`
 
     trackEvent('发送消息');
 
-    const currentMsgs = tabData.list[tabData.active].messages || [];
+    const currentMsgs = tabData.list[lockedTabId].messages || [];
     const isRegen = opts.regenerateIndex !== undefined;
     const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
     const selectedModel = modelSelect.value;
@@ -1628,7 +1632,7 @@ ${original}`
           historyIndex: 0
         });
       }
-      tabData.list[tabData.active].messages = currentMsgs;
+      tabData.list[lockedTabId].messages = currentMsgs;
       saveTabs();
       renderChat();
     }
@@ -1643,11 +1647,12 @@ ${original}`
       return;
     }
 
-    const currentMsgs = tabData.list[tabData.active].messages || [];
+    const sendingTabId = tabData.active;
+    const currentMsgs = tabData.list[sendingTabId].messages || [];
     const isFirstMessage = currentMsgs.length === 0;
     currentMsgs.push({ role: "user", content: text });
     currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
-    tabData.list[tabData.active].messages = currentMsgs;
+    tabData.list[sendingTabId].messages = currentMsgs;
     saveTabs();
     renderChat();
 
@@ -1656,7 +1661,7 @@ ${original}`
     updateInputCounter();
     await fetchAndStreamResponse();
     
-    if (isFirstMessage) {
+    if (isFirstMessage && tabData.active === sendingTabId) {
       generateTitleForCurrentTab();
     }
   }
