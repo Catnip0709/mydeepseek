@@ -454,7 +454,12 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!settingsApiKeyInput) return;
       const key = settingsApiKeyInput.value.trim();
       copyText(key)?.then(() => {
-        if (key) showToast("API Key 已复制");
+        if (key) {
+          showToast("API Key 已复制");
+          const originalHtml = settingsCopyKeyBtn.innerHTML;
+          settingsCopyKeyBtn.innerHTML = checkIconSvg;
+          setTimeout(() => { settingsCopyKeyBtn.innerHTML = originalHtml; }, 1500);
+        }
       });
     });
   }
@@ -835,6 +840,25 @@ ${original}`
     pendingDownloadTabId = null;
   }
 
+  // Tab DOM 缓存，避免切换 tab 时全量重渲染
+  let _tabDomCache = {};
+
+  function getCachedTabHtml(tabId) {
+    return _tabDomCache[tabId] || null;
+  }
+
+  function setCachedTabHtml(tabId, html) {
+    _tabDomCache[tabId] = html;
+  }
+
+  function invalidateTabCache(tabId) {
+    if (tabId) {
+      delete _tabDomCache[tabId];
+    } else {
+      _tabDomCache = {};
+    }
+  }
+
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
@@ -857,9 +881,18 @@ ${original}`
       `;
       tabDiv.addEventListener("click", (e) => {
         if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename')) return;
+        // 缓存当前 tab 的 DOM
+        setCachedTabHtml(tabData.active, chat.innerHTML);
         tabData.active = id;
         saveTabs();
-        renderChat();
+        // 尝试使用缓存
+        const cached = getCachedTabHtml(id);
+        if (cached) {
+          chat.innerHTML = cached;
+          rebindChatButtons();
+        } else {
+          renderChat();
+        }
         renderTabs();
         updateInputCounter();
         if(window.innerWidth < 768) closeSidebar();
@@ -995,6 +1028,10 @@ ${original}`
     fetchAndStreamResponse({ regenerateIndex: messageIndex });
   }
 
+  // Markdown 渲染缓存（内存级，避免重复解析相同内容）
+  const _mdCache = new Map();
+  const _MD_CACHE_MAX = 500;
+
   function renderMarkdown(el, text, msgIndex, type) {
     if (!text) {
       el.innerHTML = '';
@@ -1004,16 +1041,29 @@ ${original}`
       el.textContent = text;
       return;
     }
-    // 处理换行，确保在 Markdown 中显示为换行
-    const textWithLineBreaks = text.replace(/\n/g, '  \n');
-    const rawHtml = marked.parse(textWithLineBreaks);
-    let safeHtml = DOMPurify.sanitize(rawHtml);
-    
-    // 如果有搜索查询，添加高亮
+
+    // 搜索模式下不做缓存（高亮结果与 msgIndex/type 相关）
+    let safeHtml;
     if (searchQuery) {
+      const textWithLineBreaks = text.replace(/\n/g, '  \n');
+      const rawHtml = marked.parse(textWithLineBreaks);
+      safeHtml = DOMPurify.sanitize(rawHtml);
       safeHtml = addSearchHighlightToHtml(safeHtml, msgIndex, type);
+    } else {
+      let cached = _mdCache.get(text);
+      if (!cached) {
+        const textWithLineBreaks = text.replace(/\n/g, '  \n');
+        const rawHtml = marked.parse(textWithLineBreaks);
+        cached = DOMPurify.sanitize(rawHtml);
+        _mdCache.set(text, cached);
+        if (_mdCache.size > _MD_CACHE_MAX) {
+          const firstKey = _mdCache.keys().next().value;
+          _mdCache.delete(firstKey);
+        }
+      }
+      safeHtml = cached;
     }
-    
+
     el.innerHTML = safeHtml;
   }
 
@@ -1101,9 +1151,99 @@ ${original}`
     };
   }
 
+  // 绑定聊天区域内的按钮事件（供 renderChat 和缓存恢复时复用）
+  function rebindChatButtons() {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        const currentMsgs = tabData.list[tabData.active].messages || [];
+        if (currentMsgs[index]) copyText(currentMsgs[index].content);
+
+        const originalHtml = this.innerHTML;
+        this.innerHTML = checkIconSvg;
+        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
+      });
+    });
+
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        editUserMessage(index);
+      });
+    });
+
+    document.querySelectorAll('.regenerate-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        regenerateResponse(index);
+      });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const index = parseInt(this.getAttribute('data-index'));
+        if (confirm("确定删除这条消息吗？")) {
+          invalidateTabCache(tabData.active);
+          tabData.list[tabData.active].messages.splice(index, 1);
+          saveTabs();
+          renderChat();
+        }
+      });
+    });
+
+    document.querySelectorAll('.prev-version-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        if (this.classList.contains('disabled')) return;
+        const index = parseInt(this.getAttribute('data-index'));
+        const msg = tabData.list[tabData.active].messages[index];
+        if (msg.historyIndex > 0) {
+          invalidateTabCache(tabData.active);
+          msg.historyIndex--;
+          msg.content = msg.history[msg.historyIndex].content;
+          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
+          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
+          saveTabs();
+          renderChat();
+        }
+      });
+    });
+
+    document.querySelectorAll('.next-version-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        if (this.classList.contains('disabled')) return;
+        const index = parseInt(this.getAttribute('data-index'));
+        const msg = tabData.list[tabData.active].messages[index];
+        if (msg.historyIndex < msg.history.length - 1) {
+          invalidateTabCache(tabData.active);
+          msg.historyIndex++;
+          msg.content = msg.history[msg.historyIndex].content;
+          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
+          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
+          saveTabs();
+          renderChat();
+        }
+      });
+    });
+
+    // token limit 提示中的复制按钮
+    const copyPromptBtn = document.querySelector('#copyPromptBtn');
+    if (copyPromptBtn) {
+      copyPromptBtn.addEventListener('click', function() {
+        const text = document.getElementById('promptText').innerText;
+        copyText(text);
+        const originalHtml = this.innerHTML;
+        this.innerHTML = checkIconSvg;
+        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
+      });
+    }
+  }
+
   function renderChat() {
     const currentMsgs = tabData.list[tabData.active].messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
+
+    // renderChat 执行全量渲染，清除当前 tab 的缓存
+    invalidateTabCache(tabData.active);
 
     chat.innerHTML = "";
 
@@ -1214,74 +1354,7 @@ ${original}`
       }
     }
 
-    document.querySelectorAll('.copy-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
-        const currentMsgs = tabData.list[tabData.active].messages || [];
-        if (currentMsgs[index]) copyText(currentMsgs[index].content);
-
-        const originalHtml = this.innerHTML;
-        this.innerHTML = checkIconSvg;
-        setTimeout(() => { this.innerHTML = originalHtml; }, 1500);
-      });
-    });
-
-    document.querySelectorAll('.edit-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
-        editUserMessage(index);
-      });
-    });
-
-    document.querySelectorAll('.regenerate-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
-        regenerateResponse(index);
-      });
-    });
-
-    document.querySelectorAll('.delete-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const index = parseInt(this.getAttribute('data-index'));
-        if (confirm("确定删除这条消息吗？")) {
-          tabData.list[tabData.active].messages.splice(index, 1);
-          saveTabs();
-          renderChat();
-        }
-      });
-    });
-
-    document.querySelectorAll('.prev-version-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        if (this.classList.contains('disabled')) return;
-        const index = parseInt(this.getAttribute('data-index'));
-        const msg = tabData.list[tabData.active].messages[index];
-        if (msg.historyIndex > 0) {
-          msg.historyIndex--;
-          msg.content = msg.history[msg.historyIndex].content;
-          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
-          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
-          saveTabs();
-          renderChat();
-        }
-      });
-    });
-
-    document.querySelectorAll('.next-version-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        if (this.classList.contains('disabled')) return;
-        const index = parseInt(this.getAttribute('data-index'));
-        const msg = tabData.list[tabData.active].messages[index];
-        if (msg.historyIndex < msg.history.length - 1) {
-          msg.historyIndex++;
-          msg.content = msg.history[msg.historyIndex].content;
-          msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
-          msg.generationState = msg.history[msg.historyIndex].state || 'complete';
-          saveTabs();
-          renderChat();
-        }
-      });
-    });
+    rebindChatButtons();
 
     chat.scrollTop = chat.scrollHeight;
     setTimeout(checkScrollButton, 50);
@@ -1896,6 +1969,7 @@ ${original}`
 
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
+      if (!settingsPanel.classList.contains('hidden')) closeSettingsPanel();
       if (!editPanel.classList.contains('hidden')) cancelEdit();
       if (!renameTabPanel.classList.contains('hidden')) closeRenameTabPanel();
       if (!confirmPanel.classList.contains('hidden')) closeConfirmModal(false);
@@ -2249,6 +2323,7 @@ ${original}`
     searchQuery = query.trim().toLowerCase();
     searchResults = [];
     currentSearchIndex = -1;
+    invalidateTabCache(); // 搜索会改变 DOM 高亮，清除所有缓存
 
     if (!searchQuery) {
       searchResultsInfo.classList.add('hidden');
