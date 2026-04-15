@@ -2219,7 +2219,51 @@ body.day-mode .character-field-label {
   flex: 1;
 }
 
-/* ========== 群聊角色选择样式 ========== */
+/* ========== 角色选择面板 ========== */
+.character-select-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #374151;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.character-select-item:hover {
+  background: #374151;
+}
+.character-select-info {
+  flex: 1;
+  min-width: 0;
+}
+.character-select-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+}
+.character-select-summary {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body.day-mode .character-select-item {
+  border-color: #e5e7eb;
+}
+body.day-mode .character-select-item:hover {
+  background: #f3f4f6;
+}
+body.day-mode .character-select-name {
+  color: #111827;
+}
+body.day-mode .character-select-summary {
+  color: #6b7280;
+}
+
+/* ========== 群聊角色选择 ========== */
 .group-char-select-item {
   border: 1px solid #374151;
   border-radius: 8px;

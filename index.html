@@ -44,6 +44,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
           新建群聊
         </button>
+        <button id="addTabCharacter" class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          新建角色对话
+        </button>
       </div>
     </div>
     <button id="searchToggleBtn" class="text-gray-500 hover:text-gray-300 p-2 focus:outline-none transition-colors" title="搜索对话 (Ctrl+F)">
@@ -534,6 +538,16 @@
       <button id="cancelCreateGroupBtn" class="btn-gray">取消</button>
       <button id="createGroupConfirmBtn" class="btn-blue">创建群聊</button>
     </div>
+  </div>
+</div>
+
+<div id="characterSelectPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">选择角色</h3>
+      <button id="closeCharacterSelectBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div id="characterSelectList" class="p-4 space-y-2 max-h-[60vh] overflow-y-auto"></div>
   </div>
 </div>
 

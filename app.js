@@ -749,6 +749,12 @@ document.addEventListener('DOMContentLoaded', function() {
   if (closeCreateGroupBtn) closeCreateGroupBtn.addEventListener('click', closeCreateGroupPanel);
   if (createGroupPanel) createGroupPanel.addEventListener('click', (e) => { if (e.target === createGroupPanel) closeCreateGroupPanel(); });
   if (createGroupConfirmBtn) createGroupConfirmBtn.addEventListener('click', createGroupChat);
+
+  // 角色选择面板事件
+  const characterSelectPanel = document.getElementById('characterSelectPanel');
+  const closeCharacterSelectBtn = document.getElementById('closeCharacterSelectBtn');
+  if (closeCharacterSelectBtn) closeCharacterSelectBtn.addEventListener('click', () => { if (characterSelectPanel) characterSelectPanel.classList.add('hidden'); });
+  if (characterSelectPanel) characterSelectPanel.addEventListener('click', (e) => { if (e.target === characterSelectPanel) characterSelectPanel.classList.add('hidden'); });
   if (openCharacterFromGroupBtn) openCharacterFromGroupBtn.addEventListener('click', () => {
     closeCreateGroupPanel();
     openCharacterPanel();
@@ -2358,9 +2364,33 @@ ${original}`
     return newId;
   }
 
+  function openCharacterSelectPanel() {
+    const panel = document.getElementById('characterSelectPanel');
+    const list = document.getElementById('characterSelectList');
+    if (!panel || !list) return;
+    list.innerHTML = '';
+    characterData.forEach(char => {
+      const item = document.createElement('div');
+      item.className = 'character-select-item';
+      item.innerHTML = `
+        <div class="character-select-info">
+          <div class="character-select-name">${escapeHtml(char.name)}</div>
+          <div class="character-select-summary">${escapeHtml(char.summary || '暂无描述')}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        panel.classList.add('hidden');
+        createCharacterChatTab(char.id);
+      });
+      list.appendChild(item);
+    });
+    panel.classList.remove('hidden');
+  }
+
   const addTabDropdown = document.getElementById("addTabDropdown");
   const addTabSingle = document.getElementById("addTabSingle");
   const addTabGroup = document.getElementById("addTabGroup");
+  const addTabCharacter = document.getElementById("addTabCharacter");
 
   addTab.onclick = (e) => {
     e.stopPropagation();
@@ -2377,6 +2407,19 @@ ${original}`
   addTabGroup.onclick = () => {
     addTabDropdown.classList.add("hidden");
     openCreateGroupPanel();
+  };
+
+  addTabCharacter.onclick = () => {
+    addTabDropdown.classList.add("hidden");
+    if (characterData.length === 0) {
+      showToast('还没有创建任何角色，请先去角色卡管理中创建角色');
+      return;
+    }
+    if (characterData.length === 1) {
+      createCharacterChatTab(characterData[0].id);
+      return;
+    }
+    openCharacterSelectPanel();
   };
 
   // 点击页面其他区域关闭下拉菜单
@@ -3015,6 +3058,7 @@ ${original}`
       if (!promptPanel.classList.contains('hidden')) closePromptPanel();
       if (characterPanel && !characterPanel.classList.contains('hidden')) closeCharacterPanel();
       if (createGroupPanel && !createGroupPanel.classList.contains('hidden')) closeCreateGroupPanel();
+      if (characterSelectPanel && !characterSelectPanel.classList.contains('hidden')) characterSelectPanel.classList.add('hidden');
       if (!infoPanel.classList.contains('hidden')) infoPanel.classList.add('hidden');
       if (!donatePanel.classList.contains('hidden')) donatePanel.classList.add('hidden');
       if (!downloadPanel.classList.contains('hidden')) closeDownloadPanel();
