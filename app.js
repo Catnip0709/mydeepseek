@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const cids = tab.characterIds || [];
       if (cids.includes(charId)) {
         const displayName = getTabDisplayName(id);
-        const type = tab.type === 'group' ? '群聊' : '对话';
+        const type = tab.type === 'group' ? '群聊' : (tab.type === 'single-character' ? '角色对话' : '对话');
         refs.push(type + '「' + displayName + '」');
       }
     }
@@ -274,11 +274,19 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
         </div>
         <div class="character-actions">
+          <button class="prompt-icon-btn character-chat-btn" data-id="${char.id}" title="单独聊天">${chatIconSvg}</button>
           <button class="prompt-icon-btn character-edit-btn" data-id="${char.id}" title="编辑">${editIconSvg}</button>
           <button class="prompt-icon-btn character-delete-btn delete" data-id="${char.id}" title="删除">${deleteIconSvg}</button>
         </div>
       `;
       characterListEl.appendChild(div);
+    });
+
+    document.querySelectorAll('.character-chat-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const char = getCharacterById(this.dataset.id);
+        if (char) createCharacterChatTab(char.id);
+      });
     });
 
     document.querySelectorAll('.character-edit-btn').forEach(btn => {
@@ -786,7 +794,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const tab = tabData.list[id];
     if (!tab) return id;
     const customTitle = (tab.title || '').trim();
-    return customTitle || `对话 ${id.replace("tab", "")}`;
+    if (customTitle) return customTitle;
+    if (tab.type === 'single-character' && tab.characterId) {
+      const char = getCharacterById(tab.characterId);
+      return char ? char.name : `对话 ${id.replace("tab", "")}`;
+    }
+    return `对话 ${id.replace("tab", "")}`;
   }
 
   const chat = document.getElementById("chat");
@@ -872,6 +885,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
+  const chatIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
 
   // 搜索功能元素
   const searchToggleBtn = document.getElementById('searchToggleBtn');
@@ -1501,7 +1515,10 @@ ${original}`
         return;
       }
       
-      const roleName = m.role === 'user' ? '我' : (m.role === 'character' ? (m.characterName || '角色') : 'DeepSeek');
+      const currentTab = tabData.list[tabId];
+      const isSingleChar = currentTab && currentTab.type === 'single-character';
+      const charName = isSingleChar && currentTab.characterId ? (getCharacterById(currentTab.characterId) || {}).name || 'DeepSeek' : 'DeepSeek';
+      const roleName = m.role === 'user' ? '我' : (m.role === 'character' ? (m.characterName || '角色') : charName);
       txtContent += `【${roleName}】:\n`;
 
       if (includeReasoning && m.reasoningContent) {
@@ -1578,8 +1595,9 @@ ${original}`
     Object.keys(tabData.list).forEach(id => {
       const tab = tabData.list[id];
       const isGroup = tab.type === 'group';
+      const isSingleChar = tab.type === 'single-character';
       const tabDiv = document.createElement("div");
-      tabDiv.className = `tab ${id === tabData.active ? "active" : ""} ${isGroup ? "group-tab" : ""}`;
+      tabDiv.className = `tab ${id === tabData.active ? "active" : ""} ${isGroup ? "group-tab" : ""} ${isSingleChar ? "char-tab" : ""}`;
       tabDiv.innerHTML = `
         <span class="tab-title" title="${escapeHtml(getTabDisplayName(id))}">${escapeHtml(getTabDisplayName(id))}</span>
         <div class="tab-actions">
@@ -1842,7 +1860,31 @@ ${original}`
       payloadMsgs = payloadMsgs.slice(-limit);
     }
 
+    // 单角色聊天：注入角色 system prompt
+    const currentTab = tabData.list[tabData.active];
+    if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
+      const char = getCharacterById(currentTab.characterId);
+      if (char) {
+        const systemPrompt = buildCharacterSystemPrompt(char);
+        payloadMsgs.unshift({ role: "system", content: systemPrompt });
+      }
+    }
+
     return payloadMsgs;
+  }
+
+  function buildCharacterSystemPrompt(char) {
+    return `你是${char.name}。
+性格：${char.personality || '无特殊设定'}
+背景：${char.background || '无'}
+外貌：${char.appearance || '无'}
+说话风格：${char.speakingStyle || '自然'}
+口头禅参考（仅供参考语气，不要刻意堆砌）：${(char.catchphrases || []).join('、') || '无'}
+
+规则：
+- 你需要始终以${char.name}的身份和性格进行回复
+- 保持角色一致性，不要脱离角色设定
+- 用自然的对话方式回复，不要过于生硬`;
   }
 
   function buildUserInputMeta(messages, userIndex) {
@@ -1960,6 +2002,7 @@ ${original}`
     const currentMsgs = currentTab.messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
     const isGroupChat = currentTab.type === 'group';
+    const isSingleCharChat = currentTab.type === 'single-character';
 
     // renderChat 执行全量渲染，清除当前 tab 的缓存
     invalidateTabCache(tabData.active);
@@ -1977,6 +2020,19 @@ ${original}`
           return `<span class="group-chat-member-tag" style="background:${color}">${escapeHtml(c.name)}</span>`;
         }).join('');
         headerDiv.innerHTML = `<div class="group-chat-header-text">群聊成员</div><div class="group-chat-members">${memberTags}</div>`;
+        chat.appendChild(headerDiv);
+      }
+    }
+
+    // 单角色聊天头部：显示角色信息
+    if (isSingleCharChat && currentTab.characterId) {
+      const char = getCharacterById(currentTab.characterId);
+      if (char) {
+        const headerDiv = document.createElement("div");
+        headerDiv.className = "group-chat-header";
+        const color = getCharacterColor(0);
+        const tag = `<span class="group-chat-member-tag" style="background:${color}">${escapeHtml(char.name)}</span>`;
+        headerDiv.innerHTML = `<div class="group-chat-header-text">正在与角色对话</div><div class="group-chat-members">${tag}</div>`;
         chat.appendChild(headerDiv);
       }
     }
@@ -2022,7 +2078,20 @@ ${original}`
         }
       } else {
         // 单聊消息（原有逻辑）
+        const isSingleCharAssistant = isSingleCharChat && isAssistant;
         msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
+
+        // 单角色聊天：AI 回复上方显示角色名标签
+        let singleCharLabelHtml = '';
+        if (isSingleCharAssistant && currentTab.characterId) {
+          const char = getCharacterById(currentTab.characterId);
+          if (char) {
+            const color = getCharacterColor(0);
+            msgBox.style.setProperty('border-left-color', color, 'important');
+            msgBox.classList.add('character-msg');
+            singleCharLabelHtml = `<div class="character-msg-label" style="background:${color}20;color:${color}">${escapeHtml(char.name)}</div>`;
+          }
+        }
 
         let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
         if (isAssistant) {
@@ -2047,7 +2116,7 @@ ${original}`
           `;
         }
 
-        msgBox.innerHTML = versionHtml + buttonsHtml;
+        msgBox.innerHTML = singleCharLabelHtml + versionHtml + buttonsHtml;
 
         if (isAssistant && m.reasoningContent) {
           const details = document.createElement('details');
@@ -2124,7 +2193,10 @@ ${original}`
 
     rebindChatButtons();
 
-    chat.scrollTop = chat.scrollHeight;
+    // 仅在用户原本就在底部时才自动滚到底，不打断用户阅读
+    if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
+      chat.scrollTop = chat.scrollHeight;
+    }
     setTimeout(checkScrollButton, 50);
     
     // 检查是否需要显示空对话提示
@@ -2257,6 +2329,35 @@ ${original}`
     return newId;
   }
 
+  function createCharacterChatTab(characterId) {
+    const char = getCharacterById(characterId);
+    if (!char) return;
+
+    const tabIds = Object.keys(tabData.list);
+    let maxIdNum = 0;
+    tabIds.forEach(id => {
+      const num = parseInt(id.replace('tab', ''), 10);
+      if (num > maxIdNum) maxIdNum = num;
+    });
+
+    const newId = `tab${maxIdNum + 1}`;
+    tabData.list[newId] = {
+      messages: [],
+      title: "",
+      type: 'single-character',
+      characterId: characterId
+    };
+    tabData.active = newId;
+    saveTabs();
+    renderChat();
+    renderTabs();
+    updateInputCounter();
+    closeSidebar();
+    closeCharacterPanel();
+    input.focus();
+    return newId;
+  }
+
   const addTabDropdown = document.getElementById("addTabDropdown");
   const addTabSingle = document.getElementById("addTabSingle");
   const addTabGroup = document.getElementById("addTabGroup");
@@ -2337,7 +2438,21 @@ ${original}`
       aiMsgDiv = document.createElement("div");
       aiMsgDiv.id = `msg-${targetIndex}`;
       aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
-      aiMsgDiv.innerHTML = `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content prose prose-invert max-w-none"></div>`;
+
+      // 单角色聊天：流式消息添加角色名标签和彩色边框
+      let streamLabelHtml = '';
+      const lockedTab = tabData.list[lockedTabId];
+      if (lockedTab && lockedTab.type === 'single-character' && lockedTab.characterId) {
+        const streamChar = getCharacterById(lockedTab.characterId);
+        if (streamChar) {
+          const streamColor = getCharacterColor(0);
+          aiMsgDiv.style.setProperty('border-left-color', streamColor, 'important');
+          aiMsgDiv.classList.add('character-msg');
+          streamLabelHtml = `<div class="character-msg-label" style="background:${streamColor}20;color:${streamColor}">${escapeHtml(streamChar.name)}</div>`;
+        }
+      }
+
+      aiMsgDiv.innerHTML = streamLabelHtml + `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content prose prose-invert max-w-none"></div>`;
 
       const promptWarning = chat.querySelector('.text-xs.text-gray-500.text-center');
       if (promptWarning) {
@@ -2556,7 +2671,10 @@ ${original}`
     await fetchAndStreamResponse();
     
     if (isFirstMessage && tabData.active === sendingTabId) {
-      generateTitleForCurrentTab();
+      const tab = tabData.list[sendingTabId];
+      if (tab.type !== 'single-character') {
+        generateTitleForCurrentTab();
+      }
     }
   }
 
@@ -2602,7 +2720,9 @@ ${original}`
             <div class="msg-content prose prose-invert max-w-none"></div>
           `;
           chat.appendChild(msgBox);
-          chat.scrollTop = chat.scrollHeight;
+          if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
+            chat.scrollTop = chat.scrollHeight;
+          }
         },
         onCharacterChunk(character, idx, chunk) {
           // 找到该角色最新的消息 DOM 并更新

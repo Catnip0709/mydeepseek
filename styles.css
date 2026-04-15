@@ -2355,6 +2355,10 @@ body.day-mode #closeDonateBtn:hover {
   content: '👥 ';
   font-size: 12px;
 }
+.tab.char-tab .tab-title::before {
+  content: '🎭 ';
+  font-size: 12px;
+}
 
 /* ========== 群聊 & 角色卡日间模式 ========== */
 body.day-mode .character-item {
