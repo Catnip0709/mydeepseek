@@ -1438,7 +1438,10 @@ body.day-mode #donatePanel .text-gray-300 {
 }
 body.day-mode #keyPanel .text-white,
 body.day-mode #infoPanel .text-white,
-body.day-mode #donatePanel .text-white {
+body.day-mode #donatePanel .text-white,
+body.day-mode #characterPanel .text-white,
+body.day-mode #characterEditPanel .text-white,
+body.day-mode #createGroupPanel .text-white {
   color: #111827 !important;
   font-weight: 500;
 }
@@ -2131,4 +2134,270 @@ body.day-mode .prompt-market-footer .prompt-add-btn {
 }
 body.day-mode .prompt-market-footer .prompt-add-btn:hover {
   background: #1d4ed8 !important;
+}
+
+/* ========== 角色卡样式 ========== */
+.character-item {
+  background: #1f2937;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid #374151;
+  transition: border-color 0.2s;
+}
+.character-item:hover {
+  border-color: #4b5563;
+}
+body.day-mode .character-item {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+body.day-mode .character-item:hover {
+  border-color: #d1d5db;
+}
+.character-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.character-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.character-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+body.day-mode .character-name {
+  color: #111827;
+}
+.character-summary {
+  font-size: 12px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+body.day-mode .character-summary {
+  color: #6b7280;
+}
+.character-edit-field {
+  margin-bottom: 10px;
+}
+.character-field-label {
+  display: block;
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 4px;
+}
+body.day-mode .character-field-label {
+  color: #6b7280;
+}
+
+.character-brief-wrapper {
+  position: relative;
+  margin-bottom: 10px;
+}
+.character-brief-ai-btn {
+  position: absolute;
+  bottom: 28px;
+  right: 8px;
+}
+.character-brief-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.character-brief-row .prompt-textarea {
+  flex: 1;
+}
+
+/* ========== 群聊角色选择样式 ========== */
+.group-char-select-item {
+  border: 1px solid #374151;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  transition: background 0.2s;
+}
+.group-char-select-item:hover {
+  background: #374151;
+}
+body.day-mode .group-char-select-item {
+  border-color: #e5e7eb;
+}
+body.day-mode .group-char-select-item:hover {
+  background: #f3f4f6;
+}
+.group-char-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+}
+
+/* ========== 群聊消息样式 ========== */
+.message-box.character-msg {
+  border-left: 3px solid;
+}
+.character-msg-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+.group-chat-header {
+  text-align: center;
+  padding: 8px 16px;
+  margin-bottom: 8px;
+}
+.group-chat-header-text {
+  font-size: 12px;
+  color: #9ca3af;
+}
+body.day-mode .group-chat-header-text {
+  color: #6b7280;
+}
+.group-chat-members {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.group-chat-member-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  color: #fff;
+}
+
+/* ========== 新建 Tab 下拉菜单日间模式 ========== */
+body.day-mode #addTabDropdown {
+  background: #fff;
+  border-color: #e5e7eb;
+}
+body.day-mode #addTabDropdown button {
+  color: #374151;
+}
+body.day-mode #addTabDropdown button:hover {
+  background: #f3f4f6;
+  color: #111827;
+}
+
+/* ========== Header 按钮日间模式 ========== */
+body.day-mode #addTab,
+body.day-mode #searchToggleBtn {
+  color: #4b5563 !important;
+}
+body.day-mode #addTab:hover,
+body.day-mode #searchToggleBtn:hover {
+  color: #111827 !important;
+}
+
+/* ========== 搜索框日间模式 ========== */
+body.day-mode #closeSearchBtn {
+  color: #6b7280 !important;
+}
+body.day-mode #closeSearchBtn:hover {
+  color: #111827 !important;
+}
+body.day-mode #searchBox .text-gray-400 {
+  color: #6b7280 !important;
+}
+
+/* ========== 新建群聊面板日间模式补充 ========== */
+body.day-mode #createGroupPanel .text-gray-300 {
+  color: #374151 !important;
+}
+body.day-mode #createGroupPanel .text-gray-500 {
+  color: #4b5563 !important;
+}
+body.day-mode #createGroupPanel label:hover {
+  background: #f3f4f6 !important;
+}
+
+/* ========== Token 警告复制按钮 hover ========== */
+body.day-mode .text-xs.text-gray-500.text-center #copyPromptBtn:hover {
+  color: #1f2937 !important;
+}
+
+/* ========== 链接颜色日间模式 ========== */
+body.day-mode #keyPanel .text-blue-400 {
+  color: #2563eb !important;
+}
+body.day-mode #keyPanel .text-blue-400:hover {
+  color: #1d4ed8 !important;
+}
+body.day-mode #emptyChatHint .text-blue-400 {
+  color: #2563eb !important;
+}
+
+/* ========== 面板关闭按钮 hover 日间模式 ========== */
+body.day-mode #closeInfoBtn,
+body.day-mode #closeDonateBtn {
+  color: #6b7280 !important;
+}
+body.day-mode #closeInfoBtn:hover,
+body.day-mode #closeDonateBtn:hover {
+  color: #111827 !important;
+}
+
+/* ========== 群聊 Tab 标识 ========== */
+.tab.group-tab .tab-title::before {
+  content: '👥 ';
+  font-size: 12px;
+}
+
+/* ========== 群聊 & 角色卡日间模式 ========== */
+body.day-mode .character-item {
+  background: #f9fafb;
+  border-color: #e5e7eb;
+}
+body.day-mode .character-item:hover {
+  border-color: #d1d5db;
+}
+body.day-mode .character-item-header {
+  /* 继承父级样式 */
+}
+body.day-mode .character-edit-field {
+  /* 继承父级样式 */
+}
+body.day-mode .character-brief-row {
+  /* 继承父级样式 */
+}
+body.day-mode .group-char-select-item {
+  border-color: #e5e7eb;
+}
+body.day-mode .group-char-select-item:hover {
+  background: #f3f4f6;
+}
+body.day-mode .message-box.character-msg {
+  background: #f3f4f6;
+  border-left-color: #9ca3af;
+}
+body.day-mode .character-msg-label {
+  /* 继承父级样式 */
+}
+body.day-mode .group-chat-header {
+  /* 继承父级样式 */
+}
+body.day-mode .group-chat-members {
+  /* 继承父级样式 */
+}
+body.day-mode .group-chat-member-tag {
+  /* 继承父级样式 */
+}
+body.day-mode .tab.group-tab .tab-title::before {
+  /* 继承父级样式 */
+}
+body.day-mode .character-actions {
+  /* 继承父级样式 */
 }

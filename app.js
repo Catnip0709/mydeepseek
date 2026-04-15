@@ -6,6 +6,10 @@ document.addEventListener('DOMContentLoaded', function() {
     localStorage.setItem('ds_user_id', dsUserId);
   }
 
+  /* ========================================================================
+   * 一、基础工具
+   * ======================================================================== */
+
   function trackEvent(eventType) {
     const webhookUrl = 'https://bytedance.sg.larkoffice.com/base/automation/webhook/event/GnMPaByLZwehPShLu46lsgQQghd';
     fetch(webhookUrl, {
@@ -48,12 +52,703 @@ document.addEventListener('DOMContentLoaded', function() {
   let lastPageHiddenAt = 0;
   let shouldToastOnVisible = false;
 
+  /* ========================================================================
+   * 二、LLM 调用封装
+   * ======================================================================== */
+
   function abortStreaming(reason) {
     abortReason = reason;
     if (abortController) {
       try { abortController.abort(); } catch (_) {}
     }
   }
+
+  // ========== LLM 通用调用封装 ==========
+  async function callLLM({ model = 'deepseek-chat', messages = [], stream = false, temperature = 0.7, maxTokens = 4096, signal = null, onChunk = null } = {}) {
+    const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache"
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream,
+        temperature,
+        max_tokens: maxTokens
+      }),
+      signal
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || '请求失败，请检查 API Key 或稍后重试');
+    }
+
+    if (!stream) {
+      const data = await res.json();
+      return data?.choices?.[0]?.message?.content || '';
+    }
+
+    // 流式处理
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let fullContent = "";
+    let fullReasoningContent = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.trim() === "" || !line.startsWith("data: ")) continue;
+        const dataStr = line.slice(6);
+        if (dataStr === "[DONE]") break;
+
+        try {
+          const data = JSON.parse(dataStr);
+          const delta = data.choices[0].delta;
+          if (delta.reasoning_content) fullReasoningContent += delta.reasoning_content;
+          if (delta.content) fullContent += delta.content;
+          if (onChunk) onChunk({ content: delta.content || '', reasoningContent: delta.reasoning_content || '', fullContent, fullReasoningContent });
+        } catch (e) { continue; }
+      }
+    }
+
+    return { content: fullContent, reasoningContent: fullReasoningContent };
+  }
+
+  async function callLLMJSON({ model = 'deepseek-chat', messages = [], temperature = 0.5, maxTokens = 1024, signal = null } = {}) {
+    const text = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal });
+    try {
+      return JSON.parse(text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim());
+    } catch (e) {
+      console.warn('callLLMJSON 解析失败:', text);
+      return null;
+    }
+  }
+
+  // ========== 角色卡模块 ==========
+  const CHARACTER_STORAGE_KEY = 'dsCharacters';
+  let characterData;
+  try {
+    const rawCharData = JSON.parse(localStorage.getItem(CHARACTER_STORAGE_KEY));
+    characterData = Array.isArray(rawCharData) ? rawCharData : [];
+  } catch (e) {
+    console.warn('dsCharacters 数据损坏，已重置:', e);
+    characterData = [];
+  }
+  let editingCharacterId = null;
+
+  function saveCharacters() {
+    localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(characterData));
+    updateStorageUsage();
+  }
+
+  function getCharacterById(id) {
+    return characterData.find(c => c.id === id) || null;
+  }
+
+  function createCharacter(data) {
+    const character = {
+      id: 'char_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+      name: data.name || '未命名角色',
+      avatar: data.avatar || null,
+      summary: data.summary || '',
+      personality: data.personality || '',
+      background: data.background || '',
+      appearance: data.appearance || '',
+      speakingStyle: data.speakingStyle || '',
+      catchphrases: data.catchphrases || [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    characterData.push(character);
+    saveCharacters();
+    return character;
+  }
+
+  function updateCharacter(id, data) {
+    const idx = characterData.findIndex(c => c.id === id);
+    if (idx === -1) return null;
+    Object.assign(characterData[idx], data, { updatedAt: Date.now() });
+    saveCharacters();
+    return characterData[idx];
+  }
+
+  function deleteCharacter(id) {
+    characterData = characterData.filter(c => c.id !== id);
+    saveCharacters();
+  }
+
+  function findCharacterRefs(charId, charName) {
+    const refs = [];
+    const list = tabData.list;
+    for (const id in list) {
+      const tab = list[id];
+      const cids = tab.characterIds || [];
+      if (cids.includes(charId)) {
+        const displayName = getTabDisplayName(id);
+        const type = tab.type === 'group' ? '群聊' : '对话';
+        refs.push(type + '「' + displayName + '」');
+      }
+    }
+    return refs;
+  }
+
+  async function aiEnhanceCharacter(brief) {
+    if (!apiKey) { keyPanel.classList.remove("hidden"); return null; }
+    const messages = [
+      {
+        role: "system",
+        content: `你是一个角色设计助手。根据用户的简要描述，生成一个完整的角色卡。请严格按以下 JSON 格式输出，不要输出其他内容：
+{
+  "name": "角色名字",
+  "summary": "一句话概括角色（50字以内）",
+  "personality": "详细性格描述（100-200字）",
+  "background": "角色背景经历（100-200字）",
+  "appearance": "外貌描写（50-100字）",
+  "speakingStyle": "说话风格描述（50-100字）",
+  "catchphrases": ["口头禅1", "口头禅2"]
+}`
+      },
+      {
+        role: "user",
+        content: brief
+      }
+    ];
+    const result = await callLLMJSON({ messages, temperature: 0.8, maxTokens: 1500 });
+    return result;
+  }
+
+  // 角色卡面板元素
+  const characterPanel = document.getElementById('characterPanel');
+  const closeCharacterPanelBtn = document.getElementById('closeCharacterPanelBtn');
+  const characterListEl = document.getElementById('characterList');
+  const addCharacterBtn = document.getElementById('addCharacterBtn');
+  const characterEditPanel = document.getElementById('characterEditPanel');
+  const characterEditName = document.getElementById('characterEditName');
+  const characterEditSummary = document.getElementById('characterEditSummary');
+  const characterEditPersonality = document.getElementById('characterEditPersonality');
+  const characterEditBackground = document.getElementById('characterEditBackground');
+  const characterEditAppearance = document.getElementById('characterEditAppearance');
+  const characterEditSpeakingStyle = document.getElementById('characterEditSpeakingStyle');
+  const characterEditCatchphrases = document.getElementById('characterEditCatchphrases');
+  const characterEditBrief = document.getElementById('characterEditBrief');
+  const aiEnhanceBtn = document.getElementById('aiEnhanceBtn');
+  const aiEnhanceLabel = document.getElementById('aiEnhanceLabel');
+  const cancelCharacterEditBtn = document.getElementById('cancelCharacterEditBtn');
+  const saveCharacterBtn = document.getElementById('saveCharacterBtn');
+
+  function openCharacterPanel() {
+    characterPanel.classList.remove('hidden');
+    renderCharacterList();
+  }
+
+  function closeCharacterPanel() {
+    characterPanel.classList.add('hidden');
+  }
+
+  function renderCharacterList() {
+    characterListEl.innerHTML = '';
+    if (!characterData.length) {
+      characterListEl.innerHTML = '<div class="prompt-empty"><div class="text-base mb-2">还没有创建任何角色</div><div class="text-sm text-gray-500">点击下方按钮创建角色卡，或用 AI 智能生成。</div></div>';
+      return;
+    }
+    characterData.forEach(char => {
+      const div = document.createElement('div');
+      div.className = 'character-item';
+      div.innerHTML = `
+        <div class="character-item-header">
+          <div class="flex-1 min-w-0">
+            <div class="character-name">${escapeHtml(char.name)}</div>
+            <div class="character-summary">${escapeHtml(char.summary || '暂无描述')}</div>
+          </div>
+        </div>
+        <div class="character-actions">
+          <button class="prompt-icon-btn character-edit-btn" data-id="${char.id}" title="编辑">${editIconSvg}</button>
+          <button class="prompt-icon-btn character-delete-btn delete" data-id="${char.id}" title="删除">${deleteIconSvg}</button>
+        </div>
+      `;
+      characterListEl.appendChild(div);
+    });
+
+    document.querySelectorAll('.character-edit-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const char = getCharacterById(this.dataset.id);
+        if (char) showCharacterEditForm(char);
+      });
+    });
+
+    document.querySelectorAll('.character-delete-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const char = getCharacterById(this.dataset.id);
+        if (!char) return;
+        // 检查该角色是否被对话或群聊引用
+        const refs = findCharacterRefs(char.id, char.name);
+        if (refs.length > 0) {
+          const lines = refs.map(r => '  · ' + r).join('\n');
+          alert('角色「' + char.name + '」仍被以下对话引用，请先删除这些对话：\n' + lines);
+          return;
+        }
+        if (!confirm('确定删除角色「' + char.name + '」吗？')) return;
+        deleteCharacter(char.id);
+        renderCharacterList();
+        showToast('角色已删除');
+      });
+    });
+  }
+
+  function showCharacterEditForm(char = null) {
+    characterEditPanel.classList.remove('hidden');
+    if (char) {
+      editingCharacterId = char.id;
+      characterEditName.value = char.name || '';
+      characterEditSummary.value = char.summary || '';
+      characterEditPersonality.value = char.personality || '';
+      characterEditBackground.value = char.background || '';
+      characterEditAppearance.value = char.appearance || '';
+      characterEditSpeakingStyle.value = char.speakingStyle || '';
+      characterEditCatchphrases.value = (char.catchphrases || []).join('、');
+      characterEditBrief.value = '';
+    } else {
+      editingCharacterId = null;
+      characterEditName.value = '';
+      characterEditSummary.value = '';
+      characterEditPersonality.value = '';
+      characterEditBackground.value = '';
+      characterEditAppearance.value = '';
+      characterEditSpeakingStyle.value = '';
+      characterEditCatchphrases.value = '';
+      characterEditBrief.value = '';
+    }
+    setTimeout(() => characterEditName.focus(), 50);
+  }
+
+  function hideCharacterEditForm() {
+    characterEditPanel.classList.add('hidden');
+    editingCharacterId = null;
+  }
+
+  async function handleAiEnhance() {
+    const brief = characterEditBrief.value.trim();
+    if (!brief) { showToast('请先输入简要描述'); characterEditBrief.focus(); return; }
+    if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
+
+    aiEnhanceBtn.disabled = true;
+    if (aiEnhanceLabel) aiEnhanceLabel.textContent = '生成中';
+
+    try {
+      const result = await aiEnhanceCharacter(brief);
+      if (!result) throw new Error('AI 未返回有效结果');
+      characterEditName.value = result.name || '';
+      characterEditSummary.value = result.summary || '';
+      characterEditPersonality.value = result.personality || '';
+      characterEditBackground.value = result.background || '';
+      characterEditAppearance.value = result.appearance || '';
+      characterEditSpeakingStyle.value = result.speakingStyle || '';
+      characterEditCatchphrases.value = (result.catchphrases || []).join('、');
+      showToast('角色卡已生成');
+    } catch (e) {
+      console.error(e);
+      alert('AI 生成失败：' + e.message);
+    } finally {
+      aiEnhanceBtn.disabled = false;
+      if (aiEnhanceLabel) aiEnhanceLabel.textContent = 'AI 生成';
+    }
+  }
+
+  function saveCharacterForm() {
+    const name = characterEditName.value.trim();
+    if (!name) { alert('请输入角色名字'); characterEditName.focus(); return; }
+    const catchphrases = characterEditCatchphrases.value.split(/[、,，]/).map(s => s.trim()).filter(Boolean);
+
+    const data = {
+      name,
+      summary: characterEditSummary.value.trim(),
+      personality: characterEditPersonality.value.trim(),
+      background: characterEditBackground.value.trim(),
+      appearance: characterEditAppearance.value.trim(),
+      speakingStyle: characterEditSpeakingStyle.value.trim(),
+      catchphrases
+    };
+
+    if (editingCharacterId) {
+      updateCharacter(editingCharacterId, data);
+      showToast('角色已更新');
+    } else {
+      createCharacter(data);
+      showToast('角色已创建');
+    }
+    hideCharacterEditForm();
+    renderCharacterList();
+  }
+
+  // 角色卡事件绑定
+  if (closeCharacterPanelBtn) closeCharacterPanelBtn.addEventListener('click', closeCharacterPanel);
+  if (characterPanel) characterPanel.addEventListener('click', (e) => { if (e.target === characterPanel) closeCharacterPanel(); });
+  if (addCharacterBtn) addCharacterBtn.addEventListener('click', () => showCharacterEditForm());
+  if (cancelCharacterEditBtn) cancelCharacterEditBtn.addEventListener('click', hideCharacterEditForm);
+  const closeCharacterEditPanelBtn = document.getElementById('closeCharacterEditPanelBtn');
+  if (closeCharacterEditPanelBtn) closeCharacterEditPanelBtn.addEventListener('click', hideCharacterEditForm);
+  if (characterEditPanel) characterEditPanel.addEventListener('click', (e) => { if (e.target === characterEditPanel) hideCharacterEditForm(); });
+  if (saveCharacterBtn) saveCharacterBtn.addEventListener('click', saveCharacterForm);
+  if (aiEnhanceBtn) aiEnhanceBtn.addEventListener('click', handleAiEnhance);
+
+  // ========== 群聊编排模块 (Level 2) ==========
+  const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c'];
+  function getCharacterColor(index) {
+    return CHARACTER_COLORS[index % CHARACTER_COLORS.length];
+  }
+
+  // 5句话限制
+  function limitSentences(text, maxSentences = 5) {
+    if (!text) return text;
+    const sentences = text.split(/(?<=[。！？.!?])/);
+    if (sentences.length <= maxSentences) return text;
+    return sentences.slice(0, maxSentences).join('');
+  }
+
+  // Step 1: 路由判断 - 哪些角色应该回答
+  async function routeMessage(userMessage, characters, history, signal = null) {
+    const charSummaries = characters.map((c, i) => `${i + 1}. ${c.name}：${c.summary || c.personality || '无描述'}`).join('\n');
+
+    const messages = [
+      {
+        role: "system",
+        content: `你是一个群聊路由器。根据用户消息和群聊中的角色，判断哪些角色应该回答。
+规则：
+1. 仔细分析用户消息的语境和场景设定
+2. 如果用户消息暗示了只有某些角色在场（如"只有我和XX"、"私下对话"、"回到房间"等），只选在场角色回答
+3. 如果用户消息明确排除了某个角色（如"XX不在"、"没有XX"、"XX还没来"、"XX在外面"等），该角色绝对不能回答
+4. 如果消息只和某个角色相关，只选那个
+5. 如果消息是泛泛的（如打招呼），可以选所有角色
+6. 至少选一个角色回答
+7. 场景设定优先：如果用户说某个角色"不在"、"还没来"、"在外面"，即使话题与该角色相关，也不要选该角色
+只输出 JSON 数组，包含角色编号，例如 [1] 或 [1,2]，不要输出其他内容。`
+      },
+      {
+        role: "user",
+        content: `群聊角色：\n${charSummaries}\n\n用户说：${userMessage}`
+      }
+    ];
+
+    const result = await callLLMJSON({ messages, temperature: 0.3, maxTokens: 50, signal });
+    if (!result || !Array.isArray(result)) return [0]; // 默认第一个角色回答
+
+    const indices = result.map(n => parseInt(n) - 1).filter(n => n >= 0 && n < characters.length);
+    return indices.length > 0 ? indices : [0];
+  }
+
+  // Step 2: 角色回答生成
+  async function generateCharacterReply(character, userMessage, history, allCharacters, options = {}) {
+    const otherChars = allCharacters.filter(c => c.id !== character.id);
+    const otherCharsInfo = otherChars.length > 0
+      ? '\n群聊中还有其他角色：' + otherChars.map(c => c.name).join('、')
+      : '';
+
+    const recentHistory = history.slice(-20).map(m => {
+      if (m.role === 'user') return `用户：${m.content}`;
+      if (m.role === 'character') return `${m.characterName || '角色'}：${m.content}`;
+      if (m.role === 'assistant') return `AI：${m.content}`;
+      return '';
+    }).filter(Boolean).join('\n');
+
+    // 本轮已生成的回复（多轮互动时避免重复）
+    const roundReplies = options.currentRoundReplies || [];
+    const roundContext = roundReplies.length > 0
+      ? '\n本轮对话：\n' + roundReplies.map(r => `${r.characterName}：${r.content}`).join('\n')
+      : '';
+
+    const messages = [
+      {
+        role: "system",
+        content: `你是${character.name}。
+性格：${character.personality || '无特殊设定'}
+背景：${character.background || '无'}
+外貌：${character.appearance || '无'}
+说话风格：${character.speakingStyle || '自然'}
+口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}
+
+规则：
+1. 严格以${character.name}的身份和性格回复
+2. 保持角色一致性，不要出戏
+3. 回复自然口语化，像真人聊天，不要像背台词
+4. 最多说5句话
+5. 不要加引号、括号等格式标记
+6. 不要重复其他角色已经说过的话，要给出新的回应
+7. 口头禅偶尔使用即可，不要每句话都带，更不要生硬插入
+8. 注意场景设定：如果用户描述了某些角色不在场，你不在场时不要发言`
+      },
+      {
+        role: "user",
+        content: (recentHistory ? `最近对话：\n${recentHistory}\n\n` : '') +
+                 (roundContext ? `${roundContext}\n\n` : '') +
+                 `用户说：${userMessage}`
+      }
+    ];
+
+    if (options.stream && options.onChunk) {
+      return await callLLM({
+        model: options.model || 'deepseek-chat',
+        messages,
+        stream: true,
+        temperature: 0.8,
+        maxTokens: 1024,
+        signal: options.signal,
+        onChunk: options.onChunk
+      });
+    }
+
+    const reply = await callLLM({
+      model: options.model || 'deepseek-chat',
+      messages,
+      stream: false,
+      temperature: 0.8,
+      maxTokens: 1024,
+      signal: options.signal
+    });
+
+    if (typeof reply === 'string') return limitSentences(reply);
+    return reply; // 流式返回的是 { content, reasoningContent }
+  }
+
+  // Step 3: 追问判断
+  async function shouldFollowUp(lastReplies, otherCharacter, userMessage, speakCount = 0, signal = null) {
+    const lastReplyText = lastReplies.map(r => `${r.characterName}：${r.content}`).join('\n');
+
+    const messages = [
+      {
+        role: "system",
+        content: `你判断群聊中一个角色是否需要对其他角色的发言做出回应。
+只回答"是"或"否"，不要输出其他内容。
+判断标准：
+- 默认回答"否"，只有在非常必要时才回应
+- 如果用户消息暗示了某些角色不在场（如"只有我和XX"、"私下对话"、"回到房间"等），不在场的角色必须回答"否"
+- 如果对方的话直接点名你、质疑你、或者与你产生强烈冲突，可以回答"是"
+- 如果对方的话只是普通聊天、你已经表达过类似观点、或者话题与你关系不大，回答"否"
+- 如果场景是私密的或你不在场，即使话题与你相关也回答"否"
+- 不要为了聊天而聊天，避免无意义的附和`
+      },
+      {
+        role: "user",
+        content: `你是${otherCharacter.name}（${otherCharacter.summary || otherCharacter.personality || ''}）。
+你本轮已经说过${speakCount}次话了。
+其他角色刚说了：\n${lastReplyText}\n
+用户说：${userMessage}\n
+你需要回应吗？`
+      }
+    ];
+
+    const result = await callLLM({ messages, temperature: 0.3, maxTokens: 10, signal });
+    return String(result).trim().includes('是');
+  }
+
+  // 编排主函数（流式）
+  async function orchestrateGroupChat(userMessage, characters, history, options = {}) {
+    const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model } = options;
+    const allReplies = [];
+    const MAX_ROUNDS = 3; // 最大互动轮数，防止无限循环
+
+    // Step 1: 路由判断
+    let speakerIndices;
+    try {
+      speakerIndices = await routeMessage(userMessage, characters, history, signal);
+    } catch (e) {
+      if (e.name === 'AbortError') return allReplies;
+      throw e;
+    }
+
+    // Step 2: 逐个角色生成回答
+    for (const idx of speakerIndices) {
+      if (signal && signal.aborted) break;
+      const character = characters[idx];
+
+      if (onCharacterStart) onCharacterStart(character, idx);
+
+      let reply;
+      try {
+        reply = await generateCharacterReply(character, userMessage, history, characters, {
+          stream: !!onCharacterChunk,
+          onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(character, idx, chunk) : null,
+          signal,
+          model,
+          currentRoundReplies: allReplies
+        });
+      } catch (e) {
+        if (e.name === 'AbortError') break;
+        throw e;
+      }
+
+      const content = typeof reply === 'string' ? reply : reply.content;
+      allReplies.push({ characterId: character.id, characterName: character.name, content: limitSentences(content || '') });
+
+      if (onCharacterEnd) onCharacterEnd(character, idx, content);
+    }
+
+    // Step 3: 多轮互动循环（A说→B回应→A再回应→B再回应...）
+    if (allReplies.length > 0 && characters.length > 1) {
+      for (let round = 0; round < MAX_ROUNDS; round++) {
+        if (signal && signal.aborted) break;
+
+        const lastReply = allReplies[allReplies.length - 1];
+        const lastSpeakerId = lastReply.characterId;
+
+        // 找到所有"听到"最后一条消息的其他角色
+        const otherChars = characters.filter(c => c.id !== lastSpeakerId);
+
+        let anyoneSpoke = false;
+
+        for (const otherChar of otherChars) {
+          if (signal && signal.aborted) break;
+
+          const speakCount = allReplies.filter(r => r.characterId === otherChar.id).length;
+          if (speakCount >= 2) continue; // 每个角色本轮最多说2次
+
+          let needFollow;
+          try {
+            needFollow = await shouldFollowUp([lastReply], otherChar, userMessage, speakCount, signal);
+          } catch (e) {
+            if (e.name === 'AbortError') break;
+            throw e;
+          }
+          if (needFollow) {
+            if (onCharacterStart) onCharacterStart(otherChar, characters.indexOf(otherChar));
+
+            let reply;
+            try {
+              reply = await generateCharacterReply(otherChar, userMessage, history, characters, {
+                stream: !!onCharacterChunk,
+                onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(otherChar, characters.indexOf(otherChar), chunk) : null,
+                signal,
+                model,
+                currentRoundReplies: allReplies
+              });
+            } catch (e) {
+              if (e.name === 'AbortError') break;
+              throw e;
+            }
+
+            const content = typeof reply === 'string' ? reply : reply.content;
+            allReplies.push({ characterId: otherChar.id, characterName: otherChar.name, content: limitSentences(content || '') });
+
+            if (onCharacterEnd) onCharacterEnd(otherChar, characters.indexOf(otherChar), content);
+            anyoneSpoke = true;
+            break; // 每轮最多一个角色回应，下一轮再让其他人决定
+          }
+        }
+
+        // 这一轮没人说话，互动结束
+        if (!anyoneSpoke) break;
+      }
+    }
+
+    return allReplies;
+  }
+
+  // ========== 群聊会话管理 ==========
+  const createGroupPanel = document.getElementById('createGroupPanel');
+  const closeCreateGroupBtn = document.getElementById('closeCreateGroupBtn');
+  const createGroupCharacterList = document.getElementById('createGroupCharacterList');
+  const createGroupConfirmBtn = document.getElementById('createGroupConfirmBtn');
+  const createGroupNameInput = document.getElementById('createGroupNameInput');
+  const openCharacterFromGroupBtn = document.getElementById('openCharacterFromGroupBtn');
+
+  function openCreateGroupPanel() {
+    if (characterData.length < 2) {
+      showToast('至少需要创建 2 个角色才能创建群聊');
+      return;
+    }
+    createGroupPanel.classList.remove('hidden');
+    createGroupNameInput.value = '';
+    renderCreateGroupCharacterList();
+  }
+
+  function closeCreateGroupPanel() {
+    createGroupPanel.classList.add('hidden');
+  }
+
+  let selectedGroupCharacterIds = new Set();
+
+  function renderCreateGroupCharacterList() {
+    createGroupCharacterList.innerHTML = '';
+    selectedGroupCharacterIds.clear();
+    characterData.forEach(char => {
+      const div = document.createElement('div');
+      div.className = 'group-char-select-item';
+      div.dataset.id = char.id;
+      div.innerHTML = `
+        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-800 transition-colors">
+          <input type="checkbox" class="group-char-checkbox w-4 h-4" value="${char.id}">
+          <div class="flex-1 min-w-0">
+            <div class="text-sm text-white font-medium">${escapeHtml(char.name)}</div>
+            <div class="text-xs text-gray-500">${escapeHtml(char.summary || '暂无描述')}</div>
+          </div>
+        </label>
+      `;
+      createGroupCharacterList.appendChild(div);
+    });
+
+    document.querySelectorAll('.group-char-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        if (this.checked) selectedGroupCharacterIds.add(this.value);
+        else selectedGroupCharacterIds.delete(this.value);
+      });
+    });
+  }
+
+  function createGroupChat() {
+    if (selectedGroupCharacterIds.size < 2) {
+      showToast('请至少选择 2 个角色');
+      return;
+    }
+    const groupTitle = createGroupNameInput.value.trim() || '群聊';
+    const charIds = Array.from(selectedGroupCharacterIds);
+
+    const tabIds = Object.keys(tabData.list);
+    let maxIdNum = 0;
+    tabIds.forEach(id => {
+      const num = parseInt(id.replace('tab', ''), 10);
+      if (num > maxIdNum) maxIdNum = num;
+    });
+    const newId = `tab${maxIdNum + 1}`;
+
+    tabData.list[newId] = {
+      type: 'group',
+      characterIds: charIds,
+      messages: [],
+      title: groupTitle
+    };
+    tabData.active = newId;
+    saveTabs();
+    renderChat();
+    renderTabs();
+    updateInputCounter();
+    closeCreateGroupPanel();
+    closeSidebar();
+    showToast('群聊已创建');
+  }
+
+  // 群聊面板事件
+  if (closeCreateGroupBtn) closeCreateGroupBtn.addEventListener('click', closeCreateGroupPanel);
+  if (createGroupPanel) createGroupPanel.addEventListener('click', (e) => { if (e.target === createGroupPanel) closeCreateGroupPanel(); });
+  if (createGroupConfirmBtn) createGroupConfirmBtn.addEventListener('click', createGroupChat);
+  if (openCharacterFromGroupBtn) openCharacterFromGroupBtn.addEventListener('click', () => {
+    closeCreateGroupPanel();
+    openCharacterPanel();
+  });
+
+  /* ========================================================================
+   * 三、存储与数据管理
+   * ======================================================================== */
 
   const PROMPT_STORAGE_KEY = 'dsPrompts';
   let promptData;
@@ -245,6 +940,10 @@ document.addEventListener('DOMContentLoaded', function() {
     apiKeyInput.value = apiKey;
   }
 
+  /* ========================================================================
+   * 四、UI 工具函数（Toast、复制、格式化等）
+   * ======================================================================== */
+
   function showToast(text) {
     const toast = document.createElement('div');
     toast.textContent = text;
@@ -368,6 +1067,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   let globalMemoryLimit = localStorage.getItem("dsGlobalMemoryLimit") || "0";
+
+  /* ========================================================================
+   * 五、设置面板、侧边栏、导出、确认弹窗
+   * ======================================================================== */
 
   function applyFontSize(size) {
     document.body.classList.remove("font-size-small", "font-size-smaller", "font-size-default", "font-size-larger", "font-size-large");
@@ -798,7 +1501,7 @@ ${original}`
         return;
       }
       
-      const roleName = m.role === 'user' ? '我' : 'DeepSeek';
+      const roleName = m.role === 'user' ? '我' : (m.role === 'character' ? (m.characterName || '角色') : 'DeepSeek');
       txtContent += `【${roleName}】:\n`;
 
       if (includeReasoning && m.reasoningContent) {
@@ -859,6 +1562,10 @@ ${original}`
     }
   }
 
+  /* ========================================================================
+   * 七、Tab 标签页管理
+   * ======================================================================== */
+
   function renderTabs() {
     tabsEl.innerHTML = "";
     const tabIds = Object.keys(tabData.list);
@@ -869,8 +1576,10 @@ ${original}`
     }
 
     Object.keys(tabData.list).forEach(id => {
+      const tab = tabData.list[id];
+      const isGroup = tab.type === 'group';
       const tabDiv = document.createElement("div");
-      tabDiv.className = `tab ${id === tabData.active ? "active" : ""}`;
+      tabDiv.className = `tab ${id === tabData.active ? "active" : ""} ${isGroup ? "group-tab" : ""}`;
       tabDiv.innerHTML = `
         <span class="tab-title" title="${escapeHtml(getTabDisplayName(id))}">${escapeHtml(getTabDisplayName(id))}</span>
         <div class="tab-actions">
@@ -1032,6 +1741,10 @@ ${original}`
   const _mdCache = new Map();
   const _MD_CACHE_MAX = 500;
 
+  /* ========================================================================
+   * 六、Markdown 渲染与搜索高亮
+   * ======================================================================== */
+
   function renderMarkdown(el, text, msgIndex, type) {
     if (!text) {
       el.innerHTML = '';
@@ -1152,6 +1865,10 @@ ${original}`
   }
 
   // 绑定聊天区域内的按钮事件（供 renderChat 和缓存恢复时复用）
+  /* ========================================================================
+   * 八、聊天核心（渲染、发送、流式请求、群聊发送）
+   * ======================================================================== */
+
   function rebindChatButtons() {
     document.querySelectorAll('.copy-btn').forEach(btn => {
       btn.addEventListener('click', function() {
@@ -1239,96 +1956,147 @@ ${original}`
   }
 
   function renderChat() {
-    const currentMsgs = tabData.list[tabData.active].messages || [];
+    const currentTab = tabData.list[tabData.active];
+    const currentMsgs = currentTab.messages || [];
     const lastUserMsgIndex = getLastUserMessageIndex();
+    const isGroupChat = currentTab.type === 'group';
 
     // renderChat 执行全量渲染，清除当前 tab 的缓存
     invalidateTabCache(tabData.active);
 
     chat.innerHTML = "";
 
+    // 群聊头部：显示参与角色
+    if (isGroupChat && currentTab.characterIds) {
+      const groupChars = currentTab.characterIds.map(id => getCharacterById(id)).filter(Boolean);
+      if (groupChars.length > 0) {
+        const headerDiv = document.createElement("div");
+        headerDiv.className = "group-chat-header";
+        const memberTags = groupChars.map((c, i) => {
+          const color = getCharacterColor(i);
+          return `<span class="group-chat-member-tag" style="background:${color}">${escapeHtml(c.name)}</span>`;
+        }).join('');
+        headerDiv.innerHTML = `<div class="group-chat-header-text">群聊成员</div><div class="group-chat-members">${memberTags}</div>`;
+        chat.appendChild(headerDiv);
+      }
+    }
+
     currentMsgs.forEach((m, i) => {
       const isUser = m.role === 'user';
       const isAssistant = m.role === 'assistant';
-      const isLastAssistant = isAssistant && i === currentMsgs.length - 1;
+      const isCharacter = m.role === 'character';
+      // 兼容旧数据：群聊中 assistant 消息也当作角色消息渲染
+      const isGroupAssistant = isGroupChat && isAssistant;
+      const isLastAssistant = isAssistant && !isGroupAssistant && i === currentMsgs.length - 1;
       const isLastUserMessage = i === lastUserMsgIndex;
 
       const msgBox = document.createElement("div");
       msgBox.id = `msg-${i}`;
-      msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
 
-      let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
-      if (isAssistant) {
-        buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
-        if (isLastAssistant) buttonsHtml += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
-      } else if (isUser) {
-        buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
-        if (isLastUserMessage) buttonsHtml += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
-      }
+      if (isCharacter || isGroupAssistant) {
+        // 群聊角色消息
+        const charIndex = (currentTab.characterIds || []).indexOf(m.characterId);
+        const color = getCharacterColor(charIndex >= 0 ? charIndex : 0);
+        msgBox.className = `message-box character-msg p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white`;
+        msgBox.style.setProperty('border-left-color', color, 'important');
 
-      let versionHtml = '';
-      if (isAssistant && m.history && m.history.length > 1) {
-        const hIndex = m.historyIndex || 0;
-        const isFirst = hIndex === 0;
-        const isLast = hIndex === m.history.length - 1;
-        versionHtml = `
-          <div class="version-control">
-            <span class="version-btn prev-version-btn ${isFirst ? 'disabled' : ''}" data-index="${i}">❮</span>
-            <span>${hIndex + 1} / ${m.history.length}</span>
-            <span class="version-btn next-version-btn ${isLast ? 'disabled' : ''}" data-index="${i}">❯</span>
-          </div>
+        let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
+        buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+
+        const displayName = m.characterName || '角色';
+        msgBox.innerHTML = `
+          <div class="character-msg-label" style="background:${color}20;color:${color}">${escapeHtml(displayName)}</div>
+          ${buttonsHtml}
         `;
-      }
 
-      msgBox.innerHTML = versionHtml + buttonsHtml;
-
-      if (isAssistant && m.reasoningContent) {
-        const details = document.createElement('details');
-        details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
-        details.open = true;
-        details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
-        const reasoningDiv = document.createElement('div');
-        reasoningDiv.className = "reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
-        renderMarkdown(reasoningDiv, m.reasoningContent, i, 'reasoning');
-        details.appendChild(reasoningDiv);
-        msgBox.appendChild(details);
-      }
-
-      const contentDiv = document.createElement('div');
-      contentDiv.className = "msg-content prose prose-invert max-w-none";
-      renderMarkdown(contentDiv, m.content, i, 'content');
-      msgBox.appendChild(contentDiv);
-
-      if (isUser) {
-        const userInputMeta = buildUserInputMeta(currentMsgs, i);
-        if (userInputMeta) {
-          const metaDiv = document.createElement('div');
-          metaDiv.className = "message-meta user-input-meta mt-2 text-xs";
-          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} tokens；历史记忆约 ${userInputMeta.historyTokens} tokens；本轮输入共约 ${userInputMeta.totalInputTokens} tokens`;
-          msgBox.appendChild(metaDiv);
-        }
-      }
-
-      if (isAssistant) {
-        const metaDiv = document.createElement('div');
-        metaDiv.className = "message-meta assistant-meta mt-2 text-xs text-gray-400";
-        const totalChars = countChars(m.reasoningContent) + countChars(m.content);
-        const tokenEstimate = estimateTokensByChars(totalChars);
-        metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字，约 ${tokenEstimate} tokens`;
-        msgBox.appendChild(metaDiv);
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "msg-content prose prose-invert max-w-none";
+        renderMarkdown(contentDiv, m.content, i, 'content');
+        msgBox.appendChild(contentDiv);
 
         if (m.generationState === 'interrupted') {
-          const statusDiv = document.createElement('div');
+          const statusDiv = document.createElement("div");
           statusDiv.className = "generation-status mt-1 text-xs text-amber-400";
-          statusDiv.textContent = '生成中断，可重新生成';
+          statusDiv.textContent = '生成中断';
           msgBox.appendChild(statusDiv);
+        }
+      } else {
+        // 单聊消息（原有逻辑）
+        msgBox.className = `message-box p-3 rounded-xl ${isUser?'bg-blue-600 ml-auto':'bg-gray-800 mr-auto'} max-w-[85%] text-white`;
+
+        let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
+        if (isAssistant) {
+          buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+          if (isLastAssistant) buttonsHtml += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
+        } else if (isUser) {
+          buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+          if (isLastUserMessage) buttonsHtml += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
+        }
+
+        let versionHtml = '';
+        if (isAssistant && m.history && m.history.length > 1) {
+          const hIndex = m.historyIndex || 0;
+          const isFirst = hIndex === 0;
+          const isLast = hIndex === m.history.length - 1;
+          versionHtml = `
+            <div class="version-control">
+              <span class="version-btn prev-version-btn ${isFirst ? 'disabled' : ''}" data-index="${i}">❮</span>
+              <span>${hIndex + 1} / ${m.history.length}</span>
+              <span class="version-btn next-version-btn ${isLast ? 'disabled' : ''}" data-index="${i}">❯</span>
+            </div>
+          `;
+        }
+
+        msgBox.innerHTML = versionHtml + buttonsHtml;
+
+        if (isAssistant && m.reasoningContent) {
+          const details = document.createElement('details');
+          details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
+          details.open = true;
+          details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary>`;
+          const reasoningDiv = document.createElement('div');
+          reasoningDiv.className = "reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2";
+          renderMarkdown(reasoningDiv, m.reasoningContent, i, 'reasoning');
+          details.appendChild(reasoningDiv);
+          msgBox.appendChild(details);
+        }
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "msg-content prose prose-invert max-w-none";
+        renderMarkdown(contentDiv, m.content, i, 'content');
+        msgBox.appendChild(contentDiv);
+
+        if (isUser && !isGroupChat) {
+          const userInputMeta = buildUserInputMeta(currentMsgs, i);
+          if (userInputMeta) {
+            const metaDiv = document.createElement('div');
+            metaDiv.className = "message-meta user-input-meta mt-2 text-xs";
+            metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} tokens；历史记忆约 ${userInputMeta.historyTokens} tokens；本轮输入共约 ${userInputMeta.totalInputTokens} tokens`;
+            msgBox.appendChild(metaDiv);
+          }
+        }
+
+        if (isAssistant) {
+          const metaDiv = document.createElement('div');
+          metaDiv.className = "message-meta assistant-meta mt-2 text-xs text-gray-400";
+          const totalChars = countChars(m.reasoningContent) + countChars(m.content);
+          const tokenEstimate = estimateTokensByChars(totalChars);
+          metaDiv.textContent = `思考 ${countChars(m.reasoningContent)} 字，正文 ${countChars(m.content)} 字，约 ${tokenEstimate} tokens`;
+          msgBox.appendChild(metaDiv);
+
+          if (m.generationState === 'interrupted') {
+            const statusDiv = document.createElement('div');
+            statusDiv.className = "generation-status mt-1 text-xs text-amber-400";
+            statusDiv.textContent = '生成中断，可重新生成';
+            msgBox.appendChild(statusDiv);
+          }
         }
       }
 
       chat.appendChild(msgBox);
     });
 
-    if (currentMsgs.length > 0 && isTokenLimitReached()) {
+    if (currentMsgs.length > 0 && !isGroupChat && isTokenLimitReached()) {
       const warningDiv = document.createElement("div");
       warningDiv.className = "text-xs text-gray-500 text-center mt-6 mb-4 px-2";
       warningDiv.innerHTML = `
@@ -1370,21 +2138,31 @@ ${original}`
   async function saveEditAndRegenerate() {
     const newContent = editTextarea.value.trim();
     if (!newContent) return alert("消息内容不能为空！");
-    const currentMsgs = tabData.list[tabData.active].messages || [];
+    const currentTab = tabData.list[tabData.active];
+    const currentMsgs = currentTab.messages || [];
     if (editingMessageIndex < 0 || editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
 
-    currentMsgs[editingMessageIndex].content = newContent;
-    const messagesToKeep = currentMsgs.slice(0, editingMessageIndex + 1);
-    if (messagesToKeep[editingMessageIndex]?.role === 'user') {
-      messagesToKeep[editingMessageIndex].inputMeta = buildUserInputMeta(messagesToKeep, editingMessageIndex);
-    }
-    tabData.list[tabData.active].messages = messagesToKeep;
+    // 截断该消息之后的所有消息
+    const editIdx = editingMessageIndex;
+    const messagesToKeep = currentMsgs.slice(0, editIdx + 1);
+    messagesToKeep[editIdx].content = newContent;
+    currentTab.messages = messagesToKeep;
     saveTabs();
 
     editPanel.classList.add("hidden");
     editingMessageIndex = -1;
     renderChat();
-    await fetchAndStreamResponse();
+
+    // 群聊走群聊发送逻辑
+    if (currentTab.type === 'group') {
+      await sendGroupMessage(tabData.active, newContent);
+    } else {
+      if (messagesToKeep[editIdx]?.role === 'user') {
+        messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx);
+        saveTabs();
+      }
+      await fetchAndStreamResponse();
+    }
   }
 
   function cancelEdit() {
@@ -1479,11 +2257,31 @@ ${original}`
     return newId;
   }
 
-  addTab.onclick = () => {
+  const addTabDropdown = document.getElementById("addTabDropdown");
+  const addTabSingle = document.getElementById("addTabSingle");
+  const addTabGroup = document.getElementById("addTabGroup");
+
+  addTab.onclick = (e) => {
+    e.stopPropagation();
+    addTabDropdown.classList.toggle("hidden");
+  };
+
+  addTabSingle.onclick = () => {
+    addTabDropdown.classList.add("hidden");
     createNewTab();
     closeSidebar();
     input.focus();
   };
+
+  addTabGroup.onclick = () => {
+    addTabDropdown.classList.add("hidden");
+    openCreateGroupPanel();
+  };
+
+  // 点击页面其他区域关闭下拉菜单
+  document.addEventListener("click", () => {
+    addTabDropdown.classList.add("hidden");
+  });
 
   async function fetchAndStreamResponse(opts = {}) {
     isSending = true;
@@ -1496,7 +2294,7 @@ ${original}`
     abortReason = null;
     abortController = new AbortController();
 
-    // 60秒无响应自动超时
+    // 120秒无响应自动超时
     const fetchTimeout = setTimeout(() => {
       if (abortController && !isSending) return;
       abortReason = 'timeout';
@@ -1712,6 +2510,7 @@ ${original}`
   }
 
   async function sendMessage() {
+    if (isSending) return;
     const text = input.value.trim();
     if (!text) { input.focus(); return; }
     if (!apiKey) { keyPanel.classList.remove("hidden"); return; }
@@ -1721,8 +2520,30 @@ ${original}`
     }
 
     const sendingTabId = tabData.active;
-    const currentMsgs = tabData.list[sendingTabId].messages || [];
+    const currentTab = tabData.list[sendingTabId];
+    const currentMsgs = currentTab.messages || [];
     const isFirstMessage = currentMsgs.length === 0;
+
+    // 群聊分支
+    if (currentTab.type === 'group' && currentTab.characterIds && currentTab.characterIds.length > 0) {
+      currentMsgs.push({ role: "user", content: text });
+      tabData.list[sendingTabId].messages = currentMsgs;
+      saveTabs();
+      renderChat();
+
+      input.value = "";
+      autoHeight();
+      updateInputCounter();
+
+      await sendGroupMessage(sendingTabId, text);
+
+      if (isFirstMessage && tabData.active === sendingTabId) {
+        generateTitleForCurrentTab();
+      }
+      return;
+    }
+
+    // 单聊分支（原有逻辑）
     currentMsgs.push({ role: "user", content: text });
     currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
     tabData.list[sendingTabId].messages = currentMsgs;
@@ -1738,6 +2559,97 @@ ${original}`
       generateTitleForCurrentTab();
     }
   }
+
+  // ========== 群聊消息发送 ==========
+  async function sendGroupMessage(tabId, userMessage) {
+    isSending = true;
+    sendBtn.textContent = "停止";
+    sendBtn.classList.add("stop-mode");
+
+    const lockedTabId = tabId;
+    abortReason = null;
+    abortController = new AbortController();
+    const signal = abortController.signal;
+
+    const currentTab = tabData.list[lockedTabId];
+    const characters = (currentTab.characterIds || []).map(id => getCharacterById(id)).filter(Boolean);
+    if (characters.length === 0) {
+      isSending = false;
+      sendBtn.textContent = "发送";
+      sendBtn.classList.remove("stop-mode");
+      return;
+    }
+
+    const currentMsgs = currentTab.messages || [];
+    const history = currentMsgs;
+
+    try {
+      const replies = await orchestrateGroupChat(userMessage, characters, history, {
+        signal,
+        model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
+        onCharacterStart(character, idx) {
+          // 创建角色消息 DOM
+          const msgIndex = currentMsgs.length;
+          const color = getCharacterColor(idx);
+          const msgBox = document.createElement("div");
+          msgBox.id = `msg-${msgIndex}`;
+          msgBox.className = `message-box character-msg p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white`;
+          msgBox.style.setProperty('border-left-color', color, 'important');
+          msgBox.innerHTML = `
+            <div class="character-msg-label" style="background:${color}20;color:${color}">${escapeHtml(character.name)}</div>
+            <button class="delete-btn" data-index="${msgIndex}" title="删除">${deleteIconSvg}</button>
+            <button class="copy-btn" data-index="${msgIndex}" title="复制">${copyIconSvg}</button>
+            <div class="msg-content prose prose-invert max-w-none"></div>
+          `;
+          chat.appendChild(msgBox);
+          chat.scrollTop = chat.scrollHeight;
+        },
+        onCharacterChunk(character, idx, chunk) {
+          // 找到该角色最新的消息 DOM 并更新
+          const msgBoxes = chat.querySelectorAll('.character-msg');
+          const targetBox = msgBoxes[msgBoxes.length - 1];
+          if (targetBox) {
+            const contentDiv = targetBox.querySelector('.msg-content');
+            if (contentDiv && chunk.fullContent) {
+              renderMarkdown(contentDiv, chunk.fullContent);
+              const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+              if (isAtBottom) chat.scrollTop = chat.scrollHeight;
+            }
+          }
+        },
+        onCharacterEnd(character, idx, content) {
+          // 保存角色消息到数据（不触发 renderChat，避免流式过程中 DOM 重建）
+          const msgs = tabData.list[lockedTabId].messages;
+          msgs.push({
+            role: "character",
+            characterId: character.id,
+            characterName: character.name,
+            content: content || '',
+            generationState: abortReason ? 'interrupted' : 'complete',
+            history: [{ content: content || '', reasoningContent: '', state: abortReason ? 'interrupted' : 'complete' }],
+            historyIndex: 0
+          });
+          tabData.list[lockedTabId].messages = msgs;
+          saveTabs();
+        }
+      });
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        console.error('群聊发送错误:', e);
+        showToast('群聊发送失败：' + e.message);
+      }
+    } finally {
+      isSending = false;
+      sendBtn.textContent = "发送";
+      sendBtn.classList.remove("stop-mode");
+      abortController = null;
+      renderChat();
+    }
+  }
+
+  /* ========================================================================
+   * 九、指令管理（CRUD + AI 优化）
+   * ======================================================================== */
 
   function openPromptPanel() {
     promptPanel.classList.remove('hidden');
@@ -1915,6 +2827,12 @@ ${original}`
     openPromptPanel();
   });
 
+  // 角色卡侧边栏按钮
+  const openCharacterBtn = document.getElementById('openCharacterBtn');
+  const cancelCreateGroupBtn = document.getElementById('cancelCreateGroupBtn');
+  if (openCharacterBtn) openCharacterBtn.addEventListener('click', () => { closeSidebar(); openCharacterPanel(); });
+  if (cancelCreateGroupBtn) cancelCreateGroupBtn.addEventListener('click', closeCreateGroupPanel);
+
   closePromptPanelBtn.addEventListener('click', closePromptPanel);
   promptPanel.addEventListener('click', (e) => {
     if (e.target === promptPanel) closePromptPanel();
@@ -1975,6 +2893,11 @@ ${original}`
       if (!confirmPanel.classList.contains('hidden')) closeConfirmModal(false);
       if (!promptOptimizePreviewPanel.classList.contains('hidden')) closeOptimizePreviewPanel();
       if (!promptPanel.classList.contains('hidden')) closePromptPanel();
+      if (characterPanel && !characterPanel.classList.contains('hidden')) closeCharacterPanel();
+      if (createGroupPanel && !createGroupPanel.classList.contains('hidden')) closeCreateGroupPanel();
+      if (!infoPanel.classList.contains('hidden')) infoPanel.classList.add('hidden');
+      if (!donatePanel.classList.contains('hidden')) donatePanel.classList.add('hidden');
+      if (!downloadPanel.classList.contains('hidden')) closeDownloadPanel();
     }
   });
 
@@ -1988,6 +2911,10 @@ ${original}`
   }
 
   // 从 prompts.js 加载指令（已在页面中引入，此函数保留用于兼容性）
+  /* ========================================================================
+   * 十、指令市场与 AI 生成
+   * ======================================================================== */
+
   async function loadPromptsFromFile() {
     // 数据已在 prompts.js 中定义
     return;
@@ -2300,6 +3227,10 @@ ${original}`
 
   // ========== 搜索功能实现 ==========
   
+  /* ========================================================================
+   * 十一、搜索功能
+   * ======================================================================== */
+
   function openSearch() {
     appTitle.classList.add('hidden');
     searchBox.classList.remove('hidden');
@@ -2456,6 +3387,10 @@ ${original}`
       closeSearch();
     }
   });
+
+  /* ========================================================================
+   * 十二、初始化与全局事件
+   * ======================================================================== */
 
   // 页面加载时预加载指令
   loadPromptsFromFile();

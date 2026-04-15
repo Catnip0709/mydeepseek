@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="./styles.css">
   <script src="./prompts.js"></script>
   <script src="./app.js" defer></script>
-</head>
+  </head>
 <body class="max-w-full mx-0 safe-area-bottom">
 
 <div class="fixed top-0 left-0 right-0 bg-black/95 z-20 p-3 border-b border-gray-800 flex items-center justify-between">
@@ -31,10 +31,22 @@
   </div>
 
   <div class="flex items-center gap-1">
-    <button id="addTab" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="新建对话">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-    </button>
-    <button id="searchToggleBtn" class="text-gray-500 hover:text-gray-300 px-2 focus:outline-none transition-colors" title="搜索对话 (Ctrl+F)">
+    <div class="relative inline-flex">
+      <button id="addTab" class="text-gray-500 hover:text-gray-300 p-2 focus:outline-none transition-colors" title="新建">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+      </button>
+      <div id="addTabDropdown" class="hidden absolute right-0 top-full mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1 min-w-[140px]">
+        <button id="addTabSingle" class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          新建对话
+        </button>
+        <button id="addTabGroup" class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white transition-colors flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          新建群聊
+        </button>
+      </div>
+    </div>
+    <button id="searchToggleBtn" class="text-gray-500 hover:text-gray-300 p-2 focus:outline-none transition-colors" title="搜索对话 (Ctrl+F)">
       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
     </button>
   </div>
@@ -44,8 +56,9 @@
 
 <div id="sidebar" class="fixed top-0 left-0 bottom-0 w-64 bg-gray-900 z-40 transform -translate-x-full transition-transform duration-300 flex flex-col border-r border-gray-800">
   <div class="p-4 border-b border-gray-800 mt-4 space-y-3">
-    <button id="openPromptMarketBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">⭐ 指令市场 ⭐</button>
+    <button id="openPromptMarketBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">指令市场</button>
     <button id="openPromptManagerBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">指令管理</button>
+    <button id="openCharacterBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-white flex items-center justify-center transition-colors">角色卡管理</button>
   </div>
 
   <div id="tabs" class="flex-1 overflow-y-auto p-2 space-y-1 inl_0201436a24"></div>
@@ -420,6 +433,109 @@
   </div>
 </div>
 
+
+<!-- 角色卡管理面板 -->
+<div id="characterPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">角色卡管理</h3>
+      <button id="closeCharacterPanelBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="prompt-panel-body">
+      <div id="characterListView">
+        <div class="prompt-toolbar">
+          <button id="addCharacterBtn" class="prompt-add-btn">+ 新建角色</button>
+        </div>
+        <div id="characterList" class="prompt-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 角色卡编辑弹窗 -->
+<div id="characterEditPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">编辑角色卡</h3>
+      <button id="closeCharacterEditPanelBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="prompt-panel-body">
+      <div class="prompt-form">
+        <div class="character-brief-wrapper">
+          <textarea id="characterEditBrief" class="prompt-textarea" placeholder="输入简要描述（如：一个傲娇的18岁女高中生），点击右下角 AI 生成自动填充以下所有字段..." rows="2"></textarea>
+          <div class="prompt-ai-inline character-brief-ai-btn">
+            <button id="aiEnhanceBtn" class="prompt-ai-opt-btn" type="button" title="AI 生成角色卡">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
+                <path d="M19 16l.9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16z"></path>
+              </svg>
+            </button>
+            <span id="aiEnhanceLabel" class="prompt-ai-label">AI 生成</span>
+          </div>
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">角色名字 *</label>
+          <input id="characterEditName" class="prompt-input" type="text" placeholder="例如：林小雨">
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">一句话摘要</label>
+          <input id="characterEditSummary" class="prompt-input" type="text" placeholder="用于路由判断，如：傲娇少女，18岁，说话带'哼'">
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">性格</label>
+          <textarea id="characterEditPersonality" class="prompt-textarea" placeholder="详细描述角色的性格特征..." rows="3"></textarea>
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">背景经历</label>
+          <textarea id="characterEditBackground" class="prompt-textarea" placeholder="角色的背景故事..." rows="3"></textarea>
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">外貌描写</label>
+          <textarea id="characterEditAppearance" class="prompt-textarea" placeholder="角色的外貌特征..." rows="2"></textarea>
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">说话风格</label>
+          <textarea id="characterEditSpeakingStyle" class="prompt-textarea" placeholder="角色的说话方式和语气..." rows="2"></textarea>
+        </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">口头禅</label>
+          <input id="characterEditCatchphrases" class="prompt-input" type="text" placeholder="用顿号分隔，如：哼、才不是呢、别误会">
+        </div>
+        <div class="prompt-form-actions">
+          <button id="cancelCharacterEditBtn" class="btn-gray">取消</button>
+          <button id="saveCharacterBtn" class="btn-blue">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新建群聊面板 -->
+<div id="createGroupPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">新建群聊（功能测试中）</h3>
+      <button id="closeCreateGroupBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="prompt-panel-body">
+      <div class="mb-4">
+        <label class="text-gray-300 text-sm mb-2 block">群聊名称（可不填）</label>
+        <input id="createGroupNameInput" class="prompt-input" type="text" placeholder="例如：日常闲聊群">
+      </div>
+      <div class="mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-gray-300 text-sm">选择角色（至少 2 个）</label>
+          <button id="openCharacterFromGroupBtn" class="text-blue-400 text-sm hover:underline">管理角色卡</button>
+        </div>
+        <div id="createGroupCharacterList" class="space-y-1 max-h-60 overflow-y-auto"></div>
+      </div>
+    </div>
+    <div class="prompt-market-footer">
+      <button id="cancelCreateGroupBtn" class="btn-gray">取消</button>
+      <button id="createGroupConfirmBtn" class="btn-blue">创建群聊</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
