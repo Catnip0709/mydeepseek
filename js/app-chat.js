@@ -14,6 +14,7 @@
   const keyPanel = document.getElementById('keyPanel');
   const modelSelect = document.getElementById('modelSelect');
   const emptyChatHint = document.getElementById('emptyChatHint');
+  const emptyChatHintCharName = document.getElementById('emptyChatHintCharName');
 
   // ========== Tab DOM 缓存 ==========
   function getCachedTabHtml(tabId) {
@@ -55,6 +56,16 @@
   }
 
   function showEmptyChatHint() {
+    // 根据当前 tab 类型动态更新角色名
+    const currentTab = App.tabData.list[App.tabData.active];
+    if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
+      const char = App.getCharacterById(currentTab.characterId);
+      if (char && emptyChatHintCharName) {
+        emptyChatHintCharName.textContent = char.name;
+      }
+    } else if (emptyChatHintCharName) {
+      emptyChatHintCharName.textContent = 'DS老师';
+    }
     if (emptyChatHint) emptyChatHint.classList.remove('hidden');
   }
 
@@ -849,6 +860,8 @@
 
   // ========== 注册到 App ==========
   App.rebindChatButtons = rebindChatButtons;
+  App.showEmptyChatHint = showEmptyChatHint;
+  App.hideEmptyChatHint = hideEmptyChatHint;
 
   // ========== 事件绑定 ==========
   sendBtn.addEventListener('click', sendMessage);

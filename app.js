@@ -1652,6 +1652,13 @@ ${original}`
         } else {
           renderChat();
         }
+        // 根据目标 tab 的消息状态正确控制空对话提示
+        const targetMsgs = tabData.list[id].messages || [];
+        if (targetMsgs.length === 0) {
+          showEmptyChatHint();
+        } else {
+          hideEmptyChatHint();
+        }
         renderTabs();
         updateInputCounter();
         if(window.innerWidth < 768) closeSidebar();
@@ -3175,10 +3182,21 @@ ${original}`
 
   // 空对话提示相关元素
   const emptyChatHint = document.getElementById('emptyChatHint');
+  const emptyChatHintCharName = document.getElementById('emptyChatHintCharName');
   const openMarketFromHint = document.getElementById('openMarketFromHint');
 
   // 显示/隐藏空对话提示
   function showEmptyChatHint() {
+    // 根据当前 tab 类型动态更新角色名
+    const currentTab = tabData.list[tabData.active];
+    if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
+      const char = getCharacterById(currentTab.characterId);
+      if (char && emptyChatHintCharName) {
+        emptyChatHintCharName.textContent = char.name;
+      }
+    } else if (emptyChatHintCharName) {
+      emptyChatHintCharName.textContent = 'DS老师';
+    }
     emptyChatHint.classList.remove('hidden');
   }
 

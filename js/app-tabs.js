@@ -60,6 +60,13 @@
         } else {
           App.renderChat();
         }
+        // 根据目标 tab 的消息状态正确控制空对话提示
+        const targetMsgs = App.tabData.list[id].messages || [];
+        if (targetMsgs.length === 0) {
+          App.showEmptyChatHint();
+        } else {
+          App.hideEmptyChatHint();
+        }
         App.renderTabs();
         App.updateInputCounter();
         if(window.innerWidth < 768) App.closeSidebar();
