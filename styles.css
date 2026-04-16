@@ -205,7 +205,7 @@ body.search-active #emptyChatHint {
     #sendBtn.stop-mode { background: #ef4444; }
     #sendBtn.stop-mode:hover { background: #dc2626; }
 
-    .copy-btn, .regenerate-btn, .edit-btn, .delete-btn {
+    .copy-btn, .regenerate-btn, .edit-btn, .delete-btn, .reply-btn {
       position: absolute;
       bottom:6px;
       background:rgba(51,51,51,0.6);
@@ -227,14 +227,16 @@ body.search-active #emptyChatHint {
 
     .copy-btn { right:6px; }
     .delete-btn { right:36px; }
-    .regenerate-btn { right:66px; }
     .edit-btn { right:66px; }
+    .reply-btn { right:66px; }
+    .regenerate-btn { right:66px; }
 
-    .copy-btn:hover, .regenerate-btn:hover, .edit-btn:hover, .delete-btn:hover {
+    .copy-btn:hover, .regenerate-btn:hover, .edit-btn:hover, .delete-btn:hover, .reply-btn:hover {
       opacity:1; background:rgba(51,51,51,0.8);
     }
     .delete-btn:hover { background:rgba(220,38,38,0.8); }
-    .copy-btn:active, .regenerate-btn:active, .edit-btn:active, .delete-btn:active { transform: scale(0.95); }
+    .reply-btn:hover { background:rgba(59,130,246,0.8); }
+    .copy-btn:active, .regenerate-btn:active, .edit-btn:active, .delete-btn:active, .reply-btn:active { transform: scale(0.95); }
 
     .message-box {
       position:relative;
@@ -1255,13 +1257,15 @@ body.day-mode .reasoning-content {
 body.day-mode .copy-btn,
 body.day-mode .regenerate-btn,
 body.day-mode .edit-btn,
-body.day-mode .delete-btn {
+body.day-mode .delete-btn,
+body.day-mode .reply-btn {
   background: rgba(0, 0, 0, 0.12) !important;
   color: #1f2937 !important;
 }
 body.day-mode .copy-btn:hover,
 body.day-mode .regenerate-btn:hover,
-body.day-mode .edit-btn:hover {
+body.day-mode .edit-btn:hover,
+body.day-mode .reply-btn:hover {
   background: rgba(0, 0, 0, 0.18) !important;
   color: #111827 !important;
 }
@@ -1274,13 +1278,15 @@ body.day-mode .delete-btn:hover {
 body.day-mode .message-box.bg-blue-600 .copy-btn,
 body.day-mode .message-box.bg-blue-600 .regenerate-btn,
 body.day-mode .message-box.bg-blue-600 .edit-btn,
-body.day-mode .message-box.bg-blue-600 .delete-btn {
+body.day-mode .message-box.bg-blue-600 .delete-btn,
+body.day-mode .message-box.bg-blue-600 .reply-btn {
   background: rgba(255, 255, 255, 0.18) !important;
   color: #ffffff !important;
 }
 body.day-mode .message-box.bg-blue-600 .copy-btn:hover,
 body.day-mode .message-box.bg-blue-600 .regenerate-btn:hover,
-body.day-mode .message-box.bg-blue-600 .edit-btn:hover {
+body.day-mode .message-box.bg-blue-600 .edit-btn:hover,
+body.day-mode .message-box.bg-blue-600 .reply-btn:hover {
   background: rgba(255, 255, 255, 0.28) !important;
   color: #ffffff !important;
 }
@@ -2261,6 +2267,84 @@ body.day-mode .character-select-name {
 }
 body.day-mode .character-select-summary {
   color: #6b7280;
+}
+
+/* ========== 回复引用条（输入区） ========== */
+.reply-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #1f2937;
+  border-top: 1px solid #374151;
+  font-size: 13px;
+  color: #d1d5db;
+}
+.reply-bar-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+.reply-bar-icon {
+  flex-shrink: 0;
+  color: #60a5fa;
+}
+.reply-bar-text strong {
+  color: #60a5fa;
+}
+.reply-bar-snippet {
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reply-bar-cancel {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.reply-bar-cancel:hover {
+  color: #fff;
+}
+body.day-mode .reply-bar {
+  background: #f9fafb;
+  border-top-color: #e5e7eb;
+  color: #374151;
+}
+body.day-mode .reply-bar-cancel:hover {
+  color: #111827;
+}
+
+/* ========== 回复引用条（消息气泡内） ========== */
+.reply-quote {
+  font-size: 12px;
+  color: rgba(255,255,255,0.85);
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-left: 2px solid rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.12);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
+}
+.reply-quote strong {
+  color: #fff;
+}
+.reply-quote-text {
+  color: rgba(255,255,255,0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 200px;
+  vertical-align: middle;
 }
 
 /* ========== 群聊角色选择 ========== */

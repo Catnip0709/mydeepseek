@@ -426,8 +426,29 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Step 1: 路由判断 - 哪些角色应该回答
-  async function routeMessage(userMessage, characters, history, signal = null) {
+  async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null) {
+    // 如果用户明确回复了某个角色，该角色必须回答，其他角色按相关性判断
+    if (replyInfo && replyInfo.characterId) {
+      const targetIdx = characters.findIndex(c => c.id === replyInfo.characterId);
+      if (targetIdx >= 0) {
+        // 被回复角色必须回答，其他角色通过 LLM 判断
+        const otherIndices = await routeMessageByLLM(userMessage, characters, history, signal, replyInfo);
+        // 去重并确保目标角色在最前面
+        const combined = [targetIdx, ...otherIndices.filter(i => i !== targetIdx)];
+        return combined;
+      }
+    }
+
+    return await routeMessageByLLM(userMessage, characters, history, signal, null);
+  }
+
+  async function routeMessageByLLM(userMessage, characters, history, signal, replyInfo) {
     const charSummaries = characters.map((c, i) => `${i + 1}. ${c.name}：${c.summary || c.personality || '无描述'}`).join('\n');
+
+    let extraRule = '';
+    if (replyInfo) {
+      extraRule = `\n8. 用户正在回复${replyInfo.characterName}，${replyInfo.characterName}已经在回答中，不需要再选它`;
+    }
 
     const messages = [
       {
@@ -440,7 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
 4. 如果消息只和某个角色相关，只选那个
 5. 如果消息是泛泛的（如打招呼），可以选所有角色
 6. 至少选一个角色回答
-7. 场景设定优先：如果用户说某个角色"不在"、"还没来"、"在外面"，即使话题与该角色相关，也不要选该角色
+7. 场景设定优先：如果用户说某个角色"不在"、"还没来"、"在外面"，即使话题与该角色相关，也不要选该角色${extraRule}
 只输出 JSON 数组，包含角色编号，例如 [1] 或 [1,2]，不要输出其他内容。`
       },
       {
@@ -562,14 +583,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // 编排主函数（流式）
   async function orchestrateGroupChat(userMessage, characters, history, options = {}) {
-    const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model } = options;
+    const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo } = options;
     const allReplies = [];
-    const MAX_ROUNDS = 3; // 最大互动轮数，防止无限循环
+    const MAX_ROUNDS = 3;
 
     // Step 1: 路由判断
     let speakerIndices;
     try {
-      speakerIndices = await routeMessage(userMessage, characters, history, signal);
+      speakerIndices = await routeMessage(userMessage, characters, history, signal, replyInfo);
     } catch (e) {
       if (e.name === 'AbortError') return allReplies;
       throw e;
@@ -755,6 +776,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const closeCharacterSelectBtn = document.getElementById('closeCharacterSelectBtn');
   if (closeCharacterSelectBtn) closeCharacterSelectBtn.addEventListener('click', () => { if (characterSelectPanel) characterSelectPanel.classList.add('hidden'); });
   if (characterSelectPanel) characterSelectPanel.addEventListener('click', (e) => { if (e.target === characterSelectPanel) characterSelectPanel.classList.add('hidden'); });
+
+  // 回复引用条事件
+  const replyBarCancel = document.getElementById('replyBarCancel');
+  if (replyBarCancel) replyBarCancel.addEventListener('click', hideReplyBar);
   if (openCharacterFromGroupBtn) openCharacterFromGroupBtn.addEventListener('click', () => {
     closeCreateGroupPanel();
     openCharacterPanel();
@@ -892,6 +917,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
   const chatIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
+  const replyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>`;
 
   // 搜索功能元素
   const searchToggleBtn = document.getElementById('searchToggleBtn');
@@ -1956,6 +1982,16 @@ ${original}`
       });
     });
 
+    document.querySelectorAll('.reply-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const charId = this.dataset.charId;
+        const charName = this.dataset.charName;
+        const snippet = this.dataset.snippet;
+        showReplyBar(charId, charName, snippet);
+        input.focus();
+      });
+    });
+
     document.querySelectorAll('.prev-version-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         if (this.classList.contains('disabled')) return;
@@ -2064,6 +2100,7 @@ ${original}`
 
         let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
         buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+        buttonsHtml += `<button class="reply-btn" data-index="${i}" data-char-id="${m.characterId || ''}" data-char-name="${escapeHtml(m.characterName || '角色')}" data-snippet="${escapeHtml((m.content || '').slice(0, 50))}" title="回复">${replyIconSvg}</button>`;
 
         const displayName = m.characterName || '角色';
         msgBox.innerHTML = `
@@ -2099,6 +2136,12 @@ ${original}`
           }
         }
 
+        // 群聊用户消息：回复引用条
+        let replyQuoteHtml = '';
+        if (isUser && isGroupChat && m.replyTo) {
+          replyQuoteHtml = `<div class="reply-quote">回复 <strong>${escapeHtml(m.replyTo.characterName || '角色')}</strong>：<span class="reply-quote-text">${escapeHtml(m.replyTo.snippet || '')}</span></div>`;
+        }
+
         let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
         if (isAssistant) {
           buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
@@ -2122,7 +2165,7 @@ ${original}`
           `;
         }
 
-        msgBox.innerHTML = singleCharLabelHtml + versionHtml + buttonsHtml;
+        msgBox.innerHTML = replyQuoteHtml + singleCharLabelHtml + versionHtml + buttonsHtml;
 
         if (isAssistant && m.reasoningContent) {
           const details = document.createElement('details');
@@ -2362,6 +2405,23 @@ ${original}`
     closeCharacterPanel();
     input.focus();
     return newId;
+  }
+
+  // ========== 回复引用条 ==========
+  let replyTarget = null; // { characterId, characterName, snippet }
+
+  function showReplyBar(charId, charName, snippet) {
+    replyTarget = { characterId: charId, characterName: charName, snippet: snippet };
+    const bar = document.getElementById('replyBar');
+    document.getElementById('replyBarCharName').textContent = charName;
+    document.getElementById('replyBarSnippet').textContent = snippet.length > 40 ? snippet.slice(0, 40) + '...' : snippet;
+    bar.classList.remove('hidden');
+  }
+
+  function hideReplyBar() {
+    replyTarget = null;
+    const bar = document.getElementById('replyBar');
+    if (bar) bar.classList.add('hidden');
   }
 
   function openCharacterSelectPanel() {
@@ -2684,7 +2744,11 @@ ${original}`
 
     // 群聊分支
     if (currentTab.type === 'group' && currentTab.characterIds && currentTab.characterIds.length > 0) {
-      currentMsgs.push({ role: "user", content: text });
+      const userMsg = { role: "user", content: text };
+      if (replyTarget) {
+        userMsg.replyTo = { characterId: replyTarget.characterId, characterName: replyTarget.characterName, snippet: replyTarget.snippet };
+      }
+      currentMsgs.push(userMsg);
       tabData.list[sendingTabId].messages = currentMsgs;
       saveTabs();
       renderChat();
@@ -2692,8 +2756,10 @@ ${original}`
       input.value = "";
       autoHeight();
       updateInputCounter();
+      const replyInfo = replyTarget ? { ...replyTarget } : null;
+      hideReplyBar();
 
-      await sendGroupMessage(sendingTabId, text);
+      await sendGroupMessage(sendingTabId, text, replyInfo);
 
       if (isFirstMessage && tabData.active === sendingTabId) {
         generateTitleForCurrentTab();
@@ -2722,7 +2788,7 @@ ${original}`
   }
 
   // ========== 群聊消息发送 ==========
-  async function sendGroupMessage(tabId, userMessage) {
+  async function sendGroupMessage(tabId, userMessage, replyInfo) {
     isSending = true;
     sendBtn.textContent = "停止";
     sendBtn.classList.add("stop-mode");
@@ -2747,6 +2813,7 @@ ${original}`
     try {
       const replies = await orchestrateGroupChat(userMessage, characters, history, {
         signal,
+        replyInfo,
         model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
         onCharacterStart(character, idx) {
           // 创建角色消息 DOM

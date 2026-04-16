@@ -199,6 +199,13 @@
       </label>
       <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
     </div>
+    <div id="replyBar" class="reply-bar hidden">
+      <div class="reply-bar-content">
+        <span class="reply-bar-text">回复 <strong id="replyBarCharName"></strong></span>
+        <span class="reply-bar-snippet" id="replyBarSnippet"></span>
+      </div>
+      <button id="replyBarCancel" class="reply-bar-cancel" title="取消回复">&times;</button>
+    </div>
     <div class="input-wrapper">
       <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
       <button id="sendBtn">发送</button>
