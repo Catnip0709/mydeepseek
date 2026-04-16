@@ -274,19 +274,11 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
         </div>
         <div class="character-actions">
-          <button class="prompt-icon-btn character-chat-btn" data-id="${char.id}" title="单独聊天">${chatIconSvg}</button>
           <button class="prompt-icon-btn character-edit-btn" data-id="${char.id}" title="编辑">${editIconSvg}</button>
           <button class="prompt-icon-btn character-delete-btn delete" data-id="${char.id}" title="删除">${deleteIconSvg}</button>
         </div>
       `;
       characterListEl.appendChild(div);
-    });
-
-    document.querySelectorAll('.character-chat-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const char = getCharacterById(this.dataset.id);
-        if (char) createCharacterChatTab(char.id);
-      });
     });
 
     document.querySelectorAll('.character-edit-btn').forEach(btn => {
@@ -916,7 +908,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const checkIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
   const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
   const renameIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>`;
-  const chatIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
   const replyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>`;
 
   // 搜索功能元素
