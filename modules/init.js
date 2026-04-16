@@ -1,0 +1,201 @@
+/**
+ * init.js — 应用入口模块
+ *
+ * 负责初始化调用、全局事件绑定、数据修复逻辑。
+ * 所有模块在此汇聚，由 index.html 作为 ES Module 入口加载。
+ */
+
+import { state } from './state.js';
+import { trackEvent } from './utils.js';
+import { initializeData, repairData, flushPendingSaveImmediately } from './storage.js';
+import { register } from './core.js';
+import { renderChat, cancelEdit, checkScrollButton, rebindChatButtons, updateInputCounter } from './chat.js';
+import { renderTabs, invalidateTabCache } from './tabs.js';
+import {
+  closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
+  showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar
+} from './panels.js';
+import { bindSettingsEvents } from './settings.js';
+import { bindTabEvents } from './tabs.js';
+import { bindChatEvents } from './chat.js';
+import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel } from './groupchat.js';
+import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js';
+import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js';
+import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js';
+import { bindSearchEvents, clearSearch } from './search.js';
+
+// ========== 注册跨模块函数到 core ==========
+
+register('renderChat', renderChat);
+register('rebindChatButtons', rebindChatButtons);
+register('updateInputCounter', updateInputCounter);
+register('renderTabs', renderTabs);
+register('invalidateTabCache', invalidateTabCache);
+register('getCharacterColor', getCharacterColor);
+register('getCharacterById', getCharacterById);
+register('createCharacterChatTab', createCharacterChatTab);
+register('openCharacterSelectPanel', openCharacterSelectPanel);
+register('openCharacterPanel', openCharacterPanel);
+register('openCreateGroupPanel', openCreateGroupPanel);
+
+// ========== 初始化 ==========
+
+function init() {
+  try {
+    // 事件埋点
+    trackEvent('访问页面');
+
+    // 数据初始化与修复
+    initializeData();
+
+    // 检查 API Key
+    const keyPanel = document.getElementById("keyPanel");
+    const apiKeyInput = document.getElementById("apiKeyInput");
+    if (!state.apiKey) {
+      keyPanel.classList.remove("hidden");
+    } else {
+      apiKeyInput.value = state.apiKey;
+    }
+
+    // 日间模式初始化
+    const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
+    const savedDayMode = localStorage.getItem("dsDayMode") === "true";
+    if (settingsDayModeToggle) {
+      settingsDayModeToggle.checked = savedDayMode;
+    }
+    if (savedDayMode) {
+      document.body.classList.add("day-mode");
+    }
+
+    // Token 预估显示初始化
+    const settingsTokenEstimateToggle = document.getElementById('settingsTokenEstimateToggle');
+    const showTokenEstimate = localStorage.getItem("dsShowTokenEstimate") !== "false";
+    if (settingsTokenEstimateToggle) {
+      settingsTokenEstimateToggle.checked = showTokenEstimate;
+    }
+    if (!showTokenEstimate) {
+      document.body.classList.add("hide-token-estimate");
+    }
+
+    // 字号初始化
+    const savedFontSize = localStorage.getItem("dsFontSize") || "default";
+    applyFontSize(savedFontSize);
+    if (document.querySelector('.font-size-option')) {
+      updateFontSizeButtons(savedFontSize);
+    }
+
+    // 绑定所有事件
+    bindSettingsEvents();
+    bindTabEvents();
+    bindChatEvents();
+    bindGroupChatEvents();
+    bindCharacterEvents();
+    bindPromptEvents();
+    bindMarketEvents();
+    bindSearchEvents();
+
+    // 全局事件：visibilitychange
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        state.lastPageHiddenAt = Date.now();
+        if (state.isSending && state.abortController) {
+          state.shouldToastOnVisible = true;
+          state.abortReason = 'background';
+          if (state.abortController) {
+            try { state.abortController.abort(); } catch (_) {}
+          }
+        }
+        return;
+      }
+
+      if (state.shouldToastOnVisible) {
+        state.shouldToastOnVisible = false;
+        showToast('已从后台返回：刚才的生成已中断，可点击"重新生成"继续');
+      }
+    });
+
+    // 全局事件：触摸手势
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    document.addEventListener('touchstart', e => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+      touchEndX = e.changedTouches[0].screenX;
+      const swipeDist = touchEndX - touchStartX;
+      if (swipeDist > 50 && touchStartX < 30 && !state.isSidebarOpen) {
+        openSidebar();
+      }
+      if (swipeDist < -50 && state.isSidebarOpen) {
+        closeSidebar();
+      }
+    }, { passive: true });
+
+    // 全局事件：ESC 键关闭面板（统一处理）
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        // 优先检查搜索面板是否打开
+        const searchBox = document.getElementById('searchBox');
+        if (searchBox && !searchBox.classList.contains('hidden')) {
+          clearSearch();
+          return;
+        }
+
+        const settingsPanel = document.getElementById('settingsPanel');
+        const editPanel = document.getElementById('editPanel');
+        const renameTabPanel = document.getElementById('renameTabPanel');
+        const confirmPanel = document.getElementById('confirmPanel');
+        const promptOptimizePreviewPanel = document.getElementById('promptOptimizePreviewPanel');
+        const promptPanel = document.getElementById('promptPanel');
+        const characterPanel = document.getElementById('characterPanel');
+        const createGroupPanel = document.getElementById('createGroupPanel');
+        const characterSelectPanel = document.getElementById('characterSelectPanel');
+        const infoPanel = document.getElementById('infoPanel');
+        const donatePanel = document.getElementById('donatePanel');
+        const downloadPanel = document.getElementById('downloadPanel');
+        const promptMarketPanel = document.getElementById('promptMarketPanel');
+        const aiGeneratePromptPanel = document.getElementById('aiGeneratePromptPanel');
+
+        if (settingsPanel && !settingsPanel.classList.contains('hidden')) closeSettingsPanel();
+        if (editPanel && !editPanel.classList.contains('hidden')) cancelEdit();
+        if (renameTabPanel && !renameTabPanel.classList.contains('hidden')) closeRenameTabPanel();
+        if (confirmPanel && !confirmPanel.classList.contains('hidden')) closeConfirmModal(false);
+        if (promptOptimizePreviewPanel && !promptOptimizePreviewPanel.classList.contains('hidden')) closeOptimizePreviewPanel();
+        if (promptPanel && !promptPanel.classList.contains('hidden')) closePromptPanel();
+        if (characterPanel && !characterPanel.classList.contains('hidden')) closeCharacterPanel();
+        if (createGroupPanel && !createGroupPanel.classList.contains('hidden')) closeCreateGroupPanel();
+        if (characterSelectPanel && !characterSelectPanel.classList.contains('hidden')) characterSelectPanel.classList.add('hidden');
+        if (infoPanel && !infoPanel.classList.contains('hidden')) infoPanel.classList.add('hidden');
+        if (donatePanel && !donatePanel.classList.contains('hidden')) donatePanel.classList.add('hidden');
+        if (downloadPanel && !downloadPanel.classList.contains('hidden')) closeDownloadPanel();
+        if (promptMarketPanel && !promptMarketPanel.classList.contains('hidden')) closePromptMarketPanel();
+        if (aiGeneratePromptPanel && !aiGeneratePromptPanel.classList.contains('hidden')) closeAiGeneratePanel();
+      }
+    });
+
+    // 页面关闭时立即保存未保存的数据
+    window.addEventListener('beforeunload', flushPendingSaveImmediately);
+
+    // 初始渲染
+    renderTabs();
+    renderChat();
+    setTimeout(checkScrollButton, 100);
+    const input = document.getElementById("input");
+    if (input) input.focus();
+
+  } catch (e) {
+    console.error('MyDeepSeek 初始化失败:', e);
+    try {
+      repairData();
+    } catch (repairErr) {
+      console.error('数据修复失败，执行重置:', repairErr);
+      localStorage.removeItem("dsTabs");
+      location.reload();
+    }
+  }
+}
+
+// 启动应用
+init();

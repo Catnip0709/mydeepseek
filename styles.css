@@ -890,8 +890,6 @@ body.search-active #emptyChatHint {
       }
       .settings-save-key-btn {
         grid-column: 1 / -1;
-      }
-      .settings-save-key-btn {
         min-width: 54px;
         padding-left: 12px !important;
         padding-right: 12px !important;
@@ -1539,9 +1537,7 @@ body.day-mode #settingsCloseBtn {
 body.day-mode #settingsCloseBtn:hover {
   background: #e5e7eb !important;
 }
-body.day-mode #fontSizePreview {
-  color: #374151 !important;
-}
+
 body.day-mode .settings-day-mode-container {
   background: #f9fafb !important;
   border-color: #e5e7eb !important;
@@ -2044,22 +2040,6 @@ body.day-mode .prompt-market-header button:hover {
   color: #111827 !important;
 }
 
-body.day-mode .prompt-market-refresh-btn {
-  background: rgba(0, 0, 0, 0.06) !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  color: #4b5563 !important;
-}
-
-body.day-mode .prompt-market-refresh-btn:hover {
-  background: rgba(0, 0, 0, 0.1) !important;
-  color: #111827 !important;
-}
-
-body.day-mode .prompt-market-content {
-  background: #f9fafb !important;
-  border-color: #e5e7eb !important;
-  color: #374151 !important;
-}
 
 body.day-mode .prompt-market-content:focus {
   border-color: rgba(59, 130, 246, 0.35) !important;
@@ -2134,13 +2114,7 @@ body.day-mode #aiGeneratePromptPanel .text-gray-500 {
   }
 }
 
-/* 日间模式下的按钮 */
-body.day-mode .prompt-market-footer .prompt-add-btn {
-  background: #2563eb !important;
-}
-body.day-mode .prompt-market-footer .prompt-add-btn:hover {
-  background: #1d4ed8 !important;
-}
+
 
 /* ========== 角色卡样式 ========== */
 .character-item {
@@ -2496,15 +2470,9 @@ body.day-mode .character-item {
 body.day-mode .character-item:hover {
   border-color: #d1d5db;
 }
-body.day-mode .character-item-header {
-  /* 继承父级样式 */
-}
-body.day-mode .character-edit-field {
-  /* 继承父级样式 */
-}
-body.day-mode .character-brief-row {
-  /* 继承父级样式 */
-}
+
+
+
 body.day-mode .group-char-select-item {
   border-color: #e5e7eb;
 }
@@ -2515,21 +2483,9 @@ body.day-mode .message-box.character-msg {
   background: #f3f4f6;
   border-left-color: #9ca3af;
 }
-body.day-mode .character-msg-label {
-  /* 继承父级样式 */
-}
-body.day-mode .group-chat-header {
-  /* 继承父级样式 */
-}
-body.day-mode .group-chat-members {
-  /* 继承父级样式 */
-}
-body.day-mode .group-chat-member-tag {
-  /* 继承父级样式 */
-}
-body.day-mode .tab.group-tab .tab-title::before {
-  /* 继承父级样式 */
-}
-body.day-mode .character-actions {
-  /* 继承父级样式 */
-}
+
+
+
+
+
+
