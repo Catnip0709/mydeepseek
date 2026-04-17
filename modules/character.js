@@ -215,6 +215,8 @@ export async function handleAiEnhance() {
 
   aiEnhanceBtn.disabled = true;
   if (aiEnhanceLabel) aiEnhanceLabel.textContent = '生成中';
+  const aiBtnContainer = aiEnhanceBtn.closest('.character-brief-ai-btn');
+  if (aiBtnContainer) aiBtnContainer.classList.add('ai-generating');
 
   try {
     const result = await aiEnhanceCharacter(brief);
@@ -241,6 +243,7 @@ export async function handleAiEnhance() {
   } finally {
     aiEnhanceBtn.disabled = false;
     if (aiEnhanceLabel) aiEnhanceLabel.textContent = 'AI 生成';
+    if (aiBtnContainer) aiBtnContainer.classList.remove('ai-generating');
   }
 }
 

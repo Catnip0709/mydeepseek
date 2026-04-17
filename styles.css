@@ -1835,6 +1835,41 @@ body.day-mode #emptyChatHint .text-gray-500 {
   color: #9ca3af !important;
 }
 
+/* 输入工具栏 - 背景信息按钮（复用 deepthink-chip 风格） */
+.bg-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid #374151;
+  background: #111827;
+  color: #d1d5db;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  font-size: 13px;
+}
+.bg-info-chip:hover {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #f3f4f6;
+}
+.bg-info-chip-text {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* 背景信息面板 textarea */
+#bgInfoStoryInput {
+  resize: vertical;
+  min-height: 80px;
+  max-height: 200px;
+}
+
 /* ========== 指令市场样式 ========== */
 .prompt-market-container {
   width: 92%;
@@ -2186,8 +2221,45 @@ body.day-mode .character-field-label {
 }
 .character-brief-ai-btn {
   position: absolute;
-  bottom: 28px;
+  bottom: 18px;
   right: 8px;
+}
+
+/* AI 生成中 - 金色动态样式 */
+.character-brief-ai-btn.ai-generating .prompt-ai-opt-btn {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.1);
+  animation: ai-generate-pulse 1.5s ease-in-out infinite;
+}
+
+.character-brief-ai-btn.ai-generating .prompt-ai-opt-btn svg {
+  animation: ai-generate-spin 2s linear infinite;
+}
+
+.character-brief-ai-btn.ai-generating .prompt-ai-label {
+  color: #fbbf24;
+  animation: ai-generate-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ai-generate-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes ai-generate-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+body.day-mode .character-brief-ai-btn.ai-generating .prompt-ai-opt-btn {
+  color: #d97706 !important;
+  border-color: rgba(217, 119, 6, 0.5) !important;
+  background: rgba(217, 119, 6, 0.1) !important;
+}
+
+body.day-mode .character-brief-ai-btn.ai-generating .prompt-ai-label {
+  color: #d97706 !important;
 }
 .character-brief-row {
   display: flex;

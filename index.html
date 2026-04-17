@@ -197,6 +197,13 @@
         <span class="deepthink-chip-text">深度思考</span>
         <span class="deepthink-chip-badge">R1</span>
       </label>
+      <button id="openBgInfoBtn" class="bg-info-chip" type="button" title="设定背景信息">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+        </svg>
+        <span class="bg-info-chip-text">背景</span>
+      </button>
       <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
     </div>
     <div id="replyBar" class="reply-bar hidden">
@@ -555,6 +562,32 @@
       <button id="closeCharacterSelectBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
     </div>
     <div id="characterSelectList" class="p-4 space-y-2 max-h-[60vh] overflow-y-auto"></div>
+  </div>
+</div>
+
+<!-- 背景信息面板（通用，所有会话类型可用） -->
+<div id="bgInfoPanel" class="panel-modal hidden">
+  <div class="prompt-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">背景信息</h3>
+      <button id="closeBgInfoBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
+    </div>
+    <div class="prompt-panel-body">
+      <div class="mb-4">
+        <label class="text-gray-300 text-sm mb-2 block">你的角色名称</label>
+        <input id="bgInfoRoleInput" class="prompt-input" type="text" placeholder="例如：旅行者、探险队长、旁白...">
+        <div class="text-xs text-gray-500 mt-1">设定你在对话中的身份名称，AI 会以此称呼你</div>
+      </div>
+      <div class="mb-4">
+        <label class="text-gray-300 text-sm mb-2 block">对话背景</label>
+        <textarea id="bgInfoStoryInput" class="prompt-input" rows="5" placeholder="例如：故事发生在一个魔法学院，新学期刚刚开始，主角们正在大厅等待分院仪式..."></textarea>
+        <div class="text-xs text-gray-500 mt-1">描述当前的场景、时间、地点和正在发生的事情，AI 在后续对话中会始终记住这些信息</div>
+      </div>
+    </div>
+    <div class="prompt-market-footer">
+      <button id="cancelBgInfoBtn" class="btn-gray">取消</button>
+      <button id="saveBgInfoBtn" class="btn-blue">保存</button>
+    </div>
   </div>
 </div>
 

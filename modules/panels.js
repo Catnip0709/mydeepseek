@@ -213,7 +213,15 @@ export function showEmptyChatHint() {
   } else if (emptyChatHintCharName) {
     emptyChatHintCharName.textContent = 'DS老师';
   }
-  if (emptyChatHint) emptyChatHint.classList.remove('hidden');
+
+  // 只在普通对话中显示空对话提示，群聊和角色对话不显示
+  if (emptyChatHint) {
+    if (currentTab && !currentTab.type) {
+      emptyChatHint.classList.remove('hidden');
+    } else {
+      emptyChatHint.classList.add('hidden');
+    }
+  }
 }
 
 export function hideEmptyChatHint() {

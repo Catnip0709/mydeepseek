@@ -18,7 +18,7 @@ import {
 import { bindSettingsEvents } from './settings.js';
 import { bindTabEvents } from './tabs.js';
 import { bindChatEvents } from './chat.js';
-import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel } from './groupchat.js';
+import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js';
 import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js';
 import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js';
 import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js';
@@ -37,6 +37,7 @@ register('createCharacterChatTab', createCharacterChatTab);
 register('openCharacterSelectPanel', openCharacterSelectPanel);
 register('openCharacterPanel', openCharacterPanel);
 register('openCreateGroupPanel', openCreateGroupPanel);
+register('updateBgInfoChip', updateBgInfoChip);
 
 // ========== 初始化 ==========
 
@@ -151,6 +152,7 @@ function init() {
         const promptPanel = document.getElementById('promptPanel');
         const characterPanel = document.getElementById('characterPanel');
         const createGroupPanel = document.getElementById('createGroupPanel');
+        const bgInfoPanel = document.getElementById('bgInfoPanel');
         const characterSelectPanel = document.getElementById('characterSelectPanel');
         const infoPanel = document.getElementById('infoPanel');
         const donatePanel = document.getElementById('donatePanel');
@@ -166,6 +168,7 @@ function init() {
         if (promptPanel && !promptPanel.classList.contains('hidden')) closePromptPanel();
         if (characterPanel && !characterPanel.classList.contains('hidden')) closeCharacterPanel();
         if (createGroupPanel && !createGroupPanel.classList.contains('hidden')) closeCreateGroupPanel();
+        if (bgInfoPanel && !bgInfoPanel.classList.contains('hidden')) closeBgInfoPanel();
         if (characterSelectPanel && !characterSelectPanel.classList.contains('hidden')) characterSelectPanel.classList.add('hidden');
         if (infoPanel && !infoPanel.classList.contains('hidden')) infoPanel.classList.add('hidden');
         if (donatePanel && !donatePanel.classList.contains('hidden')) donatePanel.classList.add('hidden');
@@ -182,6 +185,7 @@ function init() {
     renderTabs();
     renderChat();
     setTimeout(checkScrollButton, 100);
+    updateBgInfoChip();
     const input = document.getElementById("input");
     if (input) input.focus();
 

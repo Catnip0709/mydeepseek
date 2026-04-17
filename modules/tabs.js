@@ -83,14 +83,16 @@ export function renderTabs() {
         coreCall('renderChat');
       }
       // 根据目标 tab 的消息状态正确控制空对话提示
-      const targetMsgs = state.tabData.list[id].messages || [];
-      if (targetMsgs.length === 0) {
+      const targetTab = state.tabData.list[id];
+      const targetMsgs = targetTab.messages || [];
+      if (targetMsgs.length === 0 && !targetTab.type) {
         showEmptyChatHint();
       } else {
         hideEmptyChatHint();
       }
       renderTabs();
       coreCall('updateInputCounter');
+      coreCall('updateBgInfoChip');
       if (window.innerWidth < 768) closeSidebar();
     });
     tabsEl.appendChild(tabDiv);

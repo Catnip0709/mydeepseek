@@ -70,6 +70,15 @@ export async function generateCharacterReply(character, userMessage, history, al
     ? '\n群聊中还有其他角色：' + otherChars.map(c => c.name).join('、')
     : '';
 
+  // 群聊背景信息注入
+  const groupContext = options.groupContext || {};
+  const userRoleInfo = groupContext.userRoleName
+    ? `\n用户在群聊中的角色是「${groupContext.userRoleName}」，请以此称呼用户。`
+    : '';
+  const storyBgInfo = groupContext.storyBackground
+    ? `\n当前故事背景：${groupContext.storyBackground}\n请在回复中自然地融入当前的场景和背景设定。`
+    : '';
+
   const recentHistory = history.slice(-20).map(m => {
     if (m.role === 'user') return `用户：${m.content}`;
     if (m.role === 'character') return `${m.characterName || '角色'}：${m.content}`;
@@ -90,7 +99,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 背景：${character.background || '无'}
 外貌：${character.appearance || '无'}
 说话风格：${character.speakingStyle || '自然'}
-口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}
+口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}${userRoleInfo}${storyBgInfo}
 
 规则：
 1. 严格以${character.name}的身份和性格回复
@@ -170,9 +179,12 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
 // ========== 编排主函数（流式） ==========
 
 export async function orchestrateGroupChat(userMessage, characters, history, options = {}) {
-  const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo } = options;
+  const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo, groupContext } = options;
   const allReplies = [];
   const MAX_ROUNDS = 3;
+
+  // 构建角色回复的公共 options
+  const charOptions = { signal, model, groupContext };
 
   // Step 1: 路由判断
   let speakerIndices;
@@ -193,10 +205,9 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
     let reply;
     try {
       reply = await generateCharacterReply(character, userMessage, history, characters, {
+        ...charOptions,
         stream: !!onCharacterChunk,
         onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(character, idx, chunk) : null,
-        signal,
-        model,
         currentRoundReplies: allReplies
       });
     } catch (e) {
@@ -240,10 +251,9 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
           let reply;
           try {
             reply = await generateCharacterReply(otherChar, userMessage, history, characters, {
+              ...charOptions,
               stream: !!onCharacterChunk,
               onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(otherChar, characters.indexOf(otherChar), chunk) : null,
-              signal,
-              model,
               currentRoundReplies: allReplies
             });
           } catch (e) {
@@ -292,6 +302,12 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     return;
   }
 
+  // 获取群聊背景信息
+  const groupContext = {
+    userRoleName: currentTab.userRoleName || '',
+    storyBackground: currentTab.storyBackground || ''
+  };
+
   const currentMsgs = currentTab.messages || [];
   const history = currentMsgs;
 
@@ -300,6 +316,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       signal,
       replyInfo,
       model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
+      groupContext,
       onCharacterStart(character, idx) {
         const msgIndex = currentMsgs.length;
         const color = coreCall('getCharacterColor', idx);
@@ -376,6 +393,46 @@ export function openCreateGroupPanel() {
 export function closeCreateGroupPanel() {
   const createGroupPanel = document.getElementById('createGroupPanel');
   createGroupPanel.classList.add('hidden');
+}
+
+// ========== 背景信息面板（通用） ==========
+
+export function openBgInfoPanel() {
+  const panel = document.getElementById('bgInfoPanel');
+  const roleInput = document.getElementById('bgInfoRoleInput');
+  const bgInput = document.getElementById('bgInfoStoryInput');
+  const currentTab = state.tabData.list[state.tabData.active];
+
+  if (!currentTab) return;
+
+  roleInput.value = currentTab.userRoleName || '';
+  bgInput.value = currentTab.storyBackground || '';
+  panel.classList.remove('hidden');
+  setTimeout(() => roleInput.focus(), 30);
+}
+
+export function closeBgInfoPanel() {
+  const panel = document.getElementById('bgInfoPanel');
+  if (panel) panel.classList.add('hidden');
+}
+
+export function saveBgInfo() {
+  const roleInput = document.getElementById('bgInfoRoleInput');
+  const bgInput = document.getElementById('bgInfoStoryInput');
+  const currentTab = state.tabData.list[state.tabData.active];
+
+  if (!currentTab) return;
+
+  currentTab.userRoleName = roleInput.value.trim();
+  currentTab.storyBackground = bgInput.value.trim();
+  saveTabs();
+  closeBgInfoPanel();
+  updateBgInfoChip();
+  showToast('背景信息已保存');
+}
+
+export function updateBgInfoChip() {
+  // 按钮样式与深度思考一致，无需根据状态切换样式
 }
 
 export function renderCreateGroupCharacterList() {
@@ -458,4 +515,17 @@ export function bindGroupChatEvents() {
     closeCreateGroupPanel();
     coreCall('openCharacterPanel');
   });
+
+  // 背景信息面板事件
+  const bgInfoPanel = document.getElementById('bgInfoPanel');
+  const closeBgInfoBtn = document.getElementById('closeBgInfoBtn');
+  const cancelBgInfoBtn = document.getElementById('cancelBgInfoBtn');
+  const saveBgInfoBtn = document.getElementById('saveBgInfoBtn');
+  const openBgInfoBtn = document.getElementById('openBgInfoBtn');
+
+  if (closeBgInfoBtn) closeBgInfoBtn.addEventListener('click', closeBgInfoPanel);
+  if (cancelBgInfoBtn) cancelBgInfoBtn.addEventListener('click', closeBgInfoPanel);
+  if (saveBgInfoBtn) saveBgInfoBtn.addEventListener('click', saveBgInfo);
+  if (bgInfoPanel) bgInfoPanel.addEventListener('click', (e) => { if (e.target === bgInfoPanel) closeBgInfoPanel(); });
+  if (openBgInfoBtn) openBgInfoBtn.addEventListener('click', openBgInfoPanel);
 }

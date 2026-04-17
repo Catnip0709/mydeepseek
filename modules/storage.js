@@ -132,14 +132,30 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
     payloadMsgs = payloadMsgs.slice(-limit);
   }
 
-  // 单角色聊天：注入角色 system prompt
   const currentTab = state.tabData.list[state.tabData.active];
+
+  // 构建背景信息（所有会话类型通用）
+  let bgInfoParts = [];
+  if (currentTab && currentTab.userRoleName) {
+    bgInfoParts.push(`用户在对话中的角色是「${currentTab.userRoleName}」，请以此称呼用户。`);
+  }
+  if (currentTab && currentTab.storyBackground) {
+    bgInfoParts.push(`当前对话背景：${currentTab.storyBackground}`);
+  }
+
+  // 单角色聊天：注入角色 system prompt
   if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
     const char = state.characterData.find(c => c.id === currentTab.characterId);
     if (char) {
-      const systemPrompt = buildCharacterSystemPrompt(char);
+      let systemPrompt = buildCharacterSystemPrompt(char);
+      if (bgInfoParts.length > 0) {
+        systemPrompt += '\n\n' + bgInfoParts.join('\n');
+      }
       payloadMsgs.unshift({ role: "system", content: systemPrompt });
     }
+  } else if (bgInfoParts.length > 0) {
+    // 单聊等其他类型：注入背景信息
+    payloadMsgs.unshift({ role: "system", content: bgInfoParts.join('\n') });
   }
 
   return payloadMsgs;
