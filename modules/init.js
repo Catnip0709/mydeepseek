@@ -9,7 +9,7 @@ import { state } from './state.js';
 import { trackEvent } from './utils.js';
 import { initializeData, repairData, flushPendingSaveImmediately } from './storage.js';
 import { register } from './core.js';
-import { renderChat, cancelEdit, checkScrollButton, rebindChatButtons, updateInputCounter } from './chat.js';
+import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
@@ -184,7 +184,7 @@ function init() {
     // 初始渲染
     renderTabs();
     renderChat();
-    setTimeout(checkScrollButton, 100);
+    setTimeout(() => { checkScrollButton(); scrollToBottom(); }, 100);
     updateBgInfoChip();
     const input = document.getElementById("input");
     if (input) input.focus();

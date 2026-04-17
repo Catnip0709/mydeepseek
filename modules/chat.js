@@ -386,6 +386,9 @@ export async function sendMessage() {
     state.tabData.list[sendingTabId].messages = currentMsgs;
     saveTabs();
     renderChat();
+    // 发送消息后立即滚到底部（用 instant 确保 isAtBottom 判断准确）
+    const chatEl = document.getElementById("chat");
+    if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
 
     input.value = "";
     autoHeight();
@@ -409,6 +412,9 @@ export async function sendMessage() {
   state.tabData.list[sendingTabId].messages = currentMsgs;
   saveTabs();
   renderChat();
+  // 发送消息后立即滚到底部（用 instant 确保 isAtBottom 判断准确）
+  const chatEl2 = document.getElementById("chat");
+  if (chatEl2) chatEl2.scrollTop = chatEl2.scrollHeight;
 
   input.value = "";
   autoHeight();
@@ -506,7 +512,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   }
 
-  if (isAtBottom) chat.scrollTop = chat.scrollHeight;
+  if (isAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
 
   let fullContent = "";
   let fullReasoningContent = "";
@@ -600,12 +606,13 @@ export async function fetchAndStreamResponse(opts = {}) {
               renderMarkdown(contentDiv, fullContent);
             }
           }
-
-          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-          if (currentIsAtBottom) chat.scrollTop = chat.scrollHeight;
         } catch (e) {
           continue;
         }
+
+        // 每处理完一个 chunk 后检查是否需要自动滚动
+        const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60;
+        if (currentIsAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
       }
     }
     finalizeMessage(finalizeState);
