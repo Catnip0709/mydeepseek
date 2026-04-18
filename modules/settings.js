@@ -86,8 +86,6 @@ export function bindSettingsEvents() {
   const settingsApiKeyInput = document.getElementById('settingsApiKeyInput');
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
   const settingsTokenEstimateToggle = document.getElementById('settingsTokenEstimateToggle');
-  const settingsMemorySelect = document.getElementById('settingsMemorySelect');
-  const settingsMemoryCustom = document.getElementById('settingsMemoryCustom');
   const menuBtn = document.getElementById('menuBtn');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
   const renameTabCancelBtn = document.getElementById('renameTabCancelBtn');
@@ -183,40 +181,6 @@ export function bindSettingsEvents() {
         document.body.classList.add("hide-token-estimate");
       }
       localStorage.setItem("dsShowTokenEstimate", show.toString());
-    });
-  }
-
-  // 设置 - 记忆条数
-  if (settingsMemorySelect) {
-    settingsMemorySelect.addEventListener("change", (e) => {
-      const val = e.target.value;
-      if (val === "custom") {
-        if (settingsMemoryCustom) {
-          settingsMemoryCustom.classList.remove("hidden");
-          settingsMemoryCustom.focus();
-          const customVal = parseInt(settingsMemoryCustom.value) || 10;
-          settingsMemoryCustom.value = customVal;
-          state.globalMemoryLimit = customVal.toString();
-        }
-      } else {
-        if (settingsMemoryCustom) {
-          settingsMemoryCustom.classList.add("hidden");
-        }
-        state.globalMemoryLimit = val;
-      }
-      localStorage.setItem("dsGlobalMemoryLimit", state.globalMemoryLimit);
-      renderChat();
-    });
-  }
-
-  if (settingsMemoryCustom) {
-    settingsMemoryCustom.addEventListener("input", (e) => {
-      const val = parseInt(e.target.value);
-      if (!isNaN(val) && val >= 0) {
-        state.globalMemoryLimit = val.toString();
-        localStorage.setItem("dsGlobalMemoryLimit", state.globalMemoryLimit);
-        renderChat();
-      }
     });
   }
 

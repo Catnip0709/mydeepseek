@@ -1489,23 +1489,6 @@ body.day-mode #settingsApiKeyInput::placeholder {
 body.day-mode #settingsApiKeyInput:focus {
   border-color: #3b82f6 !important;
 }
-body.day-mode #settingsMemorySelect,
-body.day-mode #settingsMemoryCustom {
-  background: #f9fafb !important;
-  border-color: #d1d5db !important;
-  color: #111827 !important;
-}
-body.day-mode #settingsMemorySelect:focus,
-body.day-mode #settingsMemoryCustom:focus {
-  border-color: #3b82f6 !important;
-}
-body.day-mode #settingsMemorySelect option {
-  background: #ffffff !important;
-  color: #111827 !important;
-}
-body.day-mode #settingsMemoryCustom::placeholder {
-  color: #9ca3af !important;
-}
 body.day-mode #settingsSaveKeyBtn {
   background: #3b82f6 !important;
   color: white !important;

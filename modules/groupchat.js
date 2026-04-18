@@ -78,6 +78,9 @@ export async function generateCharacterReply(character, userMessage, history, al
   const storyBgInfo = groupContext.storyBackground
     ? `\n当前故事背景：${groupContext.storyBackground}\n请在回复中自然地融入当前的场景和背景设定。`
     : '';
+  const summaryInfo = groupContext.summary
+    ? `\n\n【对话记忆摘要】\n${groupContext.summary}`
+    : '';
 
   const recentHistory = history.slice(-20).map(m => {
     if (m.role === 'user') return `用户：${m.content}`;
@@ -99,7 +102,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 背景：${character.background || '无'}
 外貌：${character.appearance || '无'}
 说话风格：${character.speakingStyle || '自然'}
-口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}${userRoleInfo}${storyBgInfo}
+口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}${userRoleInfo}${storyBgInfo}${summaryInfo}
 
 规则：
 1. 严格以${character.name}的身份和性格回复
@@ -302,10 +305,11 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     return;
   }
 
-  // 获取群聊背景信息
+  // 获取群聊背景信息 + 摘要
   const groupContext = {
     userRoleName: currentTab.userRoleName || '',
-    storyBackground: currentTab.storyBackground || ''
+    storyBackground: currentTab.storyBackground || '',
+    summary: currentTab.summary || ''
   };
 
   const currentMsgs = currentTab.messages || [];
@@ -373,6 +377,11 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     sendBtn.classList.remove("stop-mode");
     state.abortController = null;
     coreCall('renderChat');
+
+    // 异步检查是否需要生成/更新摘要
+    import('./summary.js').then(({ checkAndGenerateSummary }) => {
+      checkAndGenerateSummary(tabId).catch(() => {});
+    });
   }
 }
 

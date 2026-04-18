@@ -52,38 +52,40 @@ export function isStorageFull() {
 // ========== 数据保存（防抖） ==========
 
 let _saveDebounceTimer = null;
-let _pendingSaveType = null; // 'tabs' | 'characters' | 'prompts' | null
+let _pendingSaveTypes = new Set(); // 支持多种类型同时待保存
 const SAVE_DEBOUNCE_MS = 300;
 
 function _flushPendingSave() {
-  if (_pendingSaveType === 'tabs') {
+  if (_pendingSaveTypes.has('tabs')) {
     localStorage.setItem("dsTabs", JSON.stringify(state.tabData));
-  } else if (_pendingSaveType === 'characters') {
+  }
+  if (_pendingSaveTypes.has('characters')) {
     localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
-  } else if (_pendingSaveType === 'prompts') {
+  }
+  if (_pendingSaveTypes.has('prompts')) {
     localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
   }
-  if (_pendingSaveType) {
+  if (_pendingSaveTypes.size > 0) {
     updateStorageUsage();
   }
-  _pendingSaveType = null;
+  _pendingSaveTypes.clear();
   _saveDebounceTimer = null;
 }
 
 export function saveTabs() {
-  _pendingSaveType = 'tabs';
+  _pendingSaveTypes.add('tabs');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function saveCharacters() {
-  _pendingSaveType = 'characters';
+  _pendingSaveTypes.add('characters');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function savePrompts() {
-  _pendingSaveType = 'prompts';
+  _pendingSaveTypes.add('prompts');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
@@ -122,17 +124,22 @@ export function getTabDisplayName(id) {
 // ========== 构建发送给 LLM 的消息列表 ==========
 
 export function buildPayloadMessages(messages, endExclusive = messages.length) {
-  let payloadMsgs = messages.slice(0, endExclusive).map(m => ({
-    role: m.role,
-    content: m.content
-  }));
-
-  const limit = parseInt(state.globalMemoryLimit || "0");
-  if (limit > 0 && payloadMsgs.length > limit) {
-    payloadMsgs = payloadMsgs.slice(-limit);
-  }
-
   const currentTab = state.tabData.list[state.tabData.active];
+
+  // 有摘要时：只取摘要覆盖位置之后的消息
+  let payloadMsgs;
+  if (currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0) {
+    const startIdx = Math.min(currentTab.summaryCoversUpTo, endExclusive);
+    payloadMsgs = messages.slice(startIdx, endExclusive).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+  } else {
+    payloadMsgs = messages.slice(0, endExclusive).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+  }
 
   // 构建背景信息（所有会话类型通用）
   let bgInfoParts = [];
@@ -143,19 +150,31 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
     bgInfoParts.push(`当前对话背景：${currentTab.storyBackground}`);
   }
 
-  // 单角色聊天：注入角色 system prompt
+  // 单角色聊天：注入角色 system prompt + 摘要
   if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
     const char = state.characterData.find(c => c.id === currentTab.characterId);
     if (char) {
       let systemPrompt = buildCharacterSystemPrompt(char);
+      if (currentTab.summary) {
+        systemPrompt += `\n\n【对话记忆摘要】\n${currentTab.summary}`;
+      }
       if (bgInfoParts.length > 0) {
         systemPrompt += '\n\n' + bgInfoParts.join('\n');
       }
       payloadMsgs.unshift({ role: "system", content: systemPrompt });
     }
-  } else if (bgInfoParts.length > 0) {
-    // 单聊等其他类型：注入背景信息
-    payloadMsgs.unshift({ role: "system", content: bgInfoParts.join('\n') });
+  } else {
+    // 单聊等其他类型：注入摘要 + 背景信息
+    let systemParts = [];
+    if (currentTab && currentTab.summary) {
+      systemParts.push(`【对话记忆摘要】\n${currentTab.summary}`);
+    }
+    if (bgInfoParts.length > 0) {
+      systemParts.push(...bgInfoParts);
+    }
+    if (systemParts.length > 0) {
+      payloadMsgs.unshift({ role: "system", content: systemParts.join('\n\n') });
+    }
   }
 
   return payloadMsgs;
@@ -183,6 +202,9 @@ export function buildUserInputMeta(messages, userIndex) {
   const currentMessage = messages[userIndex];
   if (!currentMessage || currentMessage.role !== 'user') return null;
 
+  const currentTab = state.tabData.list[state.tabData.active];
+  const hasSummary = currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0;
+
   const payloadMsgs = buildPayloadMessages(messages, userIndex + 1);
   const inputChars = countChars(currentMessage.content);
   const inputTokens = estimateTokensByChars(inputChars);
@@ -194,7 +216,8 @@ export function buildUserInputMeta(messages, userIndex) {
     inputChars,
     inputTokens,
     historyTokens,
-    totalInputTokens: inputTokens + historyTokens
+    totalInputTokens: inputTokens + historyTokens,
+    hasSummary
   };
 }
 
@@ -216,10 +239,12 @@ export function initializeData() {
   // 修复 tabData 结构
   Object.keys(state.tabData.list).forEach(id => {
     if (Array.isArray(state.tabData.list[id])) {
-      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "" };
+      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0 };
     } else {
       if (typeof state.tabData.list[id].title === 'undefined') state.tabData.list[id].title = "";
       if (typeof state.tabData.list[id].memoryLimit === 'undefined') state.tabData.list[id].memoryLimit = "0";
+      if (typeof state.tabData.list[id].summary === 'undefined') state.tabData.list[id].summary = "";
+      if (typeof state.tabData.list[id].summaryCoversUpTo === 'undefined') state.tabData.list[id].summaryCoversUpTo = 0;
       if (!Array.isArray(state.tabData.list[id].messages)) state.tabData.list[id].messages = [];
     }
 
@@ -243,11 +268,13 @@ export function repairData() {
     Object.keys(parsed.list).forEach(function(id) {
       const tab = parsed.list[id];
       if (Array.isArray(tab)) {
-        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "" };
+        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0 };
       } else {
         tab.messages = Array.isArray(tab.messages) ? tab.messages : [];
         tab.memoryLimit = tab.memoryLimit || "0";
         tab.title = tab.title || "";
+        tab.summary = tab.summary || "";
+        tab.summaryCoversUpTo = tab.summaryCoversUpTo || 0;
         tab.messages.forEach(function(msg) {
           if (!msg.role) msg.role = 'user';
           if (!msg.content) msg.content = '';

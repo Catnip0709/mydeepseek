@@ -5,7 +5,7 @@
  */
 
 import { state } from './state.js';
-import { escapeHtml, copyText, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js';
+import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js';
 import { savePrompts } from './storage.js';
 import { showToast, closeSidebar, showConfirmModal } from './panels.js';
 import { createNewTab } from './tabs.js';
@@ -134,14 +134,21 @@ export function renderPromptList() {
   });
 
   document.querySelectorAll('.prompt-delete-btn2').forEach(btn => {
-    btn.addEventListener('click', function() {
+    btn.addEventListener('click', async function() {
       const id = this.dataset.id;
       const item = state.promptData.find(p => p.id === id);
       if (!item) return;
-      if (!confirm(`确定删除指令「${item.title || '未命名指令'}」吗？`)) return;
-      state.promptData = state.promptData.filter(p => p.id !== id);
-      savePrompts();
-      renderPromptList();
+      const confirmed = await showConfirmModal({
+        title: '确认删除',
+        desc: `确定删除指令「${item.title || '未命名指令'}」吗？`,
+        okText: '确认',
+        cancelText: '取消'
+      });
+      if (confirmed) {
+        state.promptData = state.promptData.filter(p => p.id !== id);
+        savePrompts();
+        renderPromptList();
+      }
     });
   });
 }
@@ -171,7 +178,7 @@ function savePromptItem() {
   const content = promptContentInput.value.trim();
 
   if (!content) {
-    alert('请输入指令内容');
+    showToast('请输入指令内容');
     promptContentInput.focus();
     return;
   }
@@ -182,6 +189,9 @@ function savePromptItem() {
       state.promptData[idx].title = title;
       state.promptData[idx].content = content;
       state.promptData[idx].updatedAt = Date.now();
+    } else {
+      showToast('该指令已被删除，无法保存');
+      state.editingPromptId = null;
     }
   } else {
     state.promptData.unshift({
@@ -248,7 +258,7 @@ export async function optimizePromptWithAI() {
     promptOptimizePreviewPanel.classList.remove('hidden');
   } catch (e) {
     console.error(e);
-    alert('AI 优化失败：' + e.message);
+    showToast('AI 优化失败：' + e.message);
   } finally {
     state.optimizeInProgress = false;
     optimizePromptBtn.disabled = false;

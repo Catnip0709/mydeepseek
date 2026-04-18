@@ -74,9 +74,6 @@ export const state = {
   searchResults: [],
   currentSearchIndex: -1,
 
-  // 全局记忆限制
-  globalMemoryLimit: localStorage.getItem("dsGlobalMemoryLimit") || "0",
-
   // 群聊角色选择
   selectedGroupCharacterIds: new Set(),
 

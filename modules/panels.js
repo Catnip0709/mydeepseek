@@ -74,8 +74,6 @@ export function closeSidebar() {
 export function openSettingsPanel() {
   const settingsApiKeyInput = document.getElementById('settingsApiKeyInput');
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
-  const settingsMemorySelect = document.getElementById('settingsMemorySelect');
-  const settingsMemoryCustom = document.getElementById('settingsMemoryCustom');
   const settingsPanel = document.getElementById('settingsPanel');
 
   if (settingsApiKeyInput) {
@@ -87,22 +85,6 @@ export function openSettingsPanel() {
     settingsDayModeToggle.checked = currentDayMode;
   }
   updateFontSizeButtons(currentFontSize);
-
-  const currentMemoryLimit = state.globalMemoryLimit;
-  if (settingsMemorySelect) {
-    if (["0", "200", "100", "50"].includes(currentMemoryLimit)) {
-      settingsMemorySelect.value = currentMemoryLimit;
-      if (settingsMemoryCustom) {
-        settingsMemoryCustom.classList.add("hidden");
-      }
-    } else {
-      settingsMemorySelect.value = "custom";
-      if (settingsMemoryCustom) {
-        settingsMemoryCustom.value = currentMemoryLimit;
-        settingsMemoryCustom.classList.remove("hidden");
-      }
-    }
-  }
 
   if (settingsPanel) {
     settingsPanel.classList.remove("hidden");

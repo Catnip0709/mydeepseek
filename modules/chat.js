@@ -13,6 +13,7 @@ import {
   saveTabs, buildPayloadMessages, buildUserInputMeta,
   isTokenLimitReached, isStorageFull
 } from './storage.js';
+import { checkAndGenerateSummary, clearSummary } from './summary.js';
 import { renderMarkdown } from './markdown.js';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
@@ -62,8 +63,13 @@ function handleChatClick(e) {
   if (deleteBtn) {
     const index = parseInt(deleteBtn.getAttribute('data-index'));
     if (confirm("确定删除这条消息吗？")) {
+      const activeTab = state.tabData.list[state.tabData.active];
       coreCall('invalidateTabCache', state.tabData.active);
-      state.tabData.list[state.tabData.active].messages.splice(index, 1);
+      activeTab.messages.splice(index, 1);
+      // 删除摘要覆盖范围内的消息时，清除摘要
+      if (activeTab.summaryCoversUpTo > 0 && index < activeTab.summaryCoversUpTo) {
+        clearSummary(state.tabData.active);
+      }
       saveTabs();
       renderChat();
     }
@@ -287,7 +293,8 @@ export function renderChat() {
         if (userInputMeta) {
           const metaDiv = document.createElement('div');
           metaDiv.className = "message-meta user-input-meta mt-2 text-xs";
-          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} tokens；历史记忆约 ${userInputMeta.historyTokens} tokens；本轮输入共约 ${userInputMeta.totalInputTokens} tokens`;
+          const summaryLabel = userInputMeta.hasSummary ? '（含摘要）' : '';
+          metaDiv.textContent = `本次正文 ${userInputMeta.inputChars} 字，约 ${userInputMeta.inputTokens} tokens；历史记忆约 ${userInputMeta.historyTokens} tokens${summaryLabel}；本轮输入共约 ${userInputMeta.totalInputTokens} tokens`;
           msgBox.appendChild(metaDiv);
         }
       }
@@ -317,7 +324,7 @@ export function renderChat() {
     const warningDiv = document.createElement("div");
     warningDiv.className = "text-xs text-gray-500 text-center mt-6 mb-4 px-2";
     warningDiv.innerHTML = `
-      当前对话框上下文即将达到上限。建议总结并开启新对话，或调整对话记忆条数：<br>
+      当前对话框上下文即将达到上限。建议总结并开启新对话：<br>
       <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
         <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约2000字）。</span>
         <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">
@@ -651,6 +658,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     sendBtn.textContent = "发送";
     sendBtn.classList.remove("stop-mode");
     state.abortController = null;
+
+    // 异步检查是否需要生成/更新摘要（不阻塞对话）
+    checkAndGenerateSummary(lockedTabId).catch(() => {});
   }
 
   function finalizeMessage(fState = "complete") {
@@ -691,6 +701,10 @@ export async function saveEditAndRegenerate() {
   const messagesToKeep = currentMsgs.slice(0, editIdx + 1);
   messagesToKeep[editIdx].content = newContent;
   currentTab.messages = messagesToKeep;
+  // 编辑消息后，如果编辑位置在摘要覆盖范围内，清除摘要
+  if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
+    clearSummary(state.tabData.active);
+  }
   saveTabs();
 
   editPanel.classList.add("hidden");
