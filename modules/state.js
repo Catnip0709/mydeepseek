@@ -15,6 +15,44 @@ if (!_dsUserId) {
   localStorage.setItem('ds_user_id', _dsUserId);
 }
 
+function readJsonWithFallback(key, fallbackFactory, options = {}) {
+  const {
+    validate = () => true,
+    resetMessage = `${key} 数据损坏，已重置`,
+    persistFallback = true
+  } = options;
+
+  const fallbackValue = fallbackFactory();
+  const raw = localStorage.getItem(key);
+  if (raw == null) {
+    if (persistFallback) localStorage.setItem(key, JSON.stringify(fallbackValue));
+    return fallbackValue;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (validate(parsed)) return parsed;
+    console.warn(`${resetMessage}：数据结构无效`);
+  } catch (e) {
+    console.warn(`${resetMessage}:`, e);
+  }
+
+  if (persistFallback) localStorage.setItem(key, JSON.stringify(fallbackValue));
+  return fallbackValue;
+}
+
+function buildDefaultTabData() {
+  const oldMsgs = readJsonWithFallback(
+    'dsMessages',
+    () => [],
+    {
+      validate: Array.isArray,
+      resetMessage: 'dsMessages 数据损坏，已重置'
+    }
+  );
+  return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "" } } };
+}
+
 // 集中的可变状态对象
 export const state = {
   // 用户ID
@@ -24,32 +62,34 @@ export const state = {
   apiKey: localStorage.getItem("dsApiKey"),
 
   // Tab 数据
-  tabData: JSON.parse(localStorage.getItem("dsTabs")) || (() => {
-    const oldMsgs = JSON.parse(localStorage.getItem("dsMessages")) || [];
-    return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "" } } };
-  })(),
+  tabData: readJsonWithFallback(
+    'dsTabs',
+    buildDefaultTabData,
+    {
+      validate: value => !!(value && typeof value === 'object' && value.list && typeof value.list === 'object'),
+      resetMessage: 'dsTabs 数据损坏，已重置为空白会话'
+    }
+  ),
 
   // 角色卡数据
-  characterData: (() => {
-    try {
-      const rawCharData = JSON.parse(localStorage.getItem('dsCharacters'));
-      return Array.isArray(rawCharData) ? rawCharData : [];
-    } catch (e) {
-      console.warn('dsCharacters 数据损坏，已重置:', e);
-      return [];
+  characterData: readJsonWithFallback(
+    'dsCharacters',
+    () => [],
+    {
+      validate: Array.isArray,
+      resetMessage: 'dsCharacters 数据损坏，已重置'
     }
-  })(),
+  ),
 
   // 指令数据
-  promptData: (() => {
-    try {
-      const rawPromptData = JSON.parse(localStorage.getItem('dsPrompts'));
-      return Array.isArray(rawPromptData) ? rawPromptData : [];
-    } catch (e) {
-      console.warn('dsPrompts 数据损坏，已重置:', e);
-      return [];
+  promptData: readJsonWithFallback(
+    'dsPrompts',
+    () => [],
+    {
+      validate: Array.isArray,
+      resetMessage: 'dsPrompts 数据损坏，已重置'
     }
-  })(),
+  ),
 
   // 编辑状态
   editingMessageIndex: -1,

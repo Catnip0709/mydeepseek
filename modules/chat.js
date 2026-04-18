@@ -225,6 +225,11 @@ export function renderChat() {
         statusDiv.className = "generation-status mt-1 text-xs text-amber-400";
         statusDiv.textContent = '生成中断';
         msgBox.appendChild(statusDiv);
+      } else if (m.generationState === 'timeout') {
+        const statusDiv = document.createElement("div");
+        statusDiv.className = "generation-status mt-1 text-xs text-red-400";
+        statusDiv.textContent = '请求超时';
+        msgBox.appendChild(statusDiv);
       }
     } else {
       const isSingleCharAssistant = isSingleCharChat && isAssistant;
@@ -311,6 +316,11 @@ export function renderChat() {
           const statusDiv = document.createElement("div");
           statusDiv.className = "generation-status mt-1 text-xs text-amber-400";
           statusDiv.textContent = '生成中断，可重新生成';
+          msgBox.appendChild(statusDiv);
+        } else if (m.generationState === 'timeout') {
+          const statusDiv = document.createElement("div");
+          statusDiv.className = "generation-status mt-1 text-xs text-red-400";
+          statusDiv.textContent = '请求超时，请检查网络后重试';
           msgBox.appendChild(statusDiv);
         }
       }
@@ -628,6 +638,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     if (e.name === 'AbortError') {
       if (state.abortReason === 'background' || state.abortReason === 'manual') markInterrupted();
       else if (state.abortReason === 'timeout') {
+        finalizeState = 'timeout';
+        fullContent = '❌ 请求超时，请检查网络后重试';
+        fullReasoningContent = '';
         const contentDiv = aiMsgDiv.querySelector('.msg-content');
         if (contentDiv) {
           contentDiv.innerHTML = '<span class="text-red-400">❌ 请求超时，请检查网络后重试</span>';
