@@ -70,6 +70,10 @@ function handleChatClick(e) {
       if (activeTab.summaryCoversUpTo > 0 && index < activeTab.summaryCoversUpTo) {
         clearSummary(state.tabData.active);
       }
+      // 确保 summaryCoversUpTo 不超过当前消息总数
+      if (activeTab.summaryCoversUpTo > activeTab.messages.length) {
+        activeTab.summaryCoversUpTo = activeTab.messages.length;
+      }
       saveTabs();
       renderChat();
     }
@@ -717,6 +721,10 @@ export async function saveEditAndRegenerate() {
   // 编辑消息后，如果编辑位置在摘要覆盖范围内，清除摘要
   if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
     clearSummary(state.tabData.active);
+  }
+  // 确保 summaryCoversUpTo 不超过当前消息总数（编辑会截断后续消息）
+  if (currentTab.summaryCoversUpTo > currentTab.messages.length) {
+    currentTab.summaryCoversUpTo = currentTab.messages.length;
   }
   saveTabs();
 

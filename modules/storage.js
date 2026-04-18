@@ -129,8 +129,9 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
   // 有摘要时：只取摘要覆盖位置之后的消息
   let payloadMsgs;
   if (currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0) {
-    const startIdx = Math.min(currentTab.summaryCoversUpTo, endExclusive);
-    payloadMsgs = messages.slice(startIdx, endExclusive).map(m => ({
+    const safeEnd = Math.min(endExclusive, messages.length);
+    const startIdx = Math.min(currentTab.summaryCoversUpTo, safeEnd);
+    payloadMsgs = messages.slice(startIdx, safeEnd).map(m => ({
       role: m.role,
       content: m.content
     }));
@@ -245,6 +246,10 @@ export function initializeData() {
       if (typeof state.tabData.list[id].memoryLimit === 'undefined') state.tabData.list[id].memoryLimit = "0";
       if (typeof state.tabData.list[id].summary === 'undefined') state.tabData.list[id].summary = "";
       if (typeof state.tabData.list[id].summaryCoversUpTo === 'undefined') state.tabData.list[id].summaryCoversUpTo = 0;
+      // 确保 summaryCoversUpTo 不超过消息总数（防止删除消息后失忆）
+      if (state.tabData.list[id].summaryCoversUpTo > state.tabData.list[id].messages.length) {
+        state.tabData.list[id].summaryCoversUpTo = state.tabData.list[id].messages.length;
+      }
       if (!Array.isArray(state.tabData.list[id].messages)) state.tabData.list[id].messages = [];
     }
 
@@ -275,6 +280,10 @@ export function repairData() {
         tab.title = tab.title || "";
         tab.summary = tab.summary || "";
         tab.summaryCoversUpTo = tab.summaryCoversUpTo || 0;
+        // 确保 summaryCoversUpTo 不超过消息总数（防止删除消息后失忆）
+        if (tab.summaryCoversUpTo > tab.messages.length) {
+          tab.summaryCoversUpTo = tab.messages.length;
+        }
         tab.messages.forEach(function(msg) {
           if (!msg.role) msg.role = 'user';
           if (!msg.content) msg.content = '';
