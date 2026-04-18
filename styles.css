@@ -202,8 +202,16 @@ body.search-active #emptyChatHint {
     #sendBtn:active { background: #1d4ed8; transform: scale(0.98); }
     #sendBtn:disabled { background: #6b7280; cursor: not-allowed; }
 
-    #sendBtn.stop-mode { background: #ef4444; }
-    #sendBtn.stop-mode:hover { background: #dc2626; }
+    #sendBtn.stop-mode {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.35);
+    }
+    #sendBtn.stop-mode:hover {
+      background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+    }
+    #sendBtn.stop-mode:active {
+      background: #b91c1c;
+    }
 
     .copy-btn, .regenerate-btn, .edit-btn, .delete-btn, .reply-btn {
       position: absolute;
@@ -1366,6 +1374,17 @@ body.day-mode #sendBtn {
   color: #ffffff !important;
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.25) !important;
 }
+body.day-mode #sendBtn.stop-mode {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.28) !important;
+}
+body.day-mode #sendBtn.stop-mode:hover {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%) !important;
+}
+body.day-mode #sendBtn.stop-mode:active {
+  background: #b91c1c !important;
+}
 
 /* Scroll to bottom button */
 body.day-mode .scroll-to-bottom-btn {
@@ -1840,10 +1859,27 @@ body.day-mode #emptyChatHint .text-gray-500 {
   border-color: #4b5563;
   color: #f3f4f6;
 }
+.bg-info-chip svg {
+  color: #93c5fd;
+  flex-shrink: 0;
+}
 .bg-info-chip-text {
   font-size: 13px;
   font-weight: 500;
   line-height: 1;
+}
+body.day-mode .bg-info-chip {
+  background: #ffffff !important;
+  border-color: #d1d5db !important;
+  color: #374151 !important;
+}
+body.day-mode .bg-info-chip:hover {
+  background: #f9fafb !important;
+  border-color: #9ca3af !important;
+  color: #111827 !important;
+}
+body.day-mode .bg-info-chip svg {
+  color: #2563eb !important;
 }
 
 /* 背景信息面板 textarea */
@@ -2538,7 +2574,6 @@ body.day-mode .message-box.character-msg {
   background: #f3f4f6;
   border-left-color: #9ca3af;
 }
-
 
 
 
