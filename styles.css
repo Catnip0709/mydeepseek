@@ -2478,11 +2478,11 @@ body.day-mode #addTabDropdown {
   border-color: #e5e7eb;
 }
 body.day-mode #addTabDropdown button {
-  color: #374151;
+  color: #374151 !important;
 }
 body.day-mode #addTabDropdown button:hover {
-  background: #f3f4f6;
-  color: #111827;
+  background: #f3f4f6 !important;
+  color: #111827 !important;
 }
 
 /* ========== Header 按钮日间模式 ========== */
@@ -2501,6 +2501,7 @@ body.day-mode #closeSearchBtn {
 }
 body.day-mode #closeSearchBtn:hover {
   color: #111827 !important;
+  background: rgba(0, 0, 0, 0.04) !important;
 }
 body.day-mode #searchBox .text-gray-400 {
   color: #6b7280 !important;
@@ -2574,10 +2575,11 @@ body.day-mode .group-char-select-item:hover {
   background: #f3f4f6;
 }
 body.day-mode .message-box.character-msg {
-  background: #f3f4f6;
-  border-left-color: #9ca3af;
+  background: #f3f4f6 !important;
 }
-
+body.day-mode .message-box.character-msg.bg-gray-800 {
+  background: #f3f4f6 !important;
+}
 
 
 
