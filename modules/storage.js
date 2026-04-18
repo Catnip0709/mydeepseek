@@ -131,10 +131,19 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
   if (currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0) {
     const safeEnd = Math.min(endExclusive, messages.length);
     const startIdx = Math.min(currentTab.summaryCoversUpTo, safeEnd);
-    payloadMsgs = messages.slice(startIdx, safeEnd).map(m => ({
-      role: m.role,
-      content: m.content
-    }));
+    if (startIdx < safeEnd) {
+      // 正常情况：摘要 + 近期消息
+      payloadMsgs = messages.slice(startIdx, safeEnd).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+    } else {
+      // 异常情况：摘要覆盖了全部消息，回退到发送全部消息
+      payloadMsgs = messages.slice(0, safeEnd).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+    }
   } else {
     payloadMsgs = messages.slice(0, endExclusive).map(m => ({
       role: m.role,
