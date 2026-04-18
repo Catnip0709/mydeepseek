@@ -2510,6 +2510,9 @@ body.day-mode #searchBox .text-gray-400 {
 body.day-mode #createGroupPanel .text-gray-300 {
   color: #374151 !important;
 }
+body.day-mode #bgInfoPanel .text-gray-300 {
+  color: #374151 !important;
+}
 body.day-mode #createGroupPanel .text-gray-500 {
   color: #4b5563 !important;
 }
@@ -2574,7 +2577,6 @@ body.day-mode .message-box.character-msg {
   background: #f3f4f6;
   border-left-color: #9ca3af;
 }
-
 
 
 
