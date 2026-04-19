@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg } from './utils.js';
-import { callLLM, callLLMJSON } from './llm.js';
+import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
 import { renderMarkdown } from './markdown.js';
@@ -15,19 +15,19 @@ import { call as coreCall } from './core.js';
 
 // ========== Step 1: 路由判断 ==========
 
-async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null) {
+async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null, llmTimeoutOptions = {}) {
   if (replyInfo && replyInfo.characterId) {
     const targetIdx = characters.findIndex(c => c.id === replyInfo.characterId);
     if (targetIdx >= 0) {
-      const otherIndices = await routeMessageByLLM(userMessage, characters, history, signal, replyInfo);
+      const otherIndices = await routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions);
       const combined = [targetIdx, ...otherIndices.filter(i => i !== targetIdx)];
       return combined;
     }
   }
-  return await routeMessageByLLM(userMessage, characters, history, signal, null);
+  return await routeMessageByLLM(userMessage, characters, history, signal, null, llmTimeoutOptions);
 }
 
-async function routeMessageByLLM(userMessage, characters, history, signal, replyInfo) {
+async function routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions = {}) {
   const charSummaries = characters.map((c, i) => `${i + 1}. ${c.name}：${c.summary || c.personality || '无描述'}`).join('\n');
 
   let extraRule = '';
@@ -55,7 +55,7 @@ async function routeMessageByLLM(userMessage, characters, history, signal, reply
     }
   ];
 
-  const result = await callLLMJSON({ messages, temperature: 0.3, maxTokens: 50, signal });
+  const result = await callLLMJSON({ messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
   if (!result || !Array.isArray(result)) return [0];
 
   const indices = result.map(n => parseInt(n) - 1).filter(n => n >= 0 && n < characters.length);
@@ -90,6 +90,7 @@ export async function generateCharacterReply(character, userMessage, history, al
   }).filter(Boolean).join('\n');
 
   const roundReplies = options.currentRoundReplies || [];
+  const llmTimeoutOptions = options.llmTimeoutOptions || {};
   const roundContext = roundReplies.length > 0
     ? '\n本轮对话：\n' + roundReplies.map(r => `${r.characterName}：${r.content}`).join('\n')
     : '';
@@ -130,7 +131,8 @@ export async function generateCharacterReply(character, userMessage, history, al
       temperature: 0.8,
       maxTokens: 1024,
       signal: options.signal,
-      onChunk: options.onChunk
+      onChunk: options.onChunk,
+      ...llmTimeoutOptions
     });
   }
 
@@ -140,7 +142,8 @@ export async function generateCharacterReply(character, userMessage, history, al
     stream: false,
     temperature: 0.8,
     maxTokens: 1024,
-    signal: options.signal
+    signal: options.signal,
+    ...llmTimeoutOptions
   });
 
   if (typeof reply === 'string') return limitSentences(reply);
@@ -149,7 +152,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 
 // ========== Step 3: 追问判断 ==========
 
-export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, speakCount = 0, signal = null) {
+export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, speakCount = 0, signal = null, llmTimeoutOptions = {}) {
   const lastReplyText = lastReplies.map(r => `${r.characterName}：${r.content}`).join('\n');
 
   const messages = [
@@ -175,7 +178,7 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
     }
   ];
 
-  const result = await callLLM({ messages, temperature: 0.3, maxTokens: 10, signal });
+  const result = await callLLM({ messages, temperature: 0.3, maxTokens: 10, signal, ...llmTimeoutOptions });
   return String(result).trim().includes('是');
 }
 
@@ -185,14 +188,15 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
   const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo, groupContext } = options;
   const allReplies = [];
   const MAX_ROUNDS = 3;
+  const llmTimeoutOptions = options.llmTimeoutOptions || {};
 
   // 构建角色回复的公共 options
-  const charOptions = { signal, model, groupContext };
+  const charOptions = { signal, model, groupContext, llmTimeoutOptions };
 
   // Step 1: 路由判断
   let speakerIndices;
   try {
-    speakerIndices = await routeMessage(userMessage, characters, history, signal, replyInfo);
+    speakerIndices = await routeMessage(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions);
   } catch (e) {
     if (e.name === 'AbortError') return allReplies;
     throw e;
@@ -243,7 +247,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
 
         let needFollow;
         try {
-          needFollow = await shouldFollowUp([lastReply], otherChar, userMessage, speakCount, signal);
+          needFollow = await shouldFollowUp([lastReply], otherChar, userMessage, speakCount, signal, llmTimeoutOptions);
         } catch (e) {
           if (e.name === 'AbortError') break;
           throw e;
@@ -293,6 +297,12 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   state.abortReason = null;
   state.abortController = new AbortController();
   const signal = state.abortController.signal;
+  const llmTimeoutOptions = {
+    chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
+    onTimeout() {
+      state.abortReason = 'timeout';
+    }
+  };
 
   const currentTab = state.tabData.list[lockedTabId];
   const characters = (currentTab.characterIds || []).map(id => coreCall('getCharacterById', id)).filter(Boolean);
@@ -318,6 +328,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       replyInfo,
       model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
       groupContext,
+      llmTimeoutOptions,
       onCharacterStart(character, idx) {
         const msgIndex = currentMsgs.length;
         const color = coreCall('getCharacterColor', idx);
@@ -355,8 +366,8 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
           characterId: character.id,
           characterName: character.name,
           content: content || '',
-          generationState: state.abortReason ? 'interrupted' : 'complete',
-          history: [{ content: content || '', reasoningContent: '', state: state.abortReason ? 'interrupted' : 'complete' }],
+          generationState: state.abortReason === 'timeout' ? 'timeout' : (state.abortReason ? 'interrupted' : 'complete'),
+          history: [{ content: content || '', reasoningContent: '', state: state.abortReason === 'timeout' ? 'timeout' : (state.abortReason ? 'interrupted' : 'complete') }],
           historyIndex: 0
         });
         state.tabData.list[lockedTabId].messages = msgs;

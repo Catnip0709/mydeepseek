@@ -14,7 +14,7 @@ import {
   isTokenLimitReached, isStorageFull
 } from './storage.js';
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
-import { callLLM } from './llm.js';
+import { callLLM, createChunkInactivityGuard, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { renderMarkdown } from './markdown.js';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
@@ -83,7 +83,11 @@ async function summarizeTextAttachment(originalText, signal = null) {
     stream: false,
     temperature: 0.2,
     maxTokens: 5000,
-    signal
+    signal,
+    chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
+    onTimeout() {
+      state.abortReason = 'timeout';
+    }
   });
   return trimTextToCharLimit(summary, TEXT_ATTACHMENT_FULL_CHAR_LIMIT);
 }
@@ -776,13 +780,13 @@ export async function fetchAndStreamResponse(opts = {}) {
 
   state.abortReason = null;
   state.abortController = new AbortController();
-
-  // 120秒无响应自动超时
-  const fetchTimeout = setTimeout(() => {
-    if (state.abortController && !state.isSending) return;
-    state.abortReason = 'timeout';
-    state.abortController.abort();
-  }, 120000);
+  const chunkGuard = createChunkInactivityGuard({
+    timeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
+    signal: state.abortController.signal,
+    onTimeout() {
+      state.abortReason = 'timeout';
+    }
+  });
 
   trackEvent('发送消息');
 
@@ -879,8 +883,9 @@ export async function fetchAndStreamResponse(opts = {}) {
         temperature: 0.7,
         max_tokens: 4096
       }),
-      signal: state.abortController.signal
+      signal: chunkGuard.signal
     });
+    chunkGuard.touch();
 
     if (!res.ok) {
       const errorData = await res.json();
@@ -895,6 +900,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      chunkGuard.touch();
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -980,7 +986,7 @@ export async function fetchAndStreamResponse(opts = {}) {
       }
     }
   } finally {
-    clearTimeout(fetchTimeout);
+    chunkGuard.cleanup();
     state.isSending = false;
     updateComposerPrimaryButtonState();
     state.abortController = null;
