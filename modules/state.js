@@ -136,6 +136,10 @@ export const state = {
   // 指令市场
   currentMarketPrompt: null,
   lastShownPromptIndex: -1,
+
+  // 待发送 txt 附件
+  pendingTextAttachment: null,
+  isPreparingTextAttachment: false,
 };
 
 // 常量

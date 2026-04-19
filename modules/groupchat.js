@@ -284,12 +284,10 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
 
 export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const chat = document.getElementById("chat");
-  const sendBtn = document.getElementById("sendBtn");
   const modelSelect = document.getElementById("modelSelect");
 
   state.isSending = true;
-  sendBtn.textContent = "停止";
-  sendBtn.classList.add("stop-mode");
+  coreCall('updateComposerPrimaryButtonState');
 
   const lockedTabId = tabId;
   state.abortReason = null;
@@ -300,8 +298,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const characters = (currentTab.characterIds || []).map(id => coreCall('getCharacterById', id)).filter(Boolean);
   if (characters.length === 0) {
     state.isSending = false;
-    sendBtn.textContent = "发送";
-    sendBtn.classList.remove("stop-mode");
+    coreCall('updateComposerPrimaryButtonState');
     return;
   }
 
@@ -373,8 +370,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     }
   } finally {
     state.isSending = false;
-    sendBtn.textContent = "发送";
-    sendBtn.classList.remove("stop-mode");
+    coreCall('updateComposerPrimaryButtonState');
     state.abortController = null;
     coreCall('renderChat');
 
@@ -481,6 +477,7 @@ export function createGroupChat() {
   const groupTitle = createGroupNameInput.value.trim() || '群聊';
   const charIds = Array.from(state.selectedGroupCharacterIds);
 
+  coreCall('clearPendingTextAttachment');
   const newId = generateNewTabId();
 
   state.tabData.list[newId] = {

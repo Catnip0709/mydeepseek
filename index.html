@@ -183,14 +183,19 @@
         <span class="deepthink-chip-text">深度思考</span>
         <span class="deepthink-chip-badge">R1</span>
       </label>
-      <button id="openBgInfoBtn" class="bg-info-chip" type="button" title="设定背景信息">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 20h9"></path>
-          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-        </svg>
-        <span class="bg-info-chip-text">背景</span>
-      </button>
       <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
+    </div>
+    <div id="txtAttachmentBar" class="txt-attachment-bar hidden">
+      <input id="txtUploadInput" type="file" accept=".txt,text/plain" class="hidden">
+      <div class="txt-attachment-main">
+        <div class="txt-attachment-title-row">
+          <span class="txt-attachment-badge">TXT</span>
+          <span id="txtAttachmentName" class="txt-attachment-name"></span>
+          <span id="txtAttachmentMode" class="txt-attachment-mode"></span>
+        </div>
+        <div id="txtAttachmentMeta" class="txt-attachment-meta"></div>
+      </div>
+      <button id="removeTxtAttachmentBtn" class="txt-attachment-remove" type="button" title="移除 txt 文件">移除</button>
     </div>
     <div id="replyBar" class="reply-bar hidden">
       <div class="reply-bar-content">
@@ -201,7 +206,30 @@
     </div>
     <div class="input-wrapper">
       <textarea id="input" class="flex-1 bg-gray-800 border border-gray-700 text-white text-base" placeholder="输入消息..." rows="1"></textarea>
-      <button id="sendBtn">发送</button>
+      <div class="composer-primary-slot">
+        <button id="sendBtn" class="plus-mode" title="更多操作" aria-label="更多操作">+</button>
+        <div id="composerActionMenu" class="composer-action-menu hidden">
+          <button id="openBgInfoBtn" class="composer-action-item" type="button" title="设定背景信息">
+            <span class="composer-action-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            </span>
+            <span>背景</span>
+          </button>
+          <button id="openTxtUploadBtn" class="composer-action-item" type="button" title="上传 txt 文件">
+            <span class="composer-action-icon" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <path d="M17 8l-5-5-5 5"></path>
+                <path d="M12 3v12"></path>
+              </svg>
+            </span>
+            <span>TXT 上传</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

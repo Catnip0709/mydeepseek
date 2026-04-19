@@ -9,7 +9,7 @@ import { state } from './state.js';
 import { trackEvent } from './utils.js';
 import { initializeData, repairData, flushPendingSaveImmediately } from './storage.js';
 import { register } from './core.js';
-import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter } from './chat.js';
+import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
@@ -29,6 +29,8 @@ import { bindSearchEvents, clearSearch } from './search.js';
 register('renderChat', renderChat);
 register('rebindChatButtons', rebindChatButtons);
 register('updateInputCounter', updateInputCounter);
+register('clearPendingTextAttachment', clearPendingTextAttachment);
+register('updateComposerPrimaryButtonState', updateComposerPrimaryButtonState);
 register('renderTabs', renderTabs);
 register('invalidateTabCache', invalidateTabCache);
 register('getCharacterColor', getCharacterColor);

@@ -31,6 +31,7 @@ export function invalidateTabCache(tabId) {
 // ========== 创建新 Tab ==========
 
 export function createNewTab() {
+  coreCall('clearPendingTextAttachment');
   const newId = generateNewTabId();
   state.tabData.list[newId] = { messages: [], title: "" };
   state.tabData.active = newId;
@@ -72,6 +73,7 @@ export function renderTabs() {
       if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename')) return;
       // 缓存当前 tab 的 DOM
       setCachedTabHtml(state.tabData.active, chat.innerHTML);
+      coreCall('clearPendingTextAttachment');
       state.tabData.active = id;
       saveTabs();
       // 尝试使用缓存
@@ -132,6 +134,7 @@ export function renderTabs() {
         }
 
         if (delId === state.tabData.active) {
+          coreCall('clearPendingTextAttachment');
           state.tabData.active = remainingTabIds[0];
         }
         saveTabs();

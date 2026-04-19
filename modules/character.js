@@ -287,6 +287,7 @@ export function createCharacterChatTab(characterId) {
   const char = getCharacterById(characterId);
   if (!char) return;
 
+  coreCall('clearPendingTextAttachment');
   const newId = generateNewTabId();
   state.tabData.list[newId] = {
     messages: [],

@@ -14,6 +14,7 @@ import {
   isTokenLimitReached, isStorageFull
 } from './storage.js';
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
+import { callLLM } from './llm.js';
 import { renderMarkdown } from './markdown.js';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
@@ -24,6 +25,267 @@ import { call as coreCall } from './core.js';
 // ========== 聊天区域事件绑定（事件委托） ==========
 
 let _chatEventsBound = false;
+const TEXT_ATTACHMENT_FULL_CHAR_LIMIT = 5000;
+const TEXT_ATTACHMENT_MAX_CHAR_LIMIT = 25000;
+
+function getTextAttachmentMode(charCount) {
+  if (charCount <= 0) return 'empty';
+  if (charCount <= TEXT_ATTACHMENT_FULL_CHAR_LIMIT) return 'full';
+  if (charCount <= TEXT_ATTACHMENT_MAX_CHAR_LIMIT) return 'summary';
+  return 'over_limit';
+}
+
+function getTextAttachmentModeLabel(mode) {
+  if (mode === 'full') return '全文发送';
+  if (mode === 'summary') return '摘要发送';
+  if (mode === 'over_limit') return '超出上限';
+  return '待处理';
+}
+
+function buildTextAttachmentPayload(questionText, attachment) {
+  const sectionTitle = attachment.mode === 'summary' ? '【文件内容摘要】' : '【文件内容】';
+  return `【用户问题】\n${questionText}\n\n${sectionTitle}\n${attachment.sentText}`;
+}
+
+function trimTextToCharLimit(text, charLimit) {
+  let visibleCount = 0;
+  let out = '';
+  for (const ch of String(text || '')) {
+    if (!/\s/.test(ch)) visibleCount++;
+    if (visibleCount > charLimit) break;
+    out += ch;
+  }
+  return out.trim();
+}
+
+async function decodeTxtFile(file) {
+  const buffer = await file.arrayBuffer();
+  const decoder = new TextDecoder('utf-8', { fatal: true });
+  return decoder.decode(buffer);
+}
+
+async function summarizeTextAttachment(originalText, signal = null) {
+  const summary = await callLLM({
+    model: 'deepseek-reasoner',
+    messages: [
+      {
+        role: 'system',
+        content: `请将以下 txt 文件内容压缩为 ${TEXT_ATTACHMENT_FULL_CHAR_LIMIT} 字以内的高质量摘要，要求：
+1. 保留核心事实、关键设定、时间线、逻辑关系、结论与限制条件
+2. 保留后续继续提问所需的重要上下文
+3. 若原文存在章节、条目或结构，请尽量保留结构感
+4. 保留人物、角色关系、数字、时间、地点、约束条件和未解决事项
+5. 不要编造原文没有的信息
+6. 只输出摘要正文，不要输出额外说明`
+      },
+      { role: 'user', content: originalText }
+    ],
+    stream: false,
+    temperature: 0.2,
+    maxTokens: 5000,
+    signal
+  });
+  return trimTextToCharLimit(summary, TEXT_ATTACHMENT_FULL_CHAR_LIMIT);
+}
+
+function updatePendingTextAttachmentUI() {
+  const bar = document.getElementById('txtAttachmentBar');
+  const nameEl = document.getElementById('txtAttachmentName');
+  const modeEl = document.getElementById('txtAttachmentMode');
+  const metaEl = document.getElementById('txtAttachmentMeta');
+  const removeBtn = document.getElementById('removeTxtAttachmentBtn');
+  if (!bar || !nameEl || !modeEl || !metaEl || !removeBtn) return;
+
+  const attachment = state.pendingTextAttachment;
+  if (!attachment) {
+    bar.classList.add('hidden');
+    nameEl.textContent = '';
+    modeEl.textContent = '';
+    modeEl.className = 'txt-attachment-mode';
+    metaEl.textContent = '';
+    removeBtn.disabled = false;
+    return;
+  }
+
+  bar.classList.remove('hidden');
+  nameEl.textContent = attachment.fileName;
+  modeEl.textContent = getTextAttachmentModeLabel(attachment.mode);
+  modeEl.className = `txt-attachment-mode ${attachment.mode === 'summary' ? 'mode-summary' : ''} ${attachment.mode === 'over_limit' ? 'mode-error' : ''}`.trim();
+
+  if (attachment.mode === 'over_limit') {
+    metaEl.textContent = `${attachment.originalCharCount} 字，超出 ${TEXT_ATTACHMENT_MAX_CHAR_LIMIT} 字上限，无法发送`;
+  } else if (state.isPreparingTextAttachment) {
+    metaEl.textContent = `${attachment.originalCharCount} 字，正在总结为 ${TEXT_ATTACHMENT_FULL_CHAR_LIMIT} 字摘要...`;
+  } else if (attachment.runtimeStatus === 'sending') {
+    metaEl.textContent = attachment.mode === 'summary'
+      ? `${attachment.originalCharCount} 字，已摘要为 ${attachment.processedCharCount} 字，正在发送给 DS...`
+      : `${attachment.originalCharCount} 字，全文已就绪，正在发送给 DS...`;
+  } else if (attachment.mode === 'summary') {
+    metaEl.textContent = attachment.processedText
+      ? `${attachment.originalCharCount} 字，已摘要为 ${attachment.processedCharCount} 字，发送时将附带摘要`
+      : `${attachment.originalCharCount} 字，发送时将自动摘要为 ${TEXT_ATTACHMENT_FULL_CHAR_LIMIT} 字以内`;
+  } else {
+    metaEl.textContent = `${attachment.originalCharCount} 字，发送时将完整附带到本条消息`;
+  }
+  removeBtn.disabled = state.isPreparingTextAttachment;
+}
+
+function closeComposerActionMenu() {
+  const menu = document.getElementById('composerActionMenu');
+  if (menu) menu.classList.add('hidden');
+}
+
+function toggleComposerActionMenu() {
+  const menu = document.getElementById('composerActionMenu');
+  if (!menu || state.isSending) return;
+  menu.classList.toggle('hidden');
+}
+
+export function updateComposerPrimaryButtonState() {
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+  if (!input || !sendBtn) return;
+
+  if (state.isSending || state.isPreparingTextAttachment) {
+    closeComposerActionMenu();
+    sendBtn.textContent = '停止';
+    sendBtn.title = state.isPreparingTextAttachment ? '停止处理' : '停止生成';
+    sendBtn.setAttribute('aria-label', state.isPreparingTextAttachment ? '停止处理' : '停止生成');
+    sendBtn.classList.remove('plus-mode');
+    sendBtn.classList.add('stop-mode');
+    return;
+  }
+
+  const hasInput = !!input.value.trim();
+  sendBtn.classList.remove('stop-mode');
+  if (hasInput) {
+    closeComposerActionMenu();
+    sendBtn.textContent = '发送';
+    sendBtn.title = '发送消息';
+    sendBtn.setAttribute('aria-label', '发送消息');
+    sendBtn.classList.remove('plus-mode');
+  } else {
+    sendBtn.textContent = '+';
+    sendBtn.title = '更多操作';
+    sendBtn.setAttribute('aria-label', '更多操作');
+    sendBtn.classList.add('plus-mode');
+  }
+}
+
+export function clearPendingTextAttachment() {
+  state.pendingTextAttachment = null;
+  state.isPreparingTextAttachment = false;
+  const txtUploadInput = document.getElementById('txtUploadInput');
+  if (txtUploadInput) txtUploadInput.value = '';
+  closeComposerActionMenu();
+  updatePendingTextAttachmentUI();
+  updateInputCounter();
+  updateComposerPrimaryButtonState();
+}
+
+async function handleTxtFileSelected(file) {
+  if (!file) return;
+  if (!/\.txt$/i.test(file.name)) {
+    alert('仅支持上传 .txt 文件');
+    clearPendingTextAttachment();
+    return;
+  }
+
+  try {
+    const originalText = await decodeTxtFile(file);
+    const originalCharCount = countChars(originalText);
+    const mode = getTextAttachmentMode(originalCharCount);
+    if (mode === 'empty') {
+      alert('文件内容为空，无法发送');
+      clearPendingTextAttachment();
+      return;
+    }
+
+    state.pendingTextAttachment = {
+      fileName: file.name,
+      originalText,
+      originalCharCount,
+      mode,
+      processedText: '',
+      processedCharCount: 0,
+      runtimeStatus: 'ready'
+    };
+    closeComposerActionMenu();
+    updatePendingTextAttachmentUI();
+    updateInputCounter();
+    updateComposerPrimaryButtonState();
+  } catch (e) {
+    alert('文件编码不支持，请保存为 UTF-8 编码的 txt 文件后重试');
+    clearPendingTextAttachment();
+  }
+}
+
+async function buildOutgoingUserMessage(questionText) {
+  const pending = state.pendingTextAttachment;
+  if (!pending) {
+    return {
+      content: questionText,
+      userQuestion: '',
+      fileAttachment: null
+    };
+  }
+
+  if (pending.mode === 'over_limit') {
+    alert(`文件字数超出上限（${TEXT_ATTACHMENT_MAX_CHAR_LIMIT}字），请裁剪后再试`);
+    return null;
+  }
+
+  let sentText = pending.originalText;
+  let sentMode = pending.mode;
+  let processedCharCount = pending.processedCharCount || 0;
+
+  if (pending.mode === 'summary') {
+    if (!pending.processedText) {
+      state.isPreparingTextAttachment = true;
+      state.abortReason = null;
+      state.abortController = new AbortController();
+      updatePendingTextAttachmentUI();
+      updateComposerPrimaryButtonState();
+      try {
+        pending.processedText = await summarizeTextAttachment(pending.originalText, state.abortController.signal);
+        pending.processedCharCount = countChars(pending.processedText);
+      } catch (e) {
+        state.isPreparingTextAttachment = false;
+        state.abortController = null;
+        updateComposerPrimaryButtonState();
+        if (e.name === 'AbortError') {
+          pending.runtimeStatus = 'ready';
+          updatePendingTextAttachmentUI();
+          return null;
+        }
+        alert(`文件摘要失败：${e.message || '请稍后重试'}`);
+        updatePendingTextAttachmentUI();
+        return null;
+      }
+      state.isPreparingTextAttachment = false;
+      state.abortController = null;
+      pending.runtimeStatus = 'ready';
+      updatePendingTextAttachmentUI();
+      updateComposerPrimaryButtonState();
+      updatePendingTextAttachmentUI();
+    }
+    sentText = pending.processedText;
+    sentMode = 'summary';
+  }
+
+  return {
+    content: buildTextAttachmentPayload(questionText, { mode: sentMode, sentText }),
+    userQuestion: questionText,
+    fileAttachment: {
+      fileName: pending.fileName,
+      mode: sentMode,
+      originalCharCount: pending.originalCharCount,
+      displayedCharCount: sentMode === 'summary' ? processedCharCount : pending.originalCharCount,
+      displayText: sentText,
+      summaryCharLimit: sentMode === 'summary' ? TEXT_ATTACHMENT_FULL_CHAR_LIMIT : 0
+    }
+  };
+}
 
 function handleChatClick(e) {
   const chat = document.getElementById('chat');
@@ -294,8 +556,38 @@ export function renderChat() {
 
       const contentDiv = document.createElement("div");
       contentDiv.className = "msg-content prose prose-invert max-w-none";
-      renderMarkdown(contentDiv, m.content, i, 'content');
-      msgBox.appendChild(contentDiv);
+      if (isUser && m.fileAttachment) {
+        contentDiv.classList.add('user-file-question');
+        renderMarkdown(contentDiv, m.userQuestion || '', i, 'content');
+        msgBox.appendChild(contentDiv);
+
+        const details = document.createElement('details');
+        details.className = 'user-file-attachment';
+        details.innerHTML = `
+          <summary>
+            <span class="user-file-attachment-badge">TXT</span>
+            <span class="user-file-attachment-label">${escapeHtml(m.fileAttachment.fileName || '已上传文件')}</span>
+            <span class="user-file-attachment-mode ${m.fileAttachment.mode === 'summary' ? 'mode-summary' : ''}">${m.fileAttachment.mode === 'summary' ? '摘要发送' : '全文发送'}</span>
+          </summary>
+        `;
+        const body = document.createElement('div');
+        body.className = 'user-file-attachment-body';
+        const meta = document.createElement('div');
+        meta.className = 'user-file-attachment-meta';
+        meta.textContent = m.fileAttachment.mode === 'summary'
+          ? `${m.fileAttachment.originalCharCount || 0} 字原文，已摘要为 ${m.fileAttachment.displayedCharCount || 0} 字`
+          : `${m.fileAttachment.originalCharCount || 0} 字原文，已完整附带发送`;
+        const fileContent = document.createElement('div');
+        fileContent.className = 'user-file-attachment-content';
+        fileContent.textContent = m.fileAttachment.displayText || '';
+        body.appendChild(meta);
+        body.appendChild(fileContent);
+        details.appendChild(body);
+        msgBox.appendChild(details);
+      } else {
+        renderMarkdown(contentDiv, m.content, i, 'content');
+        msgBox.appendChild(contentDiv);
+      }
 
       if (isUser && !isGroupChat) {
         const userInputMeta = buildUserInputMeta(currentMsgs, i);
@@ -378,14 +670,16 @@ export function renderChat() {
 // ========== 发送消息 ==========
 
 export async function sendMessage() {
-  const chat = document.getElementById("chat");
   const input = document.getElementById("input");
-  const sendBtn = document.getElementById("sendBtn");
   const keyPanel = document.getElementById("keyPanel");
 
-  if (state.isSending) return;
+  if (state.isSending || state.isPreparingTextAttachment) return;
   const text = input.value.trim();
-  if (!text) { input.focus(); return; }
+  if (!text) {
+    if (state.pendingTextAttachment) alert('请输入你的问题后再发送文件');
+    input.focus();
+    return;
+  }
   if (!state.apiKey) { keyPanel.classList.remove("hidden"); return; }
   if (isStorageFull()) {
     alert('本地存储空间已满，无法保存新消息。请先导出重要对话，再清理过期会话后继续使用。');
@@ -396,10 +690,19 @@ export async function sendMessage() {
   const currentTab = state.tabData.list[sendingTabId];
   const currentMsgs = currentTab.messages || [];
   const isFirstMessage = currentMsgs.length === 0;
+  const outgoing = await buildOutgoingUserMessage(text);
+  if (!outgoing) return;
+  const userText = outgoing.content;
+  if (state.pendingTextAttachment) {
+    state.pendingTextAttachment.runtimeStatus = 'sending';
+    updatePendingTextAttachmentUI();
+  }
 
   // 群聊分支
   if (currentTab.type === 'group' && currentTab.characterIds && currentTab.characterIds.length > 0) {
-    const userMsg = { role: "user", content: text };
+    const userMsg = { role: "user", content: userText };
+    if (outgoing.userQuestion) userMsg.userQuestion = outgoing.userQuestion;
+    if (outgoing.fileAttachment) userMsg.fileAttachment = outgoing.fileAttachment;
     if (state.replyTarget) {
       userMsg.replyTo = { characterId: state.replyTarget.characterId, characterName: state.replyTarget.characterName, snippet: state.replyTarget.snippet };
     }
@@ -419,7 +722,11 @@ export async function sendMessage() {
 
     // 动态导入 groupchat.js 中的 sendGroupMessage，避免循环依赖
     const { sendGroupMessage } = await import('./groupchat.js');
-    await sendGroupMessage(sendingTabId, text, replyInfo);
+    try {
+      await sendGroupMessage(sendingTabId, userText, replyInfo);
+    } finally {
+      clearPendingTextAttachment();
+    }
 
     if (isFirstMessage && state.tabData.active === sendingTabId) {
       generateTitleForCurrentTab();
@@ -428,7 +735,9 @@ export async function sendMessage() {
   }
 
   // 单聊分支
-  currentMsgs.push({ role: "user", content: text });
+  currentMsgs.push({ role: "user", content: userText });
+  if (outgoing.userQuestion) currentMsgs[currentMsgs.length - 1].userQuestion = outgoing.userQuestion;
+  if (outgoing.fileAttachment) currentMsgs[currentMsgs.length - 1].fileAttachment = outgoing.fileAttachment;
   currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
   state.tabData.list[sendingTabId].messages = currentMsgs;
   saveTabs();
@@ -440,7 +749,11 @@ export async function sendMessage() {
   input.value = "";
   autoHeight();
   updateInputCounter();
-  await fetchAndStreamResponse();
+  try {
+    await fetchAndStreamResponse();
+  } finally {
+    clearPendingTextAttachment();
+  }
 
   if (isFirstMessage && state.tabData.active === sendingTabId) {
     const tab = state.tabData.list[sendingTabId];
@@ -454,13 +767,10 @@ export async function sendMessage() {
 
 export async function fetchAndStreamResponse(opts = {}) {
   const chat = document.getElementById("chat");
-  const sendBtn = document.getElementById("sendBtn");
-  const keyPanel = document.getElementById("keyPanel");
   const modelSelect = document.getElementById("modelSelect");
 
   state.isSending = true;
-  sendBtn.textContent = "停止";
-  sendBtn.classList.add("stop-mode");
+  updateComposerPrimaryButtonState();
 
   const lockedTabId = state.tabData.active;
 
@@ -672,8 +982,7 @@ export async function fetchAndStreamResponse(opts = {}) {
   } finally {
     clearTimeout(fetchTimeout);
     state.isSending = false;
-    sendBtn.textContent = "发送";
-    sendBtn.classList.remove("stop-mode");
+    updateComposerPrimaryButtonState();
     state.abortController = null;
 
     // 异步检查是否需要生成/更新摘要（不阻塞对话）
@@ -717,6 +1026,8 @@ export async function saveEditAndRegenerate() {
   const editIdx = state.editingMessageIndex;
   const messagesToKeep = currentMsgs.slice(0, editIdx + 1);
   messagesToKeep[editIdx].content = newContent;
+  delete messagesToKeep[editIdx].fileAttachment;
+  delete messagesToKeep[editIdx].userQuestion;
   currentTab.messages = messagesToKeep;
   // 编辑消息后，如果编辑位置在摘要覆盖范围内，清除摘要
   if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
@@ -796,7 +1107,15 @@ export function updateInputCounter() {
   const text = input.value;
   const charCount = text.length;
   const tokenEstimate = estimateTokensByChars(charCount);
-  if (charCount > 0) {
+  const pending = state.pendingTextAttachment;
+  if (pending) {
+    const modeText = pending.mode === 'summary' ? '摘要发送' : pending.mode === 'over_limit' ? '超限' : '全文发送';
+    if (charCount > 0) {
+      inputCounter.textContent = `问题 ${charCount} 字 / 约 ${tokenEstimate} tokens + TXT ${pending.originalCharCount} 字（${modeText}）`;
+    } else {
+      inputCounter.textContent = `TXT ${pending.originalCharCount} 字（${modeText}，请输入问题）`;
+    }
+  } else if (charCount > 0) {
     inputCounter.textContent = `${charCount} 字 / 约 ${tokenEstimate} tokens`;
   } else {
     inputCounter.textContent = "0 字";
@@ -840,6 +1159,7 @@ export async function generateTitleForCurrentTab() {
 
   const firstUserMsg = currentMsgs.find(m => m.role === 'user');
   if (!firstUserMsg) return;
+  const titleSource = firstUserMsg.userQuestion || firstUserMsg.content;
 
   try {
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
@@ -851,7 +1171,7 @@ export async function generateTitleForCurrentTab() {
       body: JSON.stringify({
         model: "deepseek-chat",
         messages: [
-          { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${firstUserMsg.content}` }
+          { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${titleSource}` }
         ],
         stream: false,
         temperature: 0.5,
@@ -879,6 +1199,11 @@ export async function generateTitleForCurrentTab() {
 export function bindChatEvents() {
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
+  const composerActionMenu = document.getElementById("composerActionMenu");
+  const openTxtUploadBtn = document.getElementById("openTxtUploadBtn");
+  const openBgInfoBtn = document.getElementById("openBgInfoBtn");
+  const txtUploadInput = document.getElementById("txtUploadInput");
+  const removeTxtAttachmentBtn = document.getElementById("removeTxtAttachmentBtn");
   const editCancelBtn = document.getElementById("editCancelBtn");
   const editSaveBtn = document.getElementById("editSaveBtn");
   const editPanel = document.getElementById("editPanel");
@@ -887,11 +1212,13 @@ export function bindChatEvents() {
 
   if (sendBtn) {
     sendBtn.addEventListener("click", () => {
-      if (state.isSending) {
+      if (state.isSending || state.isPreparingTextAttachment) {
         state.abortReason = 'manual';
         if (state.abortController) {
           try { state.abortController.abort(); } catch (_) {}
         }
+      } else if (!input.value.trim()) {
+        toggleComposerActionMenu();
       } else {
         sendMessage();
       }
@@ -902,6 +1229,7 @@ export function bindChatEvents() {
     input.addEventListener("input", () => {
       autoHeight();
       updateInputCounter();
+      updateComposerPrimaryButtonState();
     });
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -913,6 +1241,38 @@ export function bindChatEvents() {
     });
   }
 
+  if (openTxtUploadBtn && txtUploadInput) {
+    openTxtUploadBtn.addEventListener("click", () => {
+      if (state.isPreparingTextAttachment) return;
+      closeComposerActionMenu();
+      txtUploadInput.click();
+    });
+  }
+  if (openBgInfoBtn) {
+    openBgInfoBtn.addEventListener('click', () => {
+      closeComposerActionMenu();
+    });
+  }
+  if (txtUploadInput) {
+    txtUploadInput.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      await handleTxtFileSelected(file);
+    });
+  }
+  if (removeTxtAttachmentBtn) {
+    removeTxtAttachmentBtn.addEventListener("click", () => {
+      if (state.isPreparingTextAttachment) return;
+      clearPendingTextAttachment();
+    });
+  }
+  document.addEventListener('click', (e) => {
+    if (!composerActionMenu || !sendBtn) return;
+    if (composerActionMenu.classList.contains('hidden')) return;
+    const target = e.target;
+    if (composerActionMenu.contains(target) || sendBtn.contains(target)) return;
+    closeComposerActionMenu();
+  });
+
   if (editCancelBtn) editCancelBtn.addEventListener("click", cancelEdit);
   if (editSaveBtn) editSaveBtn.addEventListener("click", saveEditAndRegenerate);
   if (editPanel) editPanel.addEventListener("click", function(e) { if (e.target === editPanel) cancelEdit(); });
@@ -922,5 +1282,7 @@ export function bindChatEvents() {
 
   // 初始化输入框
   autoHeight();
+  updatePendingTextAttachmentUI();
   updateInputCounter();
+  updateComposerPrimaryButtonState();
 }
