@@ -8,7 +8,7 @@
 import { state } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg } from './utils.js';
 import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
-import { saveTabs, generateNewTabId } from './storage.js';
+import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
 import { renderMarkdown } from './markdown.js';
 import { call as coreCall } from './core.js';
@@ -316,11 +316,12 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const groupContext = {
     userRoleName: currentTab.userRoleName || '',
     storyBackground: currentTab.storyBackground || '',
-    summary: currentTab.summary || ''
+    summary: tabHasUsableSummary(currentTab) ? currentTab.summary : ''
   };
 
   const currentMsgs = currentTab.messages || [];
   const history = currentMsgs;
+  let shouldCheckSummary = false;
 
   try {
     const replies = await orchestrateGroupChat(userMessage, characters, history, {
@@ -374,6 +375,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         saveTabs();
       }
     });
+    shouldCheckSummary = !state.abortReason && Array.isArray(replies) && replies.length > 0;
   } catch (e) {
     if (e.name !== 'AbortError') {
       console.error('群聊发送错误:', e);
@@ -386,9 +388,11 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     coreCall('renderChat');
 
     // 异步检查是否需要生成/更新摘要
-    import('./summary.js').then(({ checkAndGenerateSummary }) => {
-      checkAndGenerateSummary(tabId).catch(() => {});
-    });
+    if (shouldCheckSummary) {
+      import('./summary.js').then(({ checkAndGenerateSummary }) => {
+        checkAndGenerateSummary(tabId).catch(() => {});
+      });
+    }
   }
 }
 

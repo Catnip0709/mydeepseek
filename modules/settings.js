@@ -15,6 +15,7 @@ import {
 } from './panels.js';
 import { renderChat } from './chat.js';
 import { renderTabs } from './tabs.js';
+import { call as coreCall } from './core.js';
 
 // ========== API Key 验证（内部函数） ==========
 
@@ -114,6 +115,10 @@ export function bindSettingsEvents() {
   const modelSelect = document.getElementById('modelSelect');
   const deepThinkToggle = document.getElementById('deepThinkToggle');
 
+  function triggerLegacySummaryMigrationAfterKeySaved() {
+    coreCall('runLegacySummaryMigration');
+  }
+
   // 侧边栏
   if (menuBtn) menuBtn.addEventListener("click", openSidebar);
   if (sidebarOverlay) sidebarOverlay.addEventListener("click", closeSidebar);
@@ -153,6 +158,7 @@ export function bindSettingsEvents() {
       if (apiKeyInput) {
         apiKeyInput.value = state.apiKey;
       }
+      triggerLegacySummaryMigrationAfterKeySaved();
       showToast("API Key 已保存");
       closeSettingsPanel();
     });
@@ -265,6 +271,7 @@ export function bindSettingsEvents() {
       localStorage.setItem("dsApiKey", state.apiKey);
       updateStorageUsage();
       keyPanel.classList.add("hidden");
+      triggerLegacySummaryMigrationAfterKeySaved();
       showToast("API Key 已保存");
     };
   }

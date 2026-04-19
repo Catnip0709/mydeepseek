@@ -15,8 +15,10 @@ import { callLLM } from './llm.js';
 
 // MARKET_PROMPTS 在 prompts.js 中定义（全局变量）
 function getMarketPrompts() {
-  if (typeof MARKET_PROMPTS === 'undefined') {
-    window.MARKET_PROMPTS = [];
+  if (!Array.isArray(window.MARKET_PROMPTS)) {
+    window.MARKET_PROMPTS = typeof MARKET_PROMPTS !== 'undefined' && Array.isArray(MARKET_PROMPTS)
+      ? MARKET_PROMPTS
+      : [];
   }
   return window.MARKET_PROMPTS;
 }

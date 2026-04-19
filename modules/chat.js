@@ -10,7 +10,7 @@ import {
   replyIconSvg, estimateTokensByChars, countChars, trackEvent
 } from './utils.js';
 import {
-  saveTabs, buildPayloadMessages, buildUserInputMeta,
+  saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
   isTokenLimitReached, isStorageFull
 } from './storage.js';
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
@@ -336,10 +336,7 @@ function handleChatClick(e) {
       if (activeTab.summaryCoversUpTo > 0 && index < activeTab.summaryCoversUpTo) {
         clearSummary(state.tabData.active);
       }
-      // 确保 summaryCoversUpTo 不超过当前消息总数
-      if (activeTab.summaryCoversUpTo > activeTab.messages.length) {
-        activeTab.summaryCoversUpTo = activeTab.messages.length;
-      }
+      normalizeTabSummaryState(activeTab);
       saveTabs();
       renderChat();
     }
@@ -854,6 +851,7 @@ export async function fetchAndStreamResponse(opts = {}) {
   let hasReasoning = false;
   let reasoningContentDiv = null;
   let finalizeState = "complete";
+  let shouldCheckSummary = false;
 
   function markInterrupted() {
     finalizeState = "interrupted";
@@ -992,10 +990,13 @@ export async function fetchAndStreamResponse(opts = {}) {
     state.abortController = null;
 
     // 异步检查是否需要生成/更新摘要（不阻塞对话）
-    checkAndGenerateSummary(lockedTabId).catch(() => {});
+    if (shouldCheckSummary) {
+      checkAndGenerateSummary(lockedTabId).catch(() => {});
+    }
   }
 
   function finalizeMessage(fState = "complete") {
+    shouldCheckSummary = fState === "complete";
     if (isRegen) {
       currentMsgs[targetIndex].generationState = fState;
       currentMsgs[targetIndex].content = fullContent;
@@ -1039,10 +1040,7 @@ export async function saveEditAndRegenerate() {
   if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
     clearSummary(state.tabData.active);
   }
-  // 确保 summaryCoversUpTo 不超过当前消息总数（编辑会截断后续消息）
-  if (currentTab.summaryCoversUpTo > currentTab.messages.length) {
-    currentTab.summaryCoversUpTo = currentTab.messages.length;
-  }
+  normalizeTabSummaryState(currentTab);
   saveTabs();
 
   editPanel.classList.add("hidden");

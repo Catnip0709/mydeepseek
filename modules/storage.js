@@ -6,6 +6,7 @@
 
 import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, MAX_CONTEXT_TOKENS } from './state.js';
 import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars } from './utils.js';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
 // ========== 存储用量统计 ==========
 
@@ -56,19 +57,40 @@ let _pendingSaveTypes = new Set(); // 支持多种类型同时待保存
 const SAVE_DEBOUNCE_MS = 300;
 
 function _flushPendingSave() {
+  const failedSaveTypes = new Set();
+  let wroteAnyData = false;
+
   if (_pendingSaveTypes.has('tabs')) {
-    localStorage.setItem("dsTabs", JSON.stringify(state.tabData));
+    try {
+      localStorage.setItem("dsTabs", JSON.stringify(state.tabData));
+      wroteAnyData = true;
+    } catch (e) {
+      console.error('保存对话数据失败:', e);
+      failedSaveTypes.add('tabs');
+    }
   }
   if (_pendingSaveTypes.has('characters')) {
-    localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
+    try {
+      localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
+      wroteAnyData = true;
+    } catch (e) {
+      console.error('保存角色数据失败:', e);
+      failedSaveTypes.add('characters');
+    }
   }
   if (_pendingSaveTypes.has('prompts')) {
-    localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
+    try {
+      localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
+      wroteAnyData = true;
+    } catch (e) {
+      console.error('保存指令数据失败:', e);
+      failedSaveTypes.add('prompts');
+    }
   }
-  if (_pendingSaveTypes.size > 0) {
+  if (wroteAnyData || _pendingSaveTypes.size > 0) {
     updateStorageUsage();
   }
-  _pendingSaveTypes.clear();
+  _pendingSaveTypes = failedSaveTypes;
   _saveDebounceTimer = null;
 }
 
@@ -128,9 +150,11 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
 
   // 有摘要时：只取摘要覆盖位置之后的消息
   let payloadMsgs;
-  if (currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0) {
+  const hasUsableSummary = currentTab ? tabHasUsableSummary(currentTab) : false;
+  const effectiveSummaryCover = hasUsableSummary ? getNormalizedSummaryCover(currentTab) : 0;
+  if (currentTab && hasUsableSummary) {
     const safeEnd = Math.min(endExclusive, messages.length);
-    const startIdx = Math.min(currentTab.summaryCoversUpTo, safeEnd);
+    const startIdx = Math.min(effectiveSummaryCover, safeEnd);
     if (startIdx < safeEnd) {
       // 正常情况：摘要 + 近期消息
       payloadMsgs = messages.slice(startIdx, safeEnd).map(m => ({
@@ -165,7 +189,7 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
     const char = state.characterData.find(c => c.id === currentTab.characterId);
     if (char) {
       let systemPrompt = buildCharacterSystemPrompt(char);
-      if (currentTab.summary) {
+      if (hasUsableSummary) {
         systemPrompt += `\n\n【对话记忆摘要】\n${currentTab.summary}`;
       }
       if (bgInfoParts.length > 0) {
@@ -176,7 +200,7 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
   } else {
     // 单聊等其他类型：注入摘要 + 背景信息
     let systemParts = [];
-    if (currentTab && currentTab.summary) {
+    if (currentTab && hasUsableSummary) {
       systemParts.push(`【对话记忆摘要】\n${currentTab.summary}`);
     }
     if (bgInfoParts.length > 0) {
@@ -213,7 +237,7 @@ export function buildUserInputMeta(messages, userIndex) {
   if (!currentMessage || currentMessage.role !== 'user') return null;
 
   const currentTab = state.tabData.list[state.tabData.active];
-  const hasSummary = currentTab && currentTab.summary && currentTab.summaryCoversUpTo > 0;
+  const hasSummary = currentTab && tabHasUsableSummary(currentTab);
 
   const payloadMsgs = buildPayloadMessages(messages, userIndex + 1);
   const inputChars = countChars(currentMessage.content);
@@ -243,23 +267,66 @@ export function generateNewTabId() {
   return `tab${maxIdNum + 1}`;
 }
 
+function getMaxAllowedSummaryCover(tab) {
+  const msgCount = Array.isArray(tab?.messages) ? tab.messages.length : 0;
+  return Math.max(msgCount - SUMMARY_RECENT_RAW_COUNT, 0);
+}
+
+function getMaxLegacySummaryCover(tab) {
+  const msgCount = Array.isArray(tab?.messages) ? tab.messages.length : 0;
+  return Math.max(msgCount, 0);
+}
+
+export function tabHasCurrentSummaryVersion(tab) {
+  return !!(tab && tab.summary && tab.summaryVersion === SUMMARY_FORMAT_VERSION);
+}
+
+export function getNormalizedSummaryCover(tab) {
+  if (!tab || !tab.summary || !tabHasCurrentSummaryVersion(tab)) return 0;
+  const currentCover = Number.isFinite(tab.summaryCoversUpTo) ? tab.summaryCoversUpTo : 0;
+  return Math.max(Math.min(currentCover, getMaxAllowedSummaryCover(tab)), 0);
+}
+
+export function tabHasUsableSummary(tab) {
+  if (!tab || !tab.summary || !tabHasCurrentSummaryVersion(tab)) return false;
+  const normalizedCover = getNormalizedSummaryCover(tab);
+  if (normalizedCover <= 0) return false;
+  return normalizedCover === tab.summaryCoversUpTo;
+}
+
+export function normalizeTabSummaryState(tab) {
+  if (!tab) return;
+
+  if (!tab.summary) {
+    tab.summary = '';
+    tab.summaryCoversUpTo = 0;
+    tab.summaryVersion = '';
+    return;
+  }
+
+  if (tabHasCurrentSummaryVersion(tab)) {
+    tab.summaryCoversUpTo = getNormalizedSummaryCover(tab);
+  } else {
+    const currentCover = Number.isFinite(tab.summaryCoversUpTo) ? tab.summaryCoversUpTo : 0;
+    tab.summaryCoversUpTo = Math.max(Math.min(currentCover, getMaxLegacySummaryCover(tab)), 0);
+  }
+}
+
 // ========== 数据初始化与修复 ==========
 
 export function initializeData() {
   // 修复 tabData 结构
   Object.keys(state.tabData.list).forEach(id => {
     if (Array.isArray(state.tabData.list[id])) {
-      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0 };
+      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '' };
     } else {
       if (typeof state.tabData.list[id].title === 'undefined') state.tabData.list[id].title = "";
       if (typeof state.tabData.list[id].memoryLimit === 'undefined') state.tabData.list[id].memoryLimit = "0";
       if (typeof state.tabData.list[id].summary === 'undefined') state.tabData.list[id].summary = "";
       if (typeof state.tabData.list[id].summaryCoversUpTo === 'undefined') state.tabData.list[id].summaryCoversUpTo = 0;
-      // 确保 summaryCoversUpTo 不超过消息总数（防止删除消息后失忆）
-      if (state.tabData.list[id].summaryCoversUpTo > state.tabData.list[id].messages.length) {
-        state.tabData.list[id].summaryCoversUpTo = state.tabData.list[id].messages.length;
-      }
+      if (typeof state.tabData.list[id].summaryVersion === 'undefined') state.tabData.list[id].summaryVersion = "";
       if (!Array.isArray(state.tabData.list[id].messages)) state.tabData.list[id].messages = [];
+      normalizeTabSummaryState(state.tabData.list[id]);
     }
 
     state.tabData.list[id].messages.forEach(msg => {
@@ -282,17 +349,15 @@ export function repairData() {
     Object.keys(parsed.list).forEach(function(id) {
       const tab = parsed.list[id];
       if (Array.isArray(tab)) {
-        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0 };
+        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '' };
       } else {
         tab.messages = Array.isArray(tab.messages) ? tab.messages : [];
         tab.memoryLimit = tab.memoryLimit || "0";
         tab.title = tab.title || "";
         tab.summary = tab.summary || "";
         tab.summaryCoversUpTo = tab.summaryCoversUpTo || 0;
-        // 确保 summaryCoversUpTo 不超过消息总数（防止删除消息后失忆）
-        if (tab.summaryCoversUpTo > tab.messages.length) {
-          tab.summaryCoversUpTo = tab.messages.length;
-        }
+        tab.summaryVersion = tab.summaryVersion || "";
+        normalizeTabSummaryState(tab);
         tab.messages.forEach(function(msg) {
           if (!msg.role) msg.role = 'user';
           if (!msg.content) msg.content = '';

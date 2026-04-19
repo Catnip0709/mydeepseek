@@ -23,6 +23,7 @@ import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharac
 import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js';
 import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js';
 import { bindSearchEvents, clearSearch } from './search.js';
+import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js';
 
 // ========== 注册跨模块函数到 core ==========
 
@@ -40,8 +41,38 @@ register('openCharacterSelectPanel', openCharacterSelectPanel);
 register('openCharacterPanel', openCharacterPanel);
 register('openCreateGroupPanel', openCreateGroupPanel);
 register('updateBgInfoChip', updateBgInfoChip);
+register('runLegacySummaryMigration', runLegacySummaryMigration);
+register('runLegacySummaryMigrationForTab', runLegacySummaryMigrationForTab);
 
 // ========== 初始化 ==========
+
+function runLegacySummaryMigration() {
+  return migrateLegacySummariesOnInit().then(({ migratedTabIds = [], skipped = false }) => {
+    if (skipped || migratedTabIds.length === 0) return { migratedTabIds, skipped };
+    flushPendingSaveImmediately();
+    if (migratedTabIds.includes(state.tabData.active)) {
+      renderChat();
+    }
+    return { migratedTabIds, skipped };
+  }).catch(e => {
+    console.warn('旧摘要初始化迁移失败:', e.message);
+    return { migratedTabIds: [], skipped: false, error: e };
+  });
+}
+
+function runLegacySummaryMigrationForTab(tabId) {
+  return migrateLegacySummaryForTab(tabId).then(({ migrated = false, skipped = false }) => {
+    if (skipped || !migrated) return { migrated, skipped };
+    flushPendingSaveImmediately();
+    if (tabId === state.tabData.active) {
+      renderChat();
+    }
+    return { migrated, skipped };
+  }).catch(e => {
+    console.warn(`旧摘要按会话迁移失败，tab=${tabId}:`, e.message);
+    return { migrated: false, skipped: false, error: e };
+  });
+}
 
 function init() {
   try {
@@ -190,6 +221,9 @@ function init() {
     updateBgInfoChip();
     const input = document.getElementById("input");
     if (input) input.focus();
+
+    // 启动后后台扫描旧摘要，并按滑动窗口规则做一次性迁移。
+    runLegacySummaryMigration();
 
   } catch (e) {
     console.error('MyDeepSeek 初始化失败:', e);

@@ -95,6 +95,7 @@ export function renderTabs() {
       renderTabs();
       coreCall('updateInputCounter');
       coreCall('updateBgInfoChip');
+      coreCall('runLegacySummaryMigrationForTab', id);
       if (window.innerWidth < 768) closeSidebar();
     });
     tabsEl.appendChild(tabDiv);
