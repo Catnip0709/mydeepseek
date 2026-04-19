@@ -4,7 +4,7 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state } from './state.js';
+import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
 import { copyText, checkIconSvg } from './utils.js';
 import { getTabDisplayName, updateStorageUsage } from './storage.js';
 import {
@@ -187,6 +187,35 @@ export function bindSettingsEvents() {
         document.body.classList.add("hide-token-estimate");
       }
       localStorage.setItem("dsShowTokenEstimate", show.toString());
+    });
+  }
+
+  // 设置 - 记忆策略
+  const memoryStrategyWindow = document.getElementById('memoryStrategyWindow');
+  const memoryStrategyFull = document.getElementById('memoryStrategyFull');
+  
+  // 初始化选中状态
+  if (state.memoryStrategy === MEMORY_STRATEGY_FULL) {
+    if (memoryStrategyFull) memoryStrategyFull.checked = true;
+  } else {
+    if (memoryStrategyWindow) memoryStrategyWindow.checked = true;
+  }
+  
+  // 绑定事件
+  if (memoryStrategyWindow) {
+    memoryStrategyWindow.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        state.memoryStrategy = MEMORY_STRATEGY_WINDOW;
+        localStorage.setItem("dsMemoryStrategy", MEMORY_STRATEGY_WINDOW);
+      }
+    });
+  }
+  if (memoryStrategyFull) {
+    memoryStrategyFull.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        state.memoryStrategy = MEMORY_STRATEGY_FULL;
+        localStorage.setItem("dsMemoryStrategy", MEMORY_STRATEGY_FULL);
+      }
     });
   }
 

@@ -4,7 +4,7 @@
  * 负责 localStorage 的读写、存储用量统计、数据构建等。
  */
 
-import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, MAX_CONTEXT_TOKENS } from './state.js';
+import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, MAX_CONTEXT_TOKENS, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
 import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
@@ -148,7 +148,43 @@ export function getTabDisplayName(id) {
 export function buildPayloadMessages(messages, endExclusive = messages.length) {
   const currentTab = state.tabData.list[state.tabData.active];
 
-  // 有摘要时：只取摘要覆盖位置之后的消息
+  // 全量模式：不使用摘要，直接发送全部消息
+  if (state.memoryStrategy === MEMORY_STRATEGY_FULL) {
+    let payloadMsgs = messages.slice(0, endExclusive).map(m => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    // 构建背景信息
+    let bgInfoParts = [];
+    if (currentTab && currentTab.userRoleName) {
+      bgInfoParts.push(`用户在对话中的角色是「${currentTab.userRoleName}」，请以此称呼用户。`);
+    }
+    if (currentTab && currentTab.storyBackground) {
+      bgInfoParts.push(`当前对话背景：${currentTab.storyBackground}`);
+    }
+
+    // 单角色聊天：注入角色 system prompt
+    if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
+      const char = state.characterData.find(c => c.id === currentTab.characterId);
+      if (char) {
+        let systemPrompt = buildCharacterSystemPrompt(char);
+        if (bgInfoParts.length > 0) {
+          systemPrompt += '\n\n' + bgInfoParts.join('\n');
+        }
+        payloadMsgs.unshift({ role: "system", content: systemPrompt });
+      }
+    } else {
+      // 单聊等其他类型：注入背景信息
+      if (bgInfoParts.length > 0) {
+        payloadMsgs.unshift({ role: "system", content: bgInfoParts.join('\n\n') });
+      }
+    }
+
+    return payloadMsgs;
+  }
+
+  // 滑动窗口模式：有摘要时只取摘要覆盖位置之后的消息
   let payloadMsgs;
   const hasUsableSummary = currentTab ? tabHasUsableSummary(currentTab) : false;
   const effectiveSummaryCover = hasUsableSummary ? getNormalizedSummaryCover(currentTab) : 0;

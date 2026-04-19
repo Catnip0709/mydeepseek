@@ -53,6 +53,19 @@ function buildDefaultTabData() {
   return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "" } } };
 }
 
+// 记忆策略常量
+export const MEMORY_STRATEGY_WINDOW = 'window';  // 滑动窗口摘要（默认，省 token）
+export const MEMORY_STRATEGY_FULL = 'full';      // 全量发送（不摘要，用户自行承担 token）
+
+// 读取记忆策略配置
+function readMemoryStrategy() {
+  const stored = localStorage.getItem('dsMemoryStrategy');
+  if (stored === MEMORY_STRATEGY_WINDOW || stored === MEMORY_STRATEGY_FULL) {
+    return stored;
+  }
+  return MEMORY_STRATEGY_WINDOW; // 默认滑动窗口
+}
+
 // 集中的可变状态对象
 export const state = {
   // 用户ID
@@ -60,6 +73,9 @@ export const state = {
 
   // API Key
   apiKey: localStorage.getItem("dsApiKey"),
+
+  // 记忆策略
+  memoryStrategy: readMemoryStrategy(),
 
   // Tab 数据
   tabData: readJsonWithFallback(

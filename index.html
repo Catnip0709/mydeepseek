@@ -147,6 +147,26 @@
       </div>
     </div>
     
+    <div class="mb-6">
+      <h4 class="text-white text-sm font-medium mb-3">记忆策略</h4>
+      <div class="space-y-2">
+        <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
+          <input type="radio" name="memoryStrategy" id="memoryStrategyWindow" value="window" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+          <div>
+            <div class="text-sm text-white">滑动窗口摘要</div>
+            <div class="text-xs text-gray-400">自动压缩早期对话，保留最近 20 条原文，节省 token</div>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
+          <input type="radio" name="memoryStrategy" id="memoryStrategyFull" value="full" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+          <div>
+            <div class="text-sm text-white">全量发送</div>
+            <div class="text-xs text-gray-400">发送全部历史消息，不做摘要，token 消耗可能很高</div>
+          </div>
+        </label>
+      </div>
+    </div>
+    
     <button id="settingsCloseBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm text-white transition-colors">关闭</button>
   </div>
 </div>

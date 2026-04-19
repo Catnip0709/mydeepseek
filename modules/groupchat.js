@@ -5,7 +5,7 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state } from './state.js';
+import { state, MEMORY_STRATEGY_FULL } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg } from './utils.js';
 import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
@@ -312,11 +312,12 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     return;
   }
 
-  // 获取群聊背景信息 + 摘要
+  // 获取群聊背景信息 + 摘要（全量模式不使用摘要）
+  const useSummary = state.memoryStrategy !== MEMORY_STRATEGY_FULL && tabHasUsableSummary(currentTab);
   const groupContext = {
     userRoleName: currentTab.userRoleName || '',
     storyBackground: currentTab.storyBackground || '',
-    summary: tabHasUsableSummary(currentTab) ? currentTab.summary : ''
+    summary: useSummary ? currentTab.summary : ''
   };
 
   const currentMsgs = currentTab.messages || [];
