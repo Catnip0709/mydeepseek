@@ -1,7 +1,7 @@
 /**
  * summary.js — 自动记忆摘要系统
  *
- * 当对话超过 40 条消息时，自动将早期对话压缩成 2000 字以内的摘要。
+ * 当对话超过 40 条消息时，自动将早期对话压缩成 6000 字以内的摘要。
  * 摘要滚动更新，始终只保留一个。
  */
 
@@ -13,8 +13,9 @@ import { saveTabs } from './storage.js';
 
 const SUMMARY_TRIGGER_COUNT = 40;    // 消息数达到 40 条时首次生成摘要
 const SUMMARY_UPDATE_INTERVAL = 20;  // 每新增 20 条消息更新一次摘要
-const SUMMARY_MAX_CHARS = 2000;      // 摘要最大字数
+const SUMMARY_MAX_CHARS = 6000;      // 摘要最大字数
 const SUMMARY_FIRST_COVER = 20;      // 首次摘要覆盖前 20 条消息
+const SUMMARY_MAX_TOKENS = 6000;     // 为 6000 字摘要预留足够输出空间
 
 // ========== Prompt 模板 ==========
 
@@ -79,7 +80,7 @@ async function generateNewSummary(tabId) {
 
   const conversationText = messagesToSummarize.map(m => {
     const role = m.role === 'user' ? '用户' : m.role === 'assistant' ? 'AI' : (m.characterName || '角色');
-    const content = typeof m.content === 'string' ? m.content.slice(0, 500) : '';
+    const content = typeof m.content === 'string' ? m.content : '';
     return `${role}：${content}`;
   }).join('\n');
 
@@ -90,7 +91,7 @@ async function generateNewSummary(tabId) {
     ],
     stream: false,
     temperature: 0.3,
-    maxTokens: 1500
+    maxTokens: SUMMARY_MAX_TOKENS
   });
 
   if (summary && summary.trim()) {
@@ -110,10 +111,10 @@ async function updateExistingSummary(tabId) {
   const endIdx = tab.messages.length;
   const newMessages = tab.messages.slice(startIdx, endIdx);
 
-  // 新消息文本（每条截断到 500 字，避免 prompt 过长）
+  // 新消息文本（保留完整消息，避免摘要遗漏关键细节）
   const newConversationText = newMessages.map(m => {
     const role = m.role === 'user' ? '用户' : m.role === 'assistant' ? 'AI' : (m.characterName || '角色');
-    const content = typeof m.content === 'string' ? m.content.slice(0, 500) : '';
+    const content = typeof m.content === 'string' ? m.content : '';
     return `${role}：${content}`;
   }).join('\n');
 
@@ -124,7 +125,7 @@ async function updateExistingSummary(tabId) {
     ],
     stream: false,
     temperature: 0.3,
-    maxTokens: 1500
+    maxTokens: SUMMARY_MAX_TOKENS
   });
 
   if (summary && summary.trim()) {
