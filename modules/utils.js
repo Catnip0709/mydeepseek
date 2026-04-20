@@ -100,20 +100,12 @@ export function limitSentences(text, maxSentences = 5) {
 
 export function trackEvent(eventType) {
   const webhookUrl = 'https://bytedance.sg.larkoffice.com/base/automation/webhook/event/GnMPaByLZwehPShLu46lsgQQghd';
-  const payload = JSON.stringify({ event_type: eventType, user_id: state.dsUserId });
-  const payloadBlob = new Blob([payload], { type: 'application/json; charset=UTF-8' });
-
-  // 优先用 sendBeacon，并通过 Blob 显式携带正确的 Content-Type
-  if (navigator.sendBeacon) {
-    navigator.sendBeacon(webhookUrl, payloadBlob);
-  } else {
-    fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: payload,
-      keepalive: true
-    }).catch(() => {});
-  }
+  fetch(webhookUrl, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_type: eventType, user_id: state.dsUserId })
+  }).catch(err => { console.log('Tracking info:', err); });
 }
 
 // ========== SVG 图标常量 ==========

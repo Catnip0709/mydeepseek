@@ -6,7 +6,7 @@
  */
 
 import { state, MEMORY_STRATEGY_FULL } from './state.js';
-import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg } from './utils.js';
+import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent } from './utils.js';
 import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
@@ -292,6 +292,8 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 
   state.isSending = true;
   coreCall('updateComposerPrimaryButtonState');
+
+  trackEvent('发送消息');
 
   const lockedTabId = tabId;
   state.abortReason = null;
