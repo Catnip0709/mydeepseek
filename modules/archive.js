@@ -5,7 +5,7 @@
  */
 
 import { state } from './state.js';
-import { callLLMJSON } from './llm.js';
+import { callLLM, extractJsonFromText } from './llm.js';
 import { saveTabs, getTabDisplayName } from './storage.js';
 import { showToast, closeSidebar } from './panels.js';
 import { call as coreCall } from './core.js';
@@ -16,9 +16,6 @@ const STORY_ARCHIVE_MAX_TIMELINE = 8;
 const STORY_ARCHIVE_MAX_RELATIONSHIPS = 8;
 const STORY_ARCHIVE_MAX_FORESHADOWS = 8;
 const STORY_ARCHIVE_MAX_HIGHLIGHTS = 10;
-const STORY_ARCHIVE_LONG_WAIT_MS = 3000;
-const STORY_ARCHIVE_BACKGROUND_HINT_MS = 8000;
-
 const ARCHIVE_PHASE_IDLE = 'idle';
 const ARCHIVE_PHASE_LOADING = 'loading';
 const ARCHIVE_PHASE_ERROR = 'error';
@@ -81,27 +78,6 @@ function clearArchiveRuntimeTimers(tabId) {
     timers.forEach(timerId => clearTimeout(timerId));
   }
   archiveRuntimeTimerMap.delete(tabId);
-}
-
-function scheduleArchiveLongWaitHints(tabId) {
-  clearArchiveRuntimeTimers(tabId);
-  const timers = [
-    setTimeout(() => {
-      if (state.archiveGenerationTabId !== tabId) return;
-      setArchiveRuntime(tabId, {
-        detail: '当前会话较长，正在继续提取人物关系、事件时间线和名场面。',
-        hint: '你可以先关闭面板，剧情档案馆会继续在后台整理。'
-      });
-    }, STORY_ARCHIVE_LONG_WAIT_MS),
-    setTimeout(() => {
-      if (state.archiveGenerationTabId !== tabId) return;
-      setArchiveRuntime(tabId, {
-        detail: '仍在整理剧情档案，请再稍等一下。',
-        hint: '关闭面板不会中断整理，稍后重新打开就能查看结果。'
-      });
-    }, STORY_ARCHIVE_BACKGROUND_HINT_MS)
-  ];
-  archiveRuntimeTimerMap.set(tabId, timers);
 }
 
 function formatArchiveTime(timestamp) {
@@ -208,6 +184,10 @@ function getStoryArchiveSourceSignature(tab) {
   return hashString(JSON.stringify(buildArchiveSourcePayload(tab)));
 }
 
+function isArchiveGeneratingForTab(tabId) {
+  return state.archiveGenerationTabId === tabId;
+}
+
 function isStoryArchiveStale(tab) {
   if (!tab) return false;
   const archive = tab.storyArchive;
@@ -309,7 +289,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
   const runtime = getArchiveRuntime(tabId);
   const currentSignature = getStoryArchiveSourceSignature(tab);
 
-  if (runtime.phase === ARCHIVE_PHASE_LOADING) {
+  if (runtime.phase === ARCHIVE_PHASE_LOADING && isArchiveGeneratingForTab(tabId)) {
     return {
       statusText: '正在整理',
       statusClassName: 'loading',
@@ -318,23 +298,8 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       refreshLoading: false,
       feedbackType: 'loading',
       feedbackTitle: '正在整理剧情档案',
-      feedbackBody: runtime.detail || '正在提取人物关系、事件时间线、伏笔和名场面。',
-      feedbackHint: runtime.hint || '你也可以点击“停止整理”立即终止这次整理。',
-      showRetry: false
-    };
-  }
-
-  if (runtime.phase === ARCHIVE_PHASE_CANCELLED) {
-    return {
-      statusText: '已停止',
-      statusClassName: 'muted',
-      refreshLabel: '重新整理',
-      refreshDisabled: false,
-      refreshLoading: false,
-      feedbackType: 'info',
-      feedbackTitle: '已停止这次整理',
-      feedbackBody: '当前这次剧情档案整理已被手动终止，已有档案内容会保持不变。',
-      feedbackHint: '如果你想继续更新，点击“重新整理”即可重新发起。',
+      feedbackBody: runtime.detail || '',
+      feedbackHint: runtime.hint || '你可以先关闭面板，档案馆会继续在后台整理。',
       showRetry: false
     };
   }
@@ -351,6 +316,21 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       feedbackBody: runtime.errorMessage || '模型暂时没有返回可用结果，请稍后重试。',
       feedbackHint: '你可以点击“重试整理”重新发起，关闭面板不会清掉这条失败记录。',
       showRetry: true
+    };
+  }
+
+  if (runtime.phase === ARCHIVE_PHASE_CANCELLED && runtime.errorSignature === currentSignature && !isStoryArchiveStale(tab)) {
+    return {
+      statusText: '已停止',
+      statusClassName: 'muted',
+      refreshLabel: '重新整理',
+      refreshDisabled: false,
+      refreshLoading: false,
+      feedbackType: 'info',
+      feedbackTitle: '已停止这次整理',
+      feedbackBody: '当前这次剧情档案整理已被手动终止，已有档案内容会保持不变。',
+      feedbackHint: '如果你想继续更新，点击“重新整理”即可重新发起。',
+      showRetry: false
     };
   }
 
@@ -667,7 +647,9 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     return null;
   }
   if (state.archiveGenerationTabId) {
-    if (!silent) showToast('剧情档案正在整理中');
+    if (!silent) {
+      showToast(state.archiveGenerationTabId === tabId ? '当前会话的剧情档案正在整理中' : '另一个会话正在整理中，请稍后再试');
+    }
     return null;
   }
   if (!Array.isArray(tab.messages) || tab.messages.length < STORY_ARCHIVE_MIN_MESSAGES) {
@@ -685,24 +667,33 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   state.archiveAbortController = abortController;
   setArchiveRuntime(tabId, {
     phase: ARCHIVE_PHASE_LOADING,
-    detail: '正在提取人物关系、事件时间线、伏笔和名场面。',
-    hint: '关闭面板后会继续在后台整理。',
+    detail: '',
+    hint: '',
     errorMessage: '',
     errorSignature: '',
     startedAt: Date.now(),
     backgroundNotified: false
   });
-  scheduleArchiveLongWaitHints(tabId);
   renderStoryArchive();
 
   try {
-    const rawArchive = await callLLMJSON({
+    const result = await callLLM({
       model: 'deepseek-chat',
       messages: promptMessages,
+      stream: true,
       temperature: 0.3,
       maxTokens: 2600,
-      signal: abortController.signal
+      signal: abortController.signal,
+      chunkTimeoutMs: 120000
     });
+    const rawText = typeof result === 'string' ? result : (result?.content || '');
+    const cleanedText = rawText.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
+    let rawArchive;
+    try {
+      rawArchive = JSON.parse(cleanedText);
+    } catch (_) {
+      rawArchive = extractJsonFromText(cleanedText);
+    }
     if (!rawArchive) {
       throw new Error('模型没有返回可解析的剧情档案');
     }
@@ -776,7 +767,7 @@ export function openStoryArchivePanel() {
 export function closeStoryArchivePanel() {
   const panel = document.getElementById('storyArchivePanel');
   const runtime = getArchiveRuntime(state.tabData.active);
-  if (runtime.phase === ARCHIVE_PHASE_LOADING && !runtime.backgroundNotified) {
+  if (runtime.phase === ARCHIVE_PHASE_LOADING && isArchiveGeneratingForTab(state.tabData.active) && !runtime.backgroundNotified) {
     setArchiveRuntime(state.tabData.active, { backgroundNotified: true });
     showToast('剧情档案馆会继续在后台整理');
   }
@@ -798,8 +789,12 @@ export function bindStoryArchiveEvents() {
   }
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      if (state.archiveGenerationTabId === state.tabData.active) {
+      if (isArchiveGeneratingForTab(state.tabData.active)) {
         cancelStoryArchiveGeneration();
+        return;
+      }
+      if (state.archiveGenerationTabId) {
+        showToast('另一个会话正在整理中，请稍后再试');
         return;
       }
       generateStoryArchive(state.tabData.active);

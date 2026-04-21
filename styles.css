@@ -51,10 +51,6 @@ body.search-active #emptyChatHint {
       -webkit-overflow-scrolling: touch;
       scroll-behavior: smooth;
       transition: padding-bottom 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-      padding-bottom: calc(192px + env(safe-area-inset-bottom)) !important;
-    }
-    body.composer-panel-open #chat {
-      padding-bottom: calc(352px + env(safe-area-inset-bottom)) !important;
     }
     .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
     .input-counter {
@@ -554,10 +550,6 @@ body.search-active #emptyChatHint {
       padding: 10px 14px 12px;
       border-top: none;
       z-index: 10;
-      transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-    body.composer-panel-open .input-container {
-      transform: translateY(-12px);
     }
     .input-container::before {
       content: "";
@@ -582,7 +574,7 @@ body.search-active #emptyChatHint {
       transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
     }
     .input-shell.composer-expanded {
-      transform: translateY(-2px);
+      transform: translateY(-12px);
       box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
     }
     .input-toolbar {
@@ -1054,12 +1046,6 @@ body.search-active #emptyChatHint {
       }
       .input-container {
         padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
-      }
-      #chat {
-        padding-bottom: calc(176px + env(safe-area-inset-bottom)) !important;
-      }
-      body.composer-panel-open #chat {
-        padding-bottom: calc(332px + env(safe-area-inset-bottom)) !important;
       }
       .input-shell {
         padding: 10px 12px 10px;

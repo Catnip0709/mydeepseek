@@ -151,6 +151,7 @@ function syncComposerActionMenuState(menu = document.getElementById('composerAct
   const isVisible = !!(menu && !menu.classList.contains('hidden'));
   if (inputShell) inputShell.classList.toggle('composer-expanded', isVisible);
   if (body) body.classList.toggle('composer-panel-open', isVisible);
+  updateComposerLayoutMetrics();
 }
 
 function queueComposerActionMenuAfterClose(menu, callback) {
@@ -159,6 +160,33 @@ function queueComposerActionMenuAfterClose(menu, callback) {
     menu._afterCloseCallbacks = [];
   }
   menu._afterCloseCallbacks.push(callback);
+}
+
+let _composerLayoutRafId = 0;
+let _composerResizeObserver = null;
+
+export function updateComposerLayoutMetrics() {
+  if (_composerLayoutRafId) cancelAnimationFrame(_composerLayoutRafId);
+  _composerLayoutRafId = requestAnimationFrame(() => {
+    _composerLayoutRafId = 0;
+    const chat = document.getElementById('chat');
+    const inputContainer = document.querySelector('.input-container');
+    const inputShell = document.querySelector('.input-shell');
+    const emptyChatHint = document.getElementById('emptyChatHint');
+    const scrollToBottomBtn = document.getElementById('scrollToBottomBtn');
+    if (!chat || !inputContainer || !inputShell) return;
+
+    const containerRect = inputContainer.getBoundingClientRect();
+    const shellRect = inputShell.getBoundingClientRect();
+    const overlayTop = Math.max(0, Math.min(containerRect.top, shellRect.top));
+    const overlayHeight = Math.max(window.innerHeight - overlayTop, 0);
+
+    chat.style.paddingBottom = `${Math.ceil(overlayHeight + 20)}px`;
+    if (emptyChatHint) emptyChatHint.style.bottom = `${Math.ceil(overlayHeight + 28)}px`;
+    if (scrollToBottomBtn) scrollToBottomBtn.style.bottom = `${Math.ceil(overlayHeight + 16)}px`;
+
+    checkScrollButton();
+  });
 }
 
 function keepChatBottomVisibleForComposerMenu() {
@@ -1230,6 +1258,7 @@ export function autoHeight() {
   input.style.height = "44px";
   const scrollH = input.scrollHeight;
   input.style.height = Math.min(Math.max(scrollH, 44), 88) + "px";
+  updateComposerLayoutMetrics();
 }
 
 export function updateInputCounter() {
@@ -1411,9 +1440,22 @@ export function bindChatEvents() {
   if (scrollToBottomBtn) scrollToBottomBtn.addEventListener("click", scrollToBottom);
   if (chat) chat.addEventListener("scroll", checkScrollButton);
 
+  if (typeof ResizeObserver !== 'undefined' && !_composerResizeObserver) {
+    _composerResizeObserver = new ResizeObserver(() => {
+      updateComposerLayoutMetrics();
+    });
+    const inputContainer = document.querySelector('.input-container');
+    const inputShell = document.querySelector('.input-shell');
+    if (inputContainer) _composerResizeObserver.observe(inputContainer);
+    if (inputShell) _composerResizeObserver.observe(inputShell);
+  }
+
+  window.addEventListener('resize', updateComposerLayoutMetrics);
+
   // 初始化输入框
   autoHeight();
   updatePendingTextAttachmentUI();
   updateInputCounter();
   updateComposerPrimaryButtonState();
+  updateComposerLayoutMetrics();
 }

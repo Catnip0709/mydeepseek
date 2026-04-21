@@ -188,7 +188,7 @@ export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temp
   }
 }
 
-function extractJsonFromText(text) {
+export function extractJsonFromText(text) {
   const candidates = [];
   const objectStart = text.indexOf('{');
   const objectEnd = text.lastIndexOf('}');
