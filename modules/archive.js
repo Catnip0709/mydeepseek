@@ -314,8 +314,9 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       feedbackType: 'error',
       feedbackTitle: '这次整理没有完成',
       feedbackBody: runtime.errorMessage || '模型暂时没有返回可用结果，请稍后重试。',
-      feedbackHint: '你可以点击“重试整理”重新发起，关闭面板不会清掉这条失败记录。',
-      showRetry: true
+      feedbackHint: '你可以点击"重试整理"重新发起，关闭面板不会清掉这条失败记录。',
+      showRetry: true,
+      showCopyDebug: !!runtime.debugInfo
     };
   }
 
@@ -398,6 +399,7 @@ function renderArchiveFeedback(viewState) {
   const bodyEl = document.getElementById('storyArchiveFeedbackBody');
   const hintEl = document.getElementById('storyArchiveFeedbackHint');
   const retryBtn = document.getElementById('retryStoryArchiveBtn');
+  const copyDebugBtn = document.getElementById('copyArchiveDebugBtn');
   if (!feedbackEl || !titleEl || !bodyEl || !hintEl || !retryBtn) return;
 
   if (!viewState.feedbackType) {
@@ -407,6 +409,7 @@ function renderArchiveFeedback(viewState) {
     hintEl.textContent = '';
     hintEl.classList.add('hidden');
     retryBtn.classList.add('hidden');
+    if (copyDebugBtn) copyDebugBtn.classList.add('hidden');
     return;
   }
 
@@ -416,6 +419,7 @@ function renderArchiveFeedback(viewState) {
   hintEl.textContent = viewState.feedbackHint || '';
   hintEl.classList.toggle('hidden', !viewState.feedbackHint);
   retryBtn.classList.toggle('hidden', !viewState.showRetry);
+  if (copyDebugBtn) copyDebugBtn.classList.toggle('hidden', !viewState.showCopyDebug);
 }
 
 function renderArchiveRefreshButton(viewState) {
@@ -689,12 +693,18 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     const rawText = typeof result === 'string' ? result : (result?.content || '');
     const cleanedText = rawText.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
     let rawArchive;
+    let debugInfo = '';
     try {
       rawArchive = JSON.parse(cleanedText);
     } catch (_) {
       rawArchive = extractJsonFromText(cleanedText);
     }
     if (!rawArchive) {
+      debugInfo = [
+        `消息数量: ${sourceMessageCount}`,
+        `模型原始返回 (前2000字符): ${rawText.slice(0, 2000)}`,
+        `清洗后文本 (前2000字符): ${cleanedText.slice(0, 2000)}`
+      ].join('\n\n');
       throw new Error('模型没有返回可解析的剧情档案');
     }
 
@@ -737,7 +747,8 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       errorMessage: e.message || '请稍后再试',
       errorSignature: sourceSignature,
       startedAt: 0,
-      backgroundNotified: false
+      backgroundNotified: false,
+      debugInfo: debugInfo || `错误信息: ${e.message || '未知'}`
     });
     showToast(`剧情档案整理失败：${e.message || '请稍后再试'}`);
     return null;
@@ -803,6 +814,19 @@ export function bindStoryArchiveEvents() {
   if (retryBtn) {
     retryBtn.addEventListener('click', () => {
       generateStoryArchive(state.tabData.active);
+    });
+  }
+  const copyDebugBtn = document.getElementById('copyArchiveDebugBtn');
+  if (copyDebugBtn) {
+    copyDebugBtn.addEventListener('click', () => {
+      const runtime = getArchiveRuntime(state.tabData.active);
+      if (runtime.debugInfo) {
+        navigator.clipboard.writeText(runtime.debugInfo).then(() => {
+          showToast('调试日志已复制');
+        }).catch(() => {
+          showToast('复制失败，请手动复制');
+        });
+      }
     });
   }
   if (openBtn) {
