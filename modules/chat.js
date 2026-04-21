@@ -134,24 +134,138 @@ function updatePendingTextAttachmentUI() {
   removeBtn.disabled = state.isPreparingTextAttachment;
 }
 
-function closeComposerActionMenu() {
+function finishComposerActionMenuClose(menu) {
+  if (!menu) return;
+  menu.classList.remove('closing', 'opening');
+  menu.classList.add('hidden');
+  const callbacks = Array.isArray(menu._afterCloseCallbacks) ? menu._afterCloseCallbacks : [];
+  menu._afterCloseCallbacks = [];
+  callbacks.forEach(callback => {
+    try { callback(); } catch (_) {}
+  });
+}
+
+function syncComposerActionMenuState(menu = document.getElementById('composerActionMenu')) {
+  const inputShell = document.querySelector('.input-shell');
+  const body = document.body;
+  const isVisible = !!(menu && !menu.classList.contains('hidden'));
+  if (inputShell) inputShell.classList.toggle('composer-expanded', isVisible);
+  if (body) body.classList.toggle('composer-panel-open', isVisible);
+}
+
+function queueComposerActionMenuAfterClose(menu, callback) {
+  if (!menu || typeof callback !== 'function') return;
+  if (!Array.isArray(menu._afterCloseCallbacks)) {
+    menu._afterCloseCallbacks = [];
+  }
+  menu._afterCloseCallbacks.push(callback);
+}
+
+function keepChatBottomVisibleForComposerMenu() {
+  const chat = document.getElementById('chat');
+  if (!chat) return;
+  const distanceFromBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+  if (distanceFromBottom > 240) return;
+  if (chat._composerKeepBottomTimer) {
+    clearTimeout(chat._composerKeepBottomTimer);
+  }
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+      checkScrollButton();
+    });
+  });
+  chat._composerKeepBottomTimer = setTimeout(() => {
+    chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+    checkScrollButton();
+    chat._composerKeepBottomTimer = null;
+  }, 240);
+}
+
+function openComposerActionMenu() {
   const menu = document.getElementById('composerActionMenu');
-  if (menu) menu.classList.add('hidden');
+  if (!menu) return;
+  menu._afterCloseCallbacks = [];
+  menu.classList.remove('hidden', 'closing');
+  syncComposerActionMenuState(menu);
+  void menu.offsetWidth;
+  menu.classList.add('opening');
+  keepChatBottomVisibleForComposerMenu();
+  menu.addEventListener('animationend', () => {
+    menu.classList.remove('opening');
+  }, { once: true });
+  updateComposerPrimaryButtonState();
+}
+
+export function closeComposerActionMenu(options = {}) {
+  const menu = document.getElementById('composerActionMenu');
+  const { immediate = false, onAfterClose = null, skipUpdate = false } = options;
+  if (!menu) {
+    if (typeof onAfterClose === 'function') onAfterClose();
+    return;
+  }
+  queueComposerActionMenuAfterClose(menu, onAfterClose);
+  if (menu.classList.contains('hidden') && !menu.classList.contains('closing')) {
+    if (typeof onAfterClose === 'function') {
+      const callbacks = menu._afterCloseCallbacks || [];
+      menu._afterCloseCallbacks = [];
+      callbacks.forEach(callback => {
+        try { callback(); } catch (_) {}
+      });
+    }
+    syncComposerActionMenuState(menu);
+    if (!skipUpdate) updateComposerPrimaryButtonState();
+    return;
+  }
+  if (immediate) {
+    finishComposerActionMenuClose(menu);
+    syncComposerActionMenuState(menu);
+    if (!skipUpdate) updateComposerPrimaryButtonState();
+    return;
+  }
+  if (menu.classList.contains('closing')) {
+    syncComposerActionMenuState(menu);
+    if (!skipUpdate) updateComposerPrimaryButtonState();
+    return;
+  }
+  menu.classList.remove('opening');
+  menu.classList.add('closing');
+  syncComposerActionMenuState(menu);
+  menu.addEventListener('animationend', () => {
+    finishComposerActionMenuClose(menu);
+    syncComposerActionMenuState(menu);
+    if (!skipUpdate) updateComposerPrimaryButtonState();
+  }, { once: true });
+  if (!skipUpdate) updateComposerPrimaryButtonState();
 }
 
 function toggleComposerActionMenu() {
   const menu = document.getElementById('composerActionMenu');
   if (!menu || state.isSending) return;
-  menu.classList.toggle('hidden');
+  if (menu.classList.contains('hidden')) {
+    openComposerActionMenu();
+    return;
+  }
+  if (menu.classList.contains('closing')) return;
+  closeComposerActionMenu();
+}
+
+function isComposerActionMenuOpen() {
+  const menu = document.getElementById('composerActionMenu');
+  return !!(menu && !menu.classList.contains('hidden'));
 }
 
 export function updateComposerPrimaryButtonState() {
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('sendBtn');
+  const menu = document.getElementById('composerActionMenu');
   if (!input || !sendBtn) return;
 
   if (state.isSending || state.isPreparingTextAttachment) {
-    closeComposerActionMenu();
+    if (menu && !menu.classList.contains('hidden')) {
+      finishComposerActionMenuClose(menu);
+    }
+    syncComposerActionMenuState(menu);
     sendBtn.textContent = '停止';
     sendBtn.title = state.isPreparingTextAttachment ? '停止处理' : '停止生成';
     sendBtn.setAttribute('aria-label', state.isPreparingTextAttachment ? '停止处理' : '停止生成');
@@ -161,18 +275,23 @@ export function updateComposerPrimaryButtonState() {
   }
 
   const hasInput = !!input.value.trim();
+  const isMenuOpen = isComposerActionMenuOpen();
   sendBtn.classList.remove('stop-mode');
   if (hasInput) {
-    closeComposerActionMenu();
+    if (menu && !menu.classList.contains('hidden')) {
+      finishComposerActionMenuClose(menu);
+    }
+    syncComposerActionMenuState(menu);
     sendBtn.textContent = '发送';
     sendBtn.title = '发送消息';
     sendBtn.setAttribute('aria-label', '发送消息');
     sendBtn.classList.remove('plus-mode');
   } else {
-    sendBtn.textContent = '+';
-    sendBtn.title = '更多操作';
-    sendBtn.setAttribute('aria-label', '更多操作');
+    sendBtn.textContent = isMenuOpen ? '×' : '+';
+    sendBtn.title = isMenuOpen ? '收起快捷操作' : '更多操作';
+    sendBtn.setAttribute('aria-label', isMenuOpen ? '收起快捷操作' : '更多操作');
     sendBtn.classList.add('plus-mode');
+    syncComposerActionMenuState(menu);
   }
 }
 
@@ -338,6 +457,7 @@ function handleChatClick(e) {
       }
       normalizeTabSummaryState(activeTab);
       saveTabs();
+      coreCall('markStoryArchiveStale', state.tabData.active);
       renderChat();
     }
     return;
@@ -367,6 +487,7 @@ function handleChatClick(e) {
       msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
       msg.generationState = msg.history[msg.historyIndex].state || 'complete';
       saveTabs();
+      coreCall('markStoryArchiveStale', state.tabData.active);
       renderChat();
     }
     return;
@@ -385,6 +506,7 @@ function handleChatClick(e) {
       msg.reasoningContent = msg.history[msg.historyIndex].reasoningContent;
       msg.generationState = msg.history[msg.historyIndex].state || 'complete';
       saveTabs();
+      coreCall('markStoryArchiveStale', state.tabData.active);
       renderChat();
     }
     return;
@@ -710,6 +832,7 @@ export async function sendMessage() {
     currentMsgs.push(userMsg);
     state.tabData.list[sendingTabId].messages = currentMsgs;
     saveTabs();
+    coreCall('markStoryArchiveStale', sendingTabId);
     renderChat();
     // 发送消息后立即滚到底部（用 instant 确保 isAtBottom 判断准确）
     const chatEl = document.getElementById("chat");
@@ -742,6 +865,7 @@ export async function sendMessage() {
   currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
   state.tabData.list[sendingTabId].messages = currentMsgs;
   saveTabs();
+  coreCall('markStoryArchiveStale', sendingTabId);
   renderChat();
   // 发送消息后立即滚到底部（用 instant 确保 isAtBottom 判断准确）
   const chatEl2 = document.getElementById("chat");
@@ -1014,6 +1138,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
     state.tabData.list[lockedTabId].messages = currentMsgs;
     saveTabs();
+    coreCall('markStoryArchiveStale', lockedTabId);
     renderChat();
   }
 }
@@ -1042,6 +1167,7 @@ export async function saveEditAndRegenerate() {
   }
   normalizeTabSummaryState(currentTab);
   saveTabs();
+  coreCall('markStoryArchiveStale', state.tabData.active);
 
   editPanel.classList.add("hidden");
   state.editingMessageIndex = -1;
@@ -1055,6 +1181,7 @@ export async function saveEditAndRegenerate() {
     if (messagesToKeep[editIdx]?.role === 'user') {
       messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx);
       saveTabs();
+      coreCall('markStoryArchiveStale', state.tabData.active);
     }
     await fetchAndStreamResponse();
   }

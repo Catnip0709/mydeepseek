@@ -293,7 +293,8 @@ export function createCharacterChatTab(characterId) {
     messages: [],
     title: "",
     type: 'single-character',
-    characterId: characterId
+    characterId: characterId,
+    storyArchive: null
   };
   state.tabData.active = newId;
   saveTabs();

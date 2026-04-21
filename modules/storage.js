@@ -354,13 +354,14 @@ export function initializeData() {
   // 修复 tabData 结构
   Object.keys(state.tabData.list).forEach(id => {
     if (Array.isArray(state.tabData.list[id])) {
-      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '' };
+      state.tabData.list[id] = { messages: state.tabData.list[id], memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '', storyArchive: null };
     } else {
       if (typeof state.tabData.list[id].title === 'undefined') state.tabData.list[id].title = "";
       if (typeof state.tabData.list[id].memoryLimit === 'undefined') state.tabData.list[id].memoryLimit = "0";
       if (typeof state.tabData.list[id].summary === 'undefined') state.tabData.list[id].summary = "";
       if (typeof state.tabData.list[id].summaryCoversUpTo === 'undefined') state.tabData.list[id].summaryCoversUpTo = 0;
       if (typeof state.tabData.list[id].summaryVersion === 'undefined') state.tabData.list[id].summaryVersion = "";
+      if (typeof state.tabData.list[id].storyArchive === 'undefined') state.tabData.list[id].storyArchive = null;
       if (!Array.isArray(state.tabData.list[id].messages)) state.tabData.list[id].messages = [];
       normalizeTabSummaryState(state.tabData.list[id]);
     }
@@ -385,7 +386,7 @@ export function repairData() {
     Object.keys(parsed.list).forEach(function(id) {
       const tab = parsed.list[id];
       if (Array.isArray(tab)) {
-        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '' };
+        parsed.list[id] = { messages: tab, memoryLimit: "0", title: "", summary: "", summaryCoversUpTo: 0, summaryVersion: '', storyArchive: null };
       } else {
         tab.messages = Array.isArray(tab.messages) ? tab.messages : [];
         tab.memoryLimit = tab.memoryLimit || "0";
@@ -393,6 +394,7 @@ export function repairData() {
         tab.summary = tab.summary || "";
         tab.summaryCoversUpTo = tab.summaryCoversUpTo || 0;
         tab.summaryVersion = tab.summaryVersion || "";
+        if (typeof tab.storyArchive === 'undefined') tab.storyArchive = null;
         normalizeTabSummaryState(tab);
         tab.messages.forEach(function(msg) {
           if (!msg.role) msg.role = 'user';

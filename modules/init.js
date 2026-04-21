@@ -9,7 +9,7 @@ import { state } from './state.js';
 import { trackEvent } from './utils.js';
 import { initializeData, repairData, flushPendingSaveImmediately } from './storage.js';
 import { register } from './core.js';
-import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState } from './chat.js';
+import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
@@ -24,6 +24,7 @@ import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from '.
 import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js';
 import { bindSearchEvents, clearSearch } from './search.js';
 import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js';
+import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js';
 
 // ========== 注册跨模块函数到 core ==========
 
@@ -32,6 +33,7 @@ register('rebindChatButtons', rebindChatButtons);
 register('updateInputCounter', updateInputCounter);
 register('clearPendingTextAttachment', clearPendingTextAttachment);
 register('updateComposerPrimaryButtonState', updateComposerPrimaryButtonState);
+register('closeComposerActionMenu', closeComposerActionMenu);
 register('renderTabs', renderTabs);
 register('invalidateTabCache', invalidateTabCache);
 register('getCharacterColor', getCharacterColor);
@@ -43,6 +45,8 @@ register('openCreateGroupPanel', openCreateGroupPanel);
 register('updateBgInfoChip', updateBgInfoChip);
 register('runLegacySummaryMigration', runLegacySummaryMigration);
 register('runLegacySummaryMigrationForTab', runLegacySummaryMigrationForTab);
+register('openStoryArchivePanel', openStoryArchivePanel);
+register('markStoryArchiveStale', markStoryArchiveStale);
 
 // ========== 初始化 ==========
 
@@ -127,6 +131,7 @@ function init() {
     bindPromptEvents();
     bindMarketEvents();
     bindSearchEvents();
+    bindStoryArchiveEvents();
 
     // 全局事件：visibilitychange
     document.addEventListener('visibilitychange', () => {
@@ -192,6 +197,7 @@ function init() {
         const downloadPanel = document.getElementById('downloadPanel');
         const promptMarketPanel = document.getElementById('promptMarketPanel');
         const aiGeneratePromptPanel = document.getElementById('aiGeneratePromptPanel');
+        const storyArchivePanel = document.getElementById('storyArchivePanel');
 
         if (settingsPanel && !settingsPanel.classList.contains('hidden')) closeSettingsPanel();
         if (editPanel && !editPanel.classList.contains('hidden')) cancelEdit();
@@ -208,6 +214,7 @@ function init() {
         if (downloadPanel && !downloadPanel.classList.contains('hidden')) closeDownloadPanel();
         if (promptMarketPanel && !promptMarketPanel.classList.contains('hidden')) closePromptMarketPanel();
         if (aiGeneratePromptPanel && !aiGeneratePromptPanel.classList.contains('hidden')) closeAiGeneratePanel();
+        if (storyArchivePanel && !storyArchivePanel.classList.contains('hidden')) closeStoryArchivePanel();
       }
     });
 

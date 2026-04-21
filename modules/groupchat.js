@@ -376,6 +376,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         });
         state.tabData.list[lockedTabId].messages = msgs;
         saveTabs();
+        coreCall('markStoryArchiveStale', lockedTabId);
       }
     });
     shouldCheckSummary = !state.abortReason && Array.isArray(replies) && replies.length > 0;
@@ -502,7 +503,8 @@ export function createGroupChat() {
     type: 'group',
     characterIds: charIds,
     messages: [],
-    title: groupTitle
+    title: groupTitle,
+    storyArchive: null
   };
   state.tabData.active = newId;
   saveTabs();

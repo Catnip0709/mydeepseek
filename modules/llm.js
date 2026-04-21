@@ -177,10 +177,35 @@ export async function callLLM({
 
 export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
   const text = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
+  const cleanedText = String(text || '').replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
   try {
-    return JSON.parse(text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim());
+    return JSON.parse(cleanedText);
   } catch (e) {
+    const extracted = extractJsonFromText(cleanedText);
+    if (extracted !== null) return extracted;
     console.warn('callLLMJSON 解析失败:', text);
     return null;
   }
+}
+
+function extractJsonFromText(text) {
+  const candidates = [];
+  const objectStart = text.indexOf('{');
+  const objectEnd = text.lastIndexOf('}');
+  if (objectStart !== -1 && objectEnd !== -1 && objectEnd > objectStart) {
+    candidates.push(text.slice(objectStart, objectEnd + 1));
+  }
+
+  const arrayStart = text.indexOf('[');
+  const arrayEnd = text.lastIndexOf(']');
+  if (arrayStart !== -1 && arrayEnd !== -1 && arrayEnd > arrayStart) {
+    candidates.push(text.slice(arrayStart, arrayEnd + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (_) {}
+  }
+  return null;
 }

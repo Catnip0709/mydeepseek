@@ -33,7 +33,7 @@ export function invalidateTabCache(tabId) {
 export function createNewTab() {
   coreCall('clearPendingTextAttachment');
   const newId = generateNewTabId();
-  state.tabData.list[newId] = { messages: [], title: "" };
+  state.tabData.list[newId] = { messages: [], title: "", storyArchive: null };
   state.tabData.active = newId;
   saveTabs();
   // renderChat, renderTabs, updateInputCounter 由调用方处理
@@ -50,7 +50,7 @@ export function renderTabs() {
   tabsEl.innerHTML = "";
   const tabIds = Object.keys(state.tabData.list);
   if (tabIds.length === 0) {
-    state.tabData.list = { tab1: { messages: [], title: "" } };
+    state.tabData.list = { tab1: { messages: [], title: "", storyArchive: null } };
     state.tabData.active = "tab1";
     saveTabs();
   }

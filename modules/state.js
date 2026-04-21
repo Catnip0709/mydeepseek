@@ -50,7 +50,7 @@ function buildDefaultTabData() {
       resetMessage: 'dsMessages 数据损坏，已重置'
     }
   );
-  return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "" } } };
+  return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "", storyArchive: null } } };
 }
 
 // 记忆策略常量
@@ -152,6 +152,9 @@ export const state = {
   // 指令市场
   currentMarketPrompt: null,
   lastShownPromptIndex: -1,
+
+  // 剧情档案馆
+  archiveGenerationTabId: null,
 
   // 待发送 txt 附件
   pendingTextAttachment: null,
