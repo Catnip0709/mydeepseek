@@ -1037,6 +1037,11 @@ export async function fetchAndStreamResponse(opts = {}) {
   // 最终由 finalize 的 renderChat（或 invalidateTabCache 在切回时触发的重渲染）整体展示完整结果。
   let liveRenderBroken = !startedOnActiveTab || !aiMsgDiv;
 
+  // HOTFIX: _finalizeCalled 必须在 try 之前声明（let 不会被 hoist，之前放在 finally 之后会触发
+  // TDZ: "Cannot access '_finalizeCalled' before initialization"，因为 try 里的 [DONE] 分支
+  // 第一时间就会调用 finalizeMessage 进而读取此变量）。
+  let _finalizeCalled = false;
+
   function markInterrupted() {
     finalizeState = "interrupted";
   }
@@ -1204,7 +1209,6 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   }
 
-  let _finalizeCalled = false;
   function finalizeMessage(fState = "complete") {
     // 幂等：避免 [DONE] + reader.done 双路径下重复 push
     if (_finalizeCalled) return;
