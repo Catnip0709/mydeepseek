@@ -646,18 +646,29 @@
       </div>
       <div class="flex items-center gap-2">
         <button id="refreshStoryArchiveBtn" class="prompt-market-ai-btn" type="button">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-          </svg>
-          <span>刷新整理</span>
+          <span class="story-archive-refresh-icon" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </span>
+          <span id="refreshStoryArchiveBtnText">刷新整理</span>
         </button>
         <button id="closeStoryArchiveBtn" class="text-gray-400 hover:text-white text-2xl leading-none">&times;</button>
       </div>
     </div>
 
     <div class="prompt-market-body story-archive-body">
-      <div id="storyArchiveLoading" class="story-archive-loading hidden">正在整理剧情档案...</div>
+      <div id="storyArchiveFeedback" class="story-archive-feedback hidden">
+        <div class="story-archive-feedback-head">
+          <div class="story-archive-feedback-copy">
+            <div id="storyArchiveFeedbackTitle" class="story-archive-feedback-title"></div>
+            <div id="storyArchiveFeedbackBody" class="story-archive-feedback-body"></div>
+          </div>
+          <button id="retryStoryArchiveBtn" class="story-archive-feedback-action hidden" type="button">重试整理</button>
+        </div>
+        <div id="storyArchiveFeedbackHint" class="story-archive-feedback-hint hidden"></div>
+      </div>
       <div id="storyArchiveMeta" class="story-archive-meta"></div>
 
       <div class="story-archive-overview-grid">
