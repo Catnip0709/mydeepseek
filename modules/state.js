@@ -155,6 +155,7 @@ export const state = {
 
   // 剧情档案馆
   archiveGenerationTabId: null,
+  archiveAbortController: null,
 
   // 待发送 txt 附件
   pendingTextAttachment: null,

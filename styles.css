@@ -593,13 +593,16 @@ body.search-active #emptyChatHint {
       gap: 10px;
     }
     .toolbar-input-counter {
-      flex-shrink: 0;
+      flex-shrink: 1;
       margin-left: auto;
       text-align: right;
       font-size: 12px;
       line-height: 1;
       color: #9ca3af;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
     }
     .deepthink-chip {
       display: inline-flex;
@@ -614,6 +617,7 @@ body.search-active #emptyChatHint {
       cursor: pointer;
       user-select: none;
       transition: all 0.2s ease;
+      flex-shrink: 0;
     }
     .deepthink-chip:hover {
       background: #1f2937;
@@ -2743,6 +2747,15 @@ body.day-mode .txt-attachment-remove:hover {
   animation: storyArchiveSpin 0.9s linear infinite;
 }
 
+#refreshStoryArchiveBtn.is-stop {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fca5a5;
+}
+
+#refreshStoryArchiveBtn.is-stop:hover {
+  background: rgba(248, 113, 113, 0.24);
+}
+
 #refreshStoryArchiveBtn:disabled {
   opacity: 0.75;
   cursor: not-allowed;
@@ -2867,6 +2880,15 @@ body.day-mode .story-archive-feedback-action {
 
 body.day-mode .story-archive-feedback-action:hover {
   background: rgba(37, 99, 235, 0.16);
+}
+
+body.day-mode #refreshStoryArchiveBtn.is-stop {
+  background: rgba(248, 113, 113, 0.14);
+  color: #b91c1c;
+}
+
+body.day-mode #refreshStoryArchiveBtn.is-stop:hover {
+  background: rgba(248, 113, 113, 0.2);
 }
 
 body.day-mode .story-archive-overview-card,

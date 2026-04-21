@@ -22,6 +22,7 @@ const STORY_ARCHIVE_BACKGROUND_HINT_MS = 8000;
 const ARCHIVE_PHASE_IDLE = 'idle';
 const ARCHIVE_PHASE_LOADING = 'loading';
 const ARCHIVE_PHASE_ERROR = 'error';
+const ARCHIVE_PHASE_CANCELLED = 'cancelled';
 
 const archiveRuntimeMap = new Map();
 const archiveRuntimeTimerMap = new Map();
@@ -312,13 +313,28 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
     return {
       statusText: '正在整理',
       statusClassName: 'loading',
-      refreshLabel: '整理中...',
-      refreshDisabled: true,
-      refreshLoading: true,
+      refreshLabel: '停止整理',
+      refreshDisabled: false,
+      refreshLoading: false,
       feedbackType: 'loading',
       feedbackTitle: '正在整理剧情档案',
       feedbackBody: runtime.detail || '正在提取人物关系、事件时间线、伏笔和名场面。',
-      feedbackHint: runtime.hint || '关闭面板后会继续在后台整理。',
+      feedbackHint: runtime.hint || '你也可以点击“停止整理”立即终止这次整理。',
+      showRetry: false
+    };
+  }
+
+  if (runtime.phase === ARCHIVE_PHASE_CANCELLED) {
+    return {
+      statusText: '已停止',
+      statusClassName: 'muted',
+      refreshLabel: '重新整理',
+      refreshDisabled: false,
+      refreshLoading: false,
+      feedbackType: 'info',
+      feedbackTitle: '已停止这次整理',
+      feedbackBody: '当前这次剧情档案整理已被手动终止，已有档案内容会保持不变。',
+      feedbackHint: '如果你想继续更新，点击“重新整理”即可重新发起。',
       showRetry: false
     };
   }
@@ -351,7 +367,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       feedbackBody: hasEnoughMessages
         ? '点击“开始整理”后，会自动提取人物关系、关键事件、伏笔和名场面。'
         : `至少需要 ${STORY_ARCHIVE_MIN_MESSAGES} 条消息后，才能整理剧情档案。`,
-      feedbackHint: hasEnoughMessages ? '第一次生成可能会花一点时间。' : '继续聊几句后，再打开剧情档案馆就会自动开始整理。',
+      feedbackHint: hasEnoughMessages ? '第一次生成可能会花一点时间。' : '继续聊几句后，点击“开始整理”即可生成剧情档案。',
       showRetry: false
     };
   }
@@ -366,7 +382,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       feedbackType: 'stale',
       feedbackTitle: '剧情有新进展',
       feedbackBody: '当前会话内容已经变化，建议刷新整理，更新最新的人物关系、时间线和伏笔状态。',
-      feedbackHint: '重新打开剧情档案馆时也会自动尝试更新。',
+      feedbackHint: '点击“刷新整理”后，会重新生成最新的剧情档案。',
       showRetry: false
     };
   }
@@ -428,7 +444,31 @@ function renderArchiveRefreshButton(viewState) {
   if (!refreshBtn || !refreshText) return;
   refreshBtn.disabled = !!viewState.refreshDisabled;
   refreshBtn.classList.toggle('is-loading', !!viewState.refreshLoading);
+  refreshBtn.classList.toggle('is-stop', viewState.refreshLabel === '停止整理');
   refreshText.textContent = viewState.refreshLabel || '刷新整理';
+}
+
+export function cancelStoryArchiveGeneration(options = {}) {
+  const { silent = false } = options;
+  const tabId = state.archiveGenerationTabId;
+  if (!tabId || !state.archiveAbortController) return false;
+  try {
+    state.archiveAbortController.abort();
+  } catch (_) {}
+  clearArchiveRuntimeTimers(tabId);
+  setArchiveRuntime(tabId, {
+    phase: ARCHIVE_PHASE_CANCELLED,
+    detail: '',
+    hint: '',
+    errorMessage: '',
+    errorSignature: getStoryArchiveSourceSignature(state.tabData.list[tabId]),
+    startedAt: 0,
+    backgroundNotified: false
+  });
+  state.archiveAbortController = null;
+  state.archiveGenerationTabId = null;
+  if (!silent) showToast('已停止剧情档案整理');
+  return true;
 }
 
 function renderStoryArchive() {
@@ -639,8 +679,10 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   const sourceSignature = getStoryArchiveSourceSignature(tab);
   const title = getTabDisplayName(tabId);
   const promptMessages = buildArchivePrompt(tab, title);
+  const abortController = new AbortController();
 
   state.archiveGenerationTabId = tabId;
+  state.archiveAbortController = abortController;
   setArchiveRuntime(tabId, {
     phase: ARCHIVE_PHASE_LOADING,
     detail: '正在提取人物关系、事件时间线、伏笔和名场面。',
@@ -658,7 +700,8 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       model: 'deepseek-chat',
       messages: promptMessages,
       temperature: 0.3,
-      maxTokens: 2600
+      maxTokens: 2600,
+      signal: abortController.signal
     });
     if (!rawArchive) {
       throw new Error('模型没有返回可解析的剧情档案');
@@ -682,6 +725,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       lastSuccessAt: Date.now(),
       backgroundNotified: false
     });
+    state.archiveAbortController = null;
 
     if (tabId === state.tabData.active) {
       renderStoryArchive();
@@ -691,6 +735,10 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   } catch (e) {
     console.error('剧情档案生成失败:', e);
     clearArchiveRuntimeTimers(tabId);
+    if (abortController.signal.aborted) {
+      state.archiveAbortController = null;
+      return null;
+    }
     setArchiveRuntime(tabId, {
       phase: ARCHIVE_PHASE_ERROR,
       detail: '',
@@ -703,7 +751,12 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     showToast(`剧情档案整理失败：${e.message || '请稍后再试'}`);
     return null;
   } finally {
-    state.archiveGenerationTabId = null;
+    if (state.archiveGenerationTabId === tabId) {
+      state.archiveGenerationTabId = null;
+    }
+    if (state.archiveAbortController === abortController) {
+      state.archiveAbortController = null;
+    }
     clearArchiveRuntimeTimers(tabId);
   }
 }
@@ -718,18 +771,6 @@ export function openStoryArchivePanel() {
   panel.classList.remove('hidden');
   closeSidebar();
   renderStoryArchive();
-
-  const archive = tab.storyArchive;
-  const runtime = getArchiveRuntime(state.tabData.active);
-  const currentSignature = getStoryArchiveSourceSignature(tab);
-  const shouldGenerate = Array.isArray(tab.messages)
-    && tab.messages.length >= STORY_ARCHIVE_MIN_MESSAGES
-    && (!archive.generatedAt || isStoryArchiveStale(tab))
-    && !(runtime.phase === ARCHIVE_PHASE_ERROR && runtime.errorSignature === currentSignature);
-
-  if (shouldGenerate) {
-    generateStoryArchive(state.tabData.active, { silent: false, silentSuccess: true });
-  }
 }
 
 export function closeStoryArchivePanel() {
@@ -757,6 +798,10 @@ export function bindStoryArchiveEvents() {
   }
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
+      if (state.archiveGenerationTabId === state.tabData.active) {
+        cancelStoryArchiveGeneration();
+        return;
+      }
       generateStoryArchive(state.tabData.active);
     });
   }
@@ -771,3 +816,7 @@ export function bindStoryArchiveEvents() {
     });
   }
 }
+
+window.addEventListener('beforeunload', () => {
+  cancelStoryArchiveGeneration({ silent: true });
+});
