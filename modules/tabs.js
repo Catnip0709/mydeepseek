@@ -4,7 +4,7 @@
  * 负责 Tab 的渲染、创建、切换、缓存和删除。
  */
 
-import { state } from './state.js';
+import { state, abortTabSending, clearTabSending } from './state.js';
 import { escapeHtml, editIconSvg, downloadIconSvg } from './utils.js';
 import { saveTabs, generateNewTabId, getTabDisplayName } from './storage.js';
 import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint } from './panels.js';
@@ -95,6 +95,8 @@ export function renderTabs() {
       renderTabs();
       coreCall('updateInputCounter');
       coreCall('updateBgInfoChip');
+      // 同步发送按钮状态：切换到的 tab 若仍在发送中，按钮应显示"停止"
+      coreCall('updateComposerPrimaryButtonState');
       coreCall('runLegacySummaryMigrationForTab', id);
       if (window.innerWidth < 768) closeSidebar();
     });
@@ -125,6 +127,11 @@ export function renderTabs() {
       e.stopPropagation();
       const delId = btn.dataset.id;
       if (confirm(`确定删除「${getTabDisplayName(delId)}」吗？删除后记录将永久消失！`)) {
+        // 若该 tab 仍有正在进行的发送/附件摘要，clearTabSending 会先 abort 再重置（CR-7）；
+        // 这里显式设置 abortReason 以便 catch 分支能正确识别为"手动中断"。
+        abortTabSending(delId, 'manual');
+        clearTabSending(delId);
+
         delete state.tabData.list[delId];
 
         const remainingTabIds = Object.keys(state.tabData.list);

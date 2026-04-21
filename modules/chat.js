@@ -4,7 +4,7 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state } from './state.js';
+import { state, setTabSending, clearTabSending, getTabSending, abortTabSending } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, estimateTokensByChars, countChars, trackEvent
@@ -64,7 +64,7 @@ async function decodeTxtFile(file) {
   return decoder.decode(buffer);
 }
 
-async function summarizeTextAttachment(originalText, signal = null) {
+async function summarizeTextAttachment(originalText, signal = null, tabEntry = null) {
   const summary = await callLLM({
     model: 'deepseek-reasoner',
     messages: [
@@ -86,7 +86,9 @@ async function summarizeTextAttachment(originalText, signal = null) {
     signal,
     chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
     onTimeout() {
-      state.abortReason = 'timeout';
+      // 直接写入发起摘要时的 tab entry，避免通过 state.abortReason 访问器误写到"当前 active tab"
+      // （在多 tab 并发聊天场景下，active 可能已切到正在流式的其他 tab，误写会把那条流式标记为 timeout）
+      if (tabEntry) tabEntry.abortReason = 'timeout';
     }
   });
   return trimTextToCharLimit(summary, TEXT_ATTACHMENT_FULL_CHAR_LIMIT);
@@ -392,17 +394,19 @@ async function buildOutgoingUserMessage(questionText) {
 
   if (pending.mode === 'summary') {
     if (!pending.processedText) {
-      state.isPreparingTextAttachment = true;
-      state.abortReason = null;
-      state.abortController = new AbortController();
+      const preparingTabId = state.tabData.active;
+      const preparingEntry = setTabSending(preparingTabId, {
+        isPreparingTextAttachment: true,
+        abortReason: null,
+        abortController: new AbortController()
+      });
       updatePendingTextAttachmentUI();
       updateComposerPrimaryButtonState();
       try {
-        pending.processedText = await summarizeTextAttachment(pending.originalText, state.abortController.signal);
+        pending.processedText = await summarizeTextAttachment(pending.originalText, preparingEntry.abortController.signal, preparingEntry);
         pending.processedCharCount = countChars(pending.processedText);
       } catch (e) {
-        state.isPreparingTextAttachment = false;
-        state.abortController = null;
+        setTabSending(preparingTabId, { isPreparingTextAttachment: false, abortController: null });
         updateComposerPrimaryButtonState();
         if (e.name === 'AbortError') {
           pending.runtimeStatus = 'ready';
@@ -413,8 +417,7 @@ async function buildOutgoingUserMessage(questionText) {
         updatePendingTextAttachmentUI();
         return null;
       }
-      state.isPreparingTextAttachment = false;
-      state.abortController = null;
+      setTabSending(preparingTabId, { isPreparingTextAttachment: false, abortController: null });
       pending.runtimeStatus = 'ready';
       updatePendingTextAttachmentUI();
       updateComposerPrimaryButtonState();
@@ -903,7 +906,10 @@ export async function sendMessage() {
   autoHeight();
   updateInputCounter();
   try {
-    await fetchAndStreamResponse();
+    // S-1 修复：显式把 sendingTabId 传给 fetchAndStreamResponse，保证"push 用户消息的 tab"
+    // 与"流式 AI 回复所绑定的 tab"必然一致。避免 await buildOutgoingUserMessage 里 txt 摘要
+    // 耗时期间用户切 tab 导致的消息错位。
+    await fetchAndStreamResponse({ tabId: sendingTabId });
   } finally {
     clearPendingTextAttachment();
   }
@@ -922,18 +928,28 @@ export async function fetchAndStreamResponse(opts = {}) {
   const chat = document.getElementById("chat");
   const modelSelect = document.getElementById("modelSelect");
 
-  state.isSending = true;
+  // S-1 修复：优先使用调用方显式传入的 tabId。sendMessage 在 await buildOutgoingUserMessage 里
+  // 可能等待 txt 摘要（一次真实 LLM 调用，耗时可观），期间用户可能切 tab；若此处继续用
+  // state.tabData.active 会导致"用户消息被 push 到 A tab、AI 回复被 push 到 B tab"的错位。
+  // 当调用方未传 tabId 时（如 regenerate），回退到 active tab 以保持对旧调用点的兼容。
+  const lockedTabId = opts.tabId || state.tabData.active;
+
+  // 防御：传入的 tabId 在等待期间被删除了
+  if (!state.tabData.list[lockedTabId]) return;
+
+  // 按 tab 隔离的发送状态：在发起时绑定到 lockedTabId，避免切换 tab 后相互干扰
+  const tabEntry = setTabSending(lockedTabId, {
+    isSending: true,
+    abortReason: null,
+    abortController: new AbortController()
+  });
   updateComposerPrimaryButtonState();
 
-  const lockedTabId = state.tabData.active;
-
-  state.abortReason = null;
-  state.abortController = new AbortController();
   const chunkGuard = createChunkInactivityGuard({
     timeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
-    signal: state.abortController.signal,
+    signal: tabEntry.abortController.signal,
     onTimeout() {
-      state.abortReason = 'timeout';
+      tabEntry.abortReason = 'timeout';
     }
   });
 
@@ -946,10 +962,19 @@ export async function fetchAndStreamResponse(opts = {}) {
 
   const payloadMsgs = buildPayloadMessages(currentMsgs, isRegen ? targetIndex : currentMsgs.length);
 
-  const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-  let aiMsgDiv;
+  // S-1 附带修复：在非 active 发起时，#chat 展示的是其他 tab 的内容。如果仍然往 #chat 插入
+  // 新的 aiMsgDiv，会污染当前显示 tab 的 DOM（用户会看到一个凭空出现的 AI 气泡）。
+  // 因此：只有 lockedTabId === active 时才做 DOM 插入；否则跳过所有 live render，数据流继续累积，
+  // 最后由 finalizeMessage 走 invalidateTabCache 分支，等用户切回 lockedTabId 时 renderChat 重绘。
+  const startedOnActiveTab = state.tabData.active === lockedTabId;
+
+  const isAtBottom = startedOnActiveTab
+    ? (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20)
+    : false;
+  let aiMsgDiv = null;
 
   if (isRegen) {
+    // regenerate 路径仅在 active tab 上触发（入口检查 currentMsgs 用 active），保持原行为
     aiMsgDiv = document.getElementById(`msg-${targetIndex}`);
     if (!currentMsgs[targetIndex].history) {
       currentMsgs[targetIndex].history = [{ content: currentMsgs[targetIndex].content, reasoningContent: currentMsgs[targetIndex].reasoningContent || "", state: currentMsgs[targetIndex].generationState || 'complete' }];
@@ -961,15 +986,17 @@ export async function fetchAndStreamResponse(opts = {}) {
     currentMsgs[targetIndex].reasoningContent = "";
     currentMsgs[targetIndex].generationState = "generating";
 
-    const contentDiv = aiMsgDiv.querySelector('.msg-content');
-    if (contentDiv) contentDiv.textContent = "";
-    const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
-    if (reasoningDetails) reasoningDetails.remove();
-    const metaEl = aiMsgDiv.querySelector('.assistant-meta');
-    if (metaEl) metaEl.remove();
-    const statusEl = aiMsgDiv.querySelector('.generation-status');
-    if (statusEl) statusEl.remove();
-  } else {
+    if (aiMsgDiv) {
+      const contentDiv = aiMsgDiv.querySelector('.msg-content');
+      if (contentDiv) contentDiv.textContent = "";
+      const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
+      if (reasoningDetails) reasoningDetails.remove();
+      const metaEl = aiMsgDiv.querySelector('.assistant-meta');
+      if (metaEl) metaEl.remove();
+      const statusEl = aiMsgDiv.querySelector('.generation-status');
+      if (statusEl) statusEl.remove();
+    }
+  } else if (startedOnActiveTab) {
     aiMsgDiv = document.createElement("div");
     aiMsgDiv.id = `msg-${targetIndex}`;
     aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
@@ -996,7 +1023,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   }
 
-  if (isAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
+  if (startedOnActiveTab && isAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
 
   let fullContent = "";
   let fullReasoningContent = "";
@@ -1004,13 +1031,18 @@ export async function fetchAndStreamResponse(opts = {}) {
   let reasoningContentDiv = null;
   let finalizeState = "complete";
   let shouldCheckSummary = false;
+  // CR2-B/C + S-1: 一旦检测到当前 tab 不是发起时的 tab（用户切走），或 aiMsgDiv 不存在 / 已游离，
+  // 即永久关闭 live render。S-1 下还有另一种情况：发起时就已经不在 active tab（aiMsgDiv 为 null），
+  // 此时从起点就进入 broken 状态。所有实时渲染停止，fullContent/fullReasoningContent 继续累积，
+  // 最终由 finalize 的 renderChat（或 invalidateTabCache 在切回时触发的重渲染）整体展示完整结果。
+  let liveRenderBroken = !startedOnActiveTab || !aiMsgDiv;
 
   function markInterrupted() {
     finalizeState = "interrupted";
   }
 
   function isBackgroundRelatedError(err) {
-    if (state.abortReason === "background") return true;
+    if (tabEntry.abortReason === "background") return true;
     if (Date.now() - state.lastPageHiddenAt > 6000) return false;
     const msg = String(err && err.message ? err.message : "");
     if (!msg) return true;
@@ -1038,7 +1070,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     chunkGuard.touch();
 
     if (!res.ok) {
-      const errorData = await res.json();
+      const errorData = await res.json().catch(() => ({}));
       throw new Error(`API请求失败：${errorData.error?.message || '请检查API Key是否有效'}`);
     }
 
@@ -1071,49 +1103,72 @@ export async function fetchAndStreamResponse(opts = {}) {
           const data = JSON.parse(dataStr);
           const delta = data.choices[0].delta;
 
+          // CR-1 + CR2-B/C + CR3-E + N-2: 只要当前不是发起时的 tab，或 aiMsgDiv 为 null / 已从 DOM 中
+          // detach（例如搜索触发 renderChat 重建 #chat、或其他异步路径清空 #chat），就永久关闭 live render。
+          // N-2 补丁：isRegen 路径下 document.getElementById 可能返回 null（元素被 renderChat 替换掉），
+          // 这里必须先做 null 检查，否则 !aiMsgDiv.isConnected 会抛 TypeError。
+          // 粘性标志位确保一次破裂不可逆。
+          if (state.tabData.active !== lockedTabId || !aiMsgDiv || !aiMsgDiv.isConnected) liveRenderBroken = true;
+          const canLiveRender = !liveRenderBroken;
+
           if (delta.reasoning_content) {
             if (!hasReasoning) {
-              hasReasoning = true;
-              const details = document.createElement('details');
-              details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
-              details.open = true;
-              details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
-              const msgContentDiv = aiMsgDiv.querySelector('.msg-content');
-              aiMsgDiv.insertBefore(details, msgContentDiv);
-              reasoningContentDiv = details.querySelector('.reasoning-content');
+              // hasReasoning 只在能实时渲染时才置 true，避免"首 chunk 在非 active、后续回到 active"时
+              // 因 hasReasoning 已 true 而永远不创建 details 节点（CR2-C）
+              if (canLiveRender) {
+                hasReasoning = true;
+                const details = document.createElement('details');
+                details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
+                details.open = true;
+                details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
+                const msgContentDiv = aiMsgDiv.querySelector('.msg-content');
+                aiMsgDiv.insertBefore(details, msgContentDiv);
+                reasoningContentDiv = details.querySelector('.reasoning-content');
+              }
             }
             fullReasoningContent += delta.reasoning_content;
-            renderMarkdown(reasoningContentDiv, fullReasoningContent);
+            if (canLiveRender && reasoningContentDiv) {
+              renderMarkdown(reasoningContentDiv, fullReasoningContent);
+            }
           }
 
           if (delta.content) {
             fullContent += delta.content;
-            const contentDiv = aiMsgDiv.querySelector('.msg-content');
-            if (contentDiv) {
-              renderMarkdown(contentDiv, fullContent);
+            if (canLiveRender) {
+              const contentDiv = aiMsgDiv.querySelector('.msg-content');
+              if (contentDiv) {
+                renderMarkdown(contentDiv, fullContent);
+              }
             }
           }
         } catch (e) {
           continue;
         }
 
-        // 每处理完一个 chunk 后检查是否需要自动滚动
-        const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60;
-        if (currentIsAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
+        // 每处理完一个 chunk 后检查是否需要自动滚动（仅当 live render 仍有效时）
+        if (!liveRenderBroken) {
+          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60;
+          if (currentIsAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
+        }
       }
     }
     finalizeMessage(finalizeState);
 
   } catch (e) {
+    // CR-1 + CR2-B/C + CR3-E: 用 liveRenderBroken 粘性标志判断 DOM 写入是否仍有效
+    if (state.tabData.active !== lockedTabId || !aiMsgDiv || !aiMsgDiv.isConnected) liveRenderBroken = true;
+    const canLiveRender = !liveRenderBroken;
     if (e.name === 'AbortError') {
-      if (state.abortReason === 'background' || state.abortReason === 'manual') markInterrupted();
-      else if (state.abortReason === 'timeout') {
+      if (tabEntry.abortReason === 'background' || tabEntry.abortReason === 'manual') markInterrupted();
+      else if (tabEntry.abortReason === 'timeout') {
         finalizeState = 'timeout';
         fullContent = '❌ 请求超时，请检查网络后重试';
         fullReasoningContent = '';
-        const contentDiv = aiMsgDiv.querySelector('.msg-content');
-        if (contentDiv) {
-          contentDiv.innerHTML = '<span class="text-red-400">❌ 请求超时，请检查网络后重试</span>';
+        if (canLiveRender) {
+          const contentDiv = aiMsgDiv.querySelector('.msg-content');
+          if (contentDiv) {
+            contentDiv.innerHTML = '<span class="text-red-400">❌ 请求超时，请检查网络后重试</span>';
+          }
         }
       }
       finalizeMessage(finalizeState);
@@ -1121,9 +1176,11 @@ export async function fetchAndStreamResponse(opts = {}) {
       markInterrupted();
       finalizeMessage(finalizeState);
     } else {
-      const contentDiv = aiMsgDiv.querySelector('.msg-content');
-      if (contentDiv) {
-        contentDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
+      if (canLiveRender) {
+        const contentDiv = aiMsgDiv.querySelector('.msg-content');
+        if (contentDiv) {
+          contentDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
+        }
       }
       console.error("发送消息错误：", e);
 
@@ -1137,9 +1194,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   } finally {
     chunkGuard.cleanup();
-    state.isSending = false;
+    // 按 lockedTabId 清理发送状态（此刻 active tab 可能已切走，绝不能用 state.isSending = false）
+    clearTabSending(lockedTabId);
     updateComposerPrimaryButtonState();
-    state.abortController = null;
 
     // 异步检查是否需要生成/更新摘要（不阻塞对话）
     if (shouldCheckSummary) {
@@ -1147,8 +1204,17 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   }
 
+  let _finalizeCalled = false;
   function finalizeMessage(fState = "complete") {
+    // 幂等：避免 [DONE] + reader.done 双路径下重复 push
+    if (_finalizeCalled) return;
+    _finalizeCalled = true;
     shouldCheckSummary = fState === "complete";
+
+    // 防御：发起时的 tab 可能已被用户删除
+    const lockedTab = state.tabData.list[lockedTabId];
+    if (!lockedTab) return;
+
     if (isRegen) {
       currentMsgs[targetIndex].generationState = fState;
       currentMsgs[targetIndex].content = fullContent;
@@ -1164,10 +1230,16 @@ export async function fetchAndStreamResponse(opts = {}) {
         historyIndex: 0
       });
     }
-    state.tabData.list[lockedTabId].messages = currentMsgs;
+    lockedTab.messages = currentMsgs;
     saveTabs();
     coreCall('markStoryArchiveStale', lockedTabId);
-    renderChat();
+    // 仅当结果仍属于当前 active tab 时才刷 DOM，避免切走后污染其他 tab 的渲染
+    if (state.tabData.active === lockedTabId) {
+      renderChat();
+    } else {
+      // 失效目标 tab 的 DOM 缓存，下次切回去时重渲染
+      coreCall('invalidateTabCache', lockedTabId);
+    }
   }
 }
 
@@ -1179,7 +1251,9 @@ export async function saveEditAndRegenerate() {
 
   const newContent = editTextarea.value.trim();
   if (!newContent) return alert("消息内容不能为空！");
-  const currentTab = state.tabData.list[state.tabData.active];
+  // S-1 一致性：进入编辑流程时锁定目标 tabId，中途所有 await 都用它，避免用户切 tab 后错位
+  const editingTabId = state.tabData.active;
+  const currentTab = state.tabData.list[editingTabId];
   const currentMsgs = currentTab.messages || [];
   if (state.editingMessageIndex < 0 || state.editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
 
@@ -1191,11 +1265,11 @@ export async function saveEditAndRegenerate() {
   currentTab.messages = messagesToKeep;
   // 编辑消息后，如果编辑位置在摘要覆盖范围内，清除摘要
   if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
-    clearSummary(state.tabData.active);
+    clearSummary(editingTabId);
   }
   normalizeTabSummaryState(currentTab);
   saveTabs();
-  coreCall('markStoryArchiveStale', state.tabData.active);
+  coreCall('markStoryArchiveStale', editingTabId);
 
   editPanel.classList.add("hidden");
   state.editingMessageIndex = -1;
@@ -1204,14 +1278,14 @@ export async function saveEditAndRegenerate() {
   // 群聊走群聊发送逻辑
   if (currentTab.type === 'group') {
     const { sendGroupMessage } = await import('./groupchat.js');
-    await sendGroupMessage(state.tabData.active, newContent);
+    await sendGroupMessage(editingTabId, newContent);
   } else {
     if (messagesToKeep[editIdx]?.role === 'user') {
       messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx);
       saveTabs();
-      coreCall('markStoryArchiveStale', state.tabData.active);
+      coreCall('markStoryArchiveStale', editingTabId);
     }
-    await fetchAndStreamResponse();
+    await fetchAndStreamResponse({ tabId: editingTabId });
   }
 }
 
@@ -1242,13 +1316,15 @@ export function regenerateResponse(messageIndex) {
     keyPanel.classList.remove("hidden");
     return;
   }
-  const currentMsgs = state.tabData.list[state.tabData.active].messages || [];
+  // S-1 一致性：锁定发起 regenerate 时的 tabId
+  const regenTabId = state.tabData.active;
+  const currentMsgs = state.tabData.list[regenTabId].messages || [];
   if (currentMsgs.length === 0) return alert("当前对话为空，无法重新生成。");
   if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
   const targetMessage = currentMsgs[messageIndex];
   if (targetMessage.role !== 'assistant') return alert("只能重新生成AI的回复。");
 
-  fetchAndStreamResponse({ regenerateIndex: messageIndex });
+  fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
 }
 
 // ========== 输入框相关 ==========
@@ -1372,11 +1448,10 @@ export function bindChatEvents() {
 
   if (sendBtn) {
     sendBtn.addEventListener("click", () => {
+      // CR-2: 显式按 active tab 写 abortReason 并 abort，避免通过访问器在极端 tab 切换时机下错写到别的 tab
+      const activeTabId = state.tabData.active;
       if (state.isSending || state.isPreparingTextAttachment) {
-        state.abortReason = 'manual';
-        if (state.abortController) {
-          try { state.abortController.abort(); } catch (_) {}
-        }
+        abortTabSending(activeTabId, 'manual');
       } else if (!input.value.trim()) {
         toggleComposerActionMenu();
       } else {

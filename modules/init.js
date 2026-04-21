@@ -7,7 +7,7 @@
 
 import { state } from './state.js';
 import { trackEvent } from './utils.js';
-import { initializeData, repairData, flushPendingSaveImmediately } from './storage.js';
+import { initializeData, repairData, flushPendingSaveImmediately, onPersistError } from './storage.js';
 import { register } from './core.js';
 import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
@@ -86,6 +86,25 @@ function init() {
     // 数据初始化与修复
     initializeData();
 
+    // 监听存储持久化错误（配额满等），给用户可见化提示，避免静默吞错导致以为消息已保存
+    let _lastQuotaToastAt = 0;
+    let _lastGenericToastAt = 0;
+    onPersistError(({ type, isQuota }) => {
+      const now = Date.now();
+      if (isQuota) {
+        if (now - _lastQuotaToastAt > 3000) {
+          _lastQuotaToastAt = now;
+          showToast('本地存储已满，数据未能保存！请尽快导出重要对话后清理过期会话');
+        }
+      } else {
+        // CR-4: 非配额错误也做 3 秒节流，防止频繁 saveTabs 失败时 Toast 叠加
+        if (now - _lastGenericToastAt > 3000) {
+          _lastGenericToastAt = now;
+          showToast(`保存失败（${type}），请稍后重试或刷新页面`);
+        }
+      }
+    });
+
     // 检查 API Key
     const keyPanel = document.getElementById("keyPanel");
     const apiKeyInput = document.getElementById("apiKeyInput");
@@ -137,13 +156,18 @@ function init() {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         state.lastPageHiddenAt = Date.now();
-        if (state.isSending && state.abortController) {
-          state.shouldToastOnVisible = true;
-          state.abortReason = 'background';
-          if (state.abortController) {
-            try { state.abortController.abort(); } catch (_) {}
+        // 后台切出：中止所有正在进行的 tab 发送（每个 tab 有独立的 abortController）
+        let aborted = false;
+        const map = state.sendingByTab || {};
+        for (const tabId in map) {
+          const entry = map[tabId];
+          if (entry && entry.isSending && entry.abortController) {
+            entry.abortReason = 'background';
+            try { entry.abortController.abort(); } catch (_) {}
+            aborted = true;
           }
         }
+        if (aborted) state.shouldToastOnVisible = true;
         return;
       }
 

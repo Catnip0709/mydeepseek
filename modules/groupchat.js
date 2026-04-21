@@ -5,7 +5,7 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL } from './state.js';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent } from './utils.js';
 import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
@@ -290,26 +290,30 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const chat = document.getElementById("chat");
   const modelSelect = document.getElementById("modelSelect");
 
-  state.isSending = true;
+  const lockedTabId = tabId;
+
+  // 按 tab 隔离的发送状态
+  const tabEntry = setTabSending(lockedTabId, {
+    isSending: true,
+    abortReason: null,
+    abortController: new AbortController()
+  });
   coreCall('updateComposerPrimaryButtonState');
 
   trackEvent('发送消息');
 
-  const lockedTabId = tabId;
-  state.abortReason = null;
-  state.abortController = new AbortController();
-  const signal = state.abortController.signal;
+  const signal = tabEntry.abortController.signal;
   const llmTimeoutOptions = {
     chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
     onTimeout() {
-      state.abortReason = 'timeout';
+      tabEntry.abortReason = 'timeout';
     }
   };
 
   const currentTab = state.tabData.list[lockedTabId];
   const characters = (currentTab.characterIds || []).map(id => coreCall('getCharacterById', id)).filter(Boolean);
   if (characters.length === 0) {
-    state.isSending = false;
+    clearTabSending(lockedTabId);
     coreCall('updateComposerPrimaryButtonState');
     return;
   }
@@ -326,6 +330,13 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const history = currentMsgs;
   let shouldCheckSummary = false;
 
+  // 群聊流式 DOM 隔离（对齐单聊 CR-1 / CR2-B/C / CR3-E 的处理）：
+  // 1) liveRenderBroken 粘性标志：一旦切走 tab 或目标节点游离，永久关闭 live render；
+  // 2) currentCharacterMsgBox 闭包引用：onCharacterChunk 直接用该引用，不再 querySelectorAll 取
+  //    "最后一个 .character-msg"（跨 tab 时会误中 tab B 的历史群聊消息，造成 DOM 污染）。
+  let liveRenderBroken = false;
+  let currentCharacterMsgBox = null;
+
   try {
     const replies = await orchestrateGroupChat(userMessage, characters, history, {
       signal,
@@ -334,6 +345,16 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       groupContext,
       llmTimeoutOptions,
       onCharacterStart(character, idx) {
+        // 每次新 character 回复开始：先刷新粘性标志
+        if (state.tabData.active !== lockedTabId) liveRenderBroken = true;
+
+        if (liveRenderBroken) {
+          // 已切走：不创建 DOM 节点，避免 chat.appendChild 把节点插入到非 lockedTabId 的 #chat 上
+          // （原实现会把本属于 tab A 的群聊消息直接插进 tab B 的 DOM，造成用户可见的污染）。
+          currentCharacterMsgBox = null;
+          return;
+        }
+
         const msgIndex = currentMsgs.length;
         const color = coreCall('getCharacterColor', idx);
         const msgBox = document.createElement("div");
@@ -347,49 +368,62 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
           <div class="msg-content prose prose-invert max-w-none"></div>
         `;
         chat.appendChild(msgBox);
+        currentCharacterMsgBox = msgBox;
         if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
           chat.scrollTop = chat.scrollHeight;
         }
       },
       onCharacterChunk(character, idx, chunk) {
-        const msgBoxes = chat.querySelectorAll('.character-msg');
-        const targetBox = msgBoxes[msgBoxes.length - 1];
-        if (targetBox) {
-          const contentDiv = targetBox.querySelector('.msg-content');
-          if (contentDiv && chunk.fullContent) {
-            renderMarkdown(contentDiv, chunk.fullContent);
-            const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-            if (isAtBottom) chat.scrollTop = chat.scrollHeight;
-          }
+        // 粘性检查：active 切走 / msgBox 游离（例如搜索触发 renderChat 清空 #chat）均永久关闭 live render
+        if (state.tabData.active !== lockedTabId ||
+            !currentCharacterMsgBox ||
+            !currentCharacterMsgBox.isConnected) {
+          liveRenderBroken = true;
+          return;
+        }
+        const contentDiv = currentCharacterMsgBox.querySelector('.msg-content');
+        if (contentDiv && chunk.fullContent) {
+          renderMarkdown(contentDiv, chunk.fullContent);
+          const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
+          if (isAtBottom) chat.scrollTop = chat.scrollHeight;
         }
       },
       onCharacterEnd(character, idx, content) {
-        const msgs = state.tabData.list[lockedTabId].messages;
+        const targetTab = state.tabData.list[lockedTabId];
+        if (!targetTab) return;
+        const msgs = targetTab.messages || [];
         msgs.push({
           role: "character",
           characterId: character.id,
           characterName: character.name,
           content: content || '',
-          generationState: state.abortReason === 'timeout' ? 'timeout' : (state.abortReason ? 'interrupted' : 'complete'),
-          history: [{ content: content || '', reasoningContent: '', state: state.abortReason === 'timeout' ? 'timeout' : (state.abortReason ? 'interrupted' : 'complete') }],
+          generationState: tabEntry.abortReason === 'timeout' ? 'timeout' : (tabEntry.abortReason ? 'interrupted' : 'complete'),
+          history: [{ content: content || '', reasoningContent: '', state: tabEntry.abortReason === 'timeout' ? 'timeout' : (tabEntry.abortReason ? 'interrupted' : 'complete') }],
           historyIndex: 0
         });
-        state.tabData.list[lockedTabId].messages = msgs;
+        targetTab.messages = msgs;
         saveTabs();
         coreCall('markStoryArchiveStale', lockedTabId);
+        // 本角色回复已完成，下一个 character 会由 onCharacterStart 重新赋值或置空
+        currentCharacterMsgBox = null;
       }
     });
-    shouldCheckSummary = !state.abortReason && Array.isArray(replies) && replies.length > 0;
+    shouldCheckSummary = !tabEntry.abortReason && Array.isArray(replies) && replies.length > 0;
   } catch (e) {
     if (e.name !== 'AbortError') {
       console.error('群聊发送错误:', e);
       showToast('群聊发送失败：' + e.message);
     }
   } finally {
-    state.isSending = false;
+    // 按 lockedTabId 清理发送状态（active tab 可能已切走）
+    clearTabSending(lockedTabId);
     coreCall('updateComposerPrimaryButtonState');
-    state.abortController = null;
-    coreCall('renderChat');
+    // 仅当 active tab 仍是 lockedTabId 时才重刷 DOM
+    if (state.tabData.active === lockedTabId) {
+      coreCall('renderChat');
+    } else {
+      coreCall('invalidateTabCache', lockedTabId);
+    }
 
     // 异步检查是否需要生成/更新摘要
     if (shouldCheckSummary) {

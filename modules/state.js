@@ -113,10 +113,11 @@ export const state = {
   editingPromptId: null,
   renamingTabId: null,
 
-  // 发送状态
-  isSending: false,
-  abortController: null,
-  abortReason: null,
+  // 发送状态（按 tab 隔离：每个 tab 独立维护 isSending / abortController / abortReason /
+  // isPreparingTextAttachment）。顶层 state.isSending / state.abortController /
+  // state.abortReason / state.isPreparingTextAttachment 已改为访问器，等价于读写
+  // "当前 active tab" 的状态，保持与历史代码兼容。
+  sendingByTab: Object.create(null),
 
   // 确认弹窗
   confirmResolve: null,
@@ -157,10 +158,146 @@ export const state = {
   archiveGenerationTabId: null,
   archiveAbortController: null,
 
-  // 待发送 txt 附件
+  // 待发送 txt 附件（pendingTextAttachment 本身与当前 active tab 绑定，不按 tab 区分）
   pendingTextAttachment: null,
-  isPreparingTextAttachment: false,
 };
+
+// ========== 按 tab 隔离的发送状态 helper ==========
+
+function _ensureTabSending(tabId) {
+  if (!tabId) return null;
+  let entry = state.sendingByTab[tabId];
+  if (!entry) {
+    entry = state.sendingByTab[tabId] = {
+      isSending: false,
+      abortController: null,
+      abortReason: null,
+      isPreparingTextAttachment: false
+    };
+  }
+  return entry;
+}
+
+export function getTabSending(tabId) {
+  return _ensureTabSending(tabId);
+}
+
+export function isTabSending(tabId) {
+  const entry = state.sendingByTab[tabId];
+  return !!(entry && (entry.isSending || entry.isPreparingTextAttachment));
+}
+
+export function isAnyTabSending() {
+  for (const k in state.sendingByTab) {
+    const e = state.sendingByTab[k];
+    if (e && (e.isSending || e.isPreparingTextAttachment)) return true;
+  }
+  return false;
+}
+
+export function setTabSending(tabId, patch) {
+  const entry = _ensureTabSending(tabId);
+  if (!entry) return null;
+  Object.assign(entry, patch);
+  return entry;
+}
+
+export function clearTabSending(tabId) {
+  if (tabId && state.sendingByTab[tabId]) {
+    const prev = state.sendingByTab[tabId];
+    // CR-7: 若仍持有未 abort 的 controller，先 abort 再 reset，避免调用者忘记 abort 导致泄漏；
+    // 重复 abort() 是幂等的（AbortController 规范允许多次调用）。
+    if (prev.abortController) {
+      try {
+        if (!prev.abortController.signal.aborted) {
+          prev.abortController.abort();
+        }
+      } catch (_) {}
+    }
+    // 注意：这里整体替换 entry 对象，外部若缓存了旧 entry 引用不会受影响，但也看不到新状态。
+    // 调用方如需继续读取中止后的状态，请在 clearTabSending 之前读取 prev.abortReason。
+    state.sendingByTab[tabId] = {
+      isSending: false,
+      abortController: null,
+      abortReason: null,
+      isPreparingTextAttachment: false
+    };
+  }
+}
+
+export function abortTabSending(tabId, reason) {
+  const entry = state.sendingByTab[tabId];
+  if (!entry) return false;
+  entry.abortReason = reason;
+  if (entry.abortController) {
+    try { entry.abortController.abort(); } catch (_) {}
+  }
+  return true;
+}
+
+// ========== 顶层 state.isSending / abortController / abortReason / isPreparingTextAttachment ==========
+// 作为"当前 active tab"的便捷访问器，保持历史代码兼容性。
+// 注意：读写这些字段等价于读写 active tab 的对应字段。
+
+function _activeTabId() {
+  return state.tabData && state.tabData.active;
+}
+
+Object.defineProperty(state, 'isSending', {
+  configurable: true,
+  enumerable: true,
+  get() {
+    const entry = state.sendingByTab[_activeTabId()];
+    return !!(entry && entry.isSending);
+  },
+  set(v) {
+    const tabId = _activeTabId();
+    if (!tabId) return;
+    _ensureTabSending(tabId).isSending = !!v;
+  }
+});
+
+Object.defineProperty(state, 'abortController', {
+  configurable: true,
+  enumerable: true,
+  get() {
+    const entry = state.sendingByTab[_activeTabId()];
+    return entry ? entry.abortController : null;
+  },
+  set(v) {
+    const tabId = _activeTabId();
+    if (!tabId) return;
+    _ensureTabSending(tabId).abortController = v;
+  }
+});
+
+Object.defineProperty(state, 'abortReason', {
+  configurable: true,
+  enumerable: true,
+  get() {
+    const entry = state.sendingByTab[_activeTabId()];
+    return entry ? entry.abortReason : null;
+  },
+  set(v) {
+    const tabId = _activeTabId();
+    if (!tabId) return;
+    _ensureTabSending(tabId).abortReason = v;
+  }
+});
+
+Object.defineProperty(state, 'isPreparingTextAttachment', {
+  configurable: true,
+  enumerable: true,
+  get() {
+    const entry = state.sendingByTab[_activeTabId()];
+    return !!(entry && entry.isPreparingTextAttachment);
+  },
+  set(v) {
+    const tabId = _activeTabId();
+    if (!tabId) return;
+    _ensureTabSending(tabId).isPreparingTextAttachment = !!v;
+  }
+});
 
 // 常量
 export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c'];

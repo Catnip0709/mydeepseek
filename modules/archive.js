@@ -627,7 +627,7 @@ function buildArchivePrompt(tab, title) {
 2. 优先提取关系推进、重要事件、未回收伏笔和高情绪浓度片段。
 3. relationships 最多 ${STORY_ARCHIVE_MAX_RELATIONSHIPS} 条，timeline 最多 ${STORY_ARCHIVE_MAX_TIMELINE} 条，foreshadows 最多 ${STORY_ARCHIVE_MAX_FORESHADOWS} 条，highlights 最多 ${STORY_ARCHIVE_MAX_HIGHLIGHTS} 条。
 4. 名场面 excerpt 必须是适合二次创作回看的原话式摘录，可轻微压缩但不要改写成解释文。
-5. 总输出必须控制在 2600 token 以内（约 1500 字）。每个字段务必简短概括：reason、summary、impact 各不超过 30 字，excerpt 不超过 80 字，overview 各字段不超过 50 字。宁可少写也不要超限。`
+5. 总输出必须控制在 4000 token 以内（约 2500 字）。每个字段务必简短概括：reason、summary、impact 各不超过 30 字，excerpt 不超过 80 字，overview 各字段不超过 50 字。宁可少写也不要超限。`
     },
     {
       role: 'user',
@@ -708,7 +708,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       messages: promptMessages,
       stream: true,
       temperature: 0.3,
-      maxTokens: 2600,
+      maxTokens: 4096,
       signal: abortController.signal,
       chunkTimeoutMs: 120000
     });

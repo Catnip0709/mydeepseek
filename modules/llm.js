@@ -10,6 +10,11 @@ export const CHUNK_INACTIVITY_TIMEOUT_MS = 120000;
 
 // ========== 中止流式请求 ==========
 
+/**
+ * 中止当前 active tab 的流式请求。
+ * 注意：本函数通过 state.abortController 访问器操作 active tab 的 entry，
+ * 不适用于中止非 active tab 的流。若需中止指定 tab，请调用 state.js 的 `abortTabSending(tabId, reason)`。
+ */
 export function abortStreaming(reason) {
   state.abortReason = reason;
   if (state.abortController) {

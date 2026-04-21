@@ -56,42 +56,74 @@ let _saveDebounceTimer = null;
 let _pendingSaveTypes = new Set(); // 支持多种类型同时待保存
 const SAVE_DEBOUNCE_MS = 300;
 
+// 配额/持久化错误监听器（由上层注册，用于回滚或弹 Toast）
+const _persistErrorListeners = new Set();
+
+export function onPersistError(fn) {
+  if (typeof fn === 'function') _persistErrorListeners.add(fn);
+  return () => _persistErrorListeners.delete(fn);
+}
+
+function _notifyPersistError(type, err) {
+  const isQuota = err && (
+    err.name === 'QuotaExceededError' ||
+    err.code === 22 ||
+    err.code === 1014 ||
+    /quota|exceed/i.test(String(err.message || ''))
+  );
+  for (const fn of _persistErrorListeners) {
+    try { fn({ type, error: err, isQuota }); } catch (_) {}
+  }
+}
+
 function _flushPendingSave() {
+  // 先把待保存集合 swap 出来，避免 flush 执行期间新加入的保存被意外清空（竞态修复）
+  const typesToFlush = _pendingSaveTypes;
+  _pendingSaveTypes = new Set();
+  _saveDebounceTimer = null;
+
   const failedSaveTypes = new Set();
   let wroteAnyData = false;
 
-  if (_pendingSaveTypes.has('tabs')) {
+  if (typesToFlush.has('tabs')) {
     try {
       localStorage.setItem("dsTabs", JSON.stringify(state.tabData));
       wroteAnyData = true;
     } catch (e) {
       console.error('保存对话数据失败:', e);
       failedSaveTypes.add('tabs');
+      _notifyPersistError('tabs', e);
     }
   }
-  if (_pendingSaveTypes.has('characters')) {
+  if (typesToFlush.has('characters')) {
     try {
       localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
       wroteAnyData = true;
     } catch (e) {
       console.error('保存角色数据失败:', e);
       failedSaveTypes.add('characters');
+      _notifyPersistError('characters', e);
     }
   }
-  if (_pendingSaveTypes.has('prompts')) {
+  if (typesToFlush.has('prompts')) {
     try {
       localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
       wroteAnyData = true;
     } catch (e) {
       console.error('保存指令数据失败:', e);
       failedSaveTypes.add('prompts');
+      _notifyPersistError('prompts', e);
     }
   }
-  if (wroteAnyData || _pendingSaveTypes.size > 0) {
+  if (wroteAnyData || typesToFlush.size > 0) {
     updateStorageUsage();
   }
-  _pendingSaveTypes = failedSaveTypes;
-  _saveDebounceTimer = null;
+
+  // 把失败项以及 flush 过程中新加入的待保存合并回去
+  if (failedSaveTypes.size > 0 || _pendingSaveTypes.size > 0) {
+    for (const t of failedSaveTypes) _pendingSaveTypes.add(t);
+    // 失败项不立即重试（避免死循环），仅保留在待保存集合中，留待下次手动触发或下一次 saveXxx 带起
+  }
 }
 
 export function saveTabs() {
