@@ -681,6 +681,13 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   renderStoryArchive();
 
   try {
+    const totalTimeoutMs = 300000; // 总超时 5 分钟
+    let isTotalTimeout = false;
+    const totalTimer = setTimeout(() => {
+      isTotalTimeout = true;
+      abortController.abort();
+    }, totalTimeoutMs);
+
     const result = await callLLM({
       model: 'deepseek-chat',
       messages: promptMessages,
@@ -690,6 +697,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       signal: abortController.signal,
       chunkTimeoutMs: 120000
     });
+    clearTimeout(totalTimer);
     const rawText = typeof result === 'string' ? result : (result?.content || '');
     const cleanedText = rawText.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
     let rawArchive;
@@ -735,8 +743,10 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     return currentTab.storyArchive;
   } catch (e) {
     console.error('剧情档案生成失败:', e);
+    clearTimeout(totalTimer);
     clearArchiveRuntimeTimers(tabId);
-    if (abortController.signal.aborted) {
+    if (abortController.signal.aborted && !isTotalTimeout) {
+      // 用户手动停止，静默返回
       state.archiveAbortController = null;
       return null;
     }
@@ -744,13 +754,15 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       phase: ARCHIVE_PHASE_ERROR,
       detail: '',
       hint: '',
-      errorMessage: e.message || '请稍后再试',
+      errorMessage: isTotalTimeout ? '整理超时（5分钟），会话内容可能过多' : (e.message || '请稍后再试'),
       errorSignature: sourceSignature,
       startedAt: 0,
       backgroundNotified: false,
-      debugInfo: debugInfo || `错误信息: ${e.message || '未知'}`
+      debugInfo: isTotalTimeout
+        ? `消息数量: ${sourceMessageCount}\n错误: 总超时（5分钟），模型未在规定时间内返回结果`
+        : (debugInfo || `错误信息: ${e.message || '未知'}`)
     });
-    showToast(`剧情档案整理失败：${e.message || '请稍后再试'}`);
+    showToast(`剧情档案整理失败：${isTotalTimeout ? '整理超时，会话内容可能过多' : (e.message || '请稍后再试')}`);
     return null;
   } finally {
     if (state.archiveGenerationTabId === tabId) {

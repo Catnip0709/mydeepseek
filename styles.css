@@ -1700,6 +1700,19 @@ body.day-mode .bg-gray-800 .text-gray-300 {
   color: #374151 !important;
 }
 
+/* Settings panel: ensure day-mode text contrast for memory strategy cards and similar blocks */
+body.day-mode #settingsPanel .bg-gray-800 .text-white {
+  color: #111827 !important;
+}
+body.day-mode #settingsPanel label.bg-gray-800:hover {
+  background: #eef2f7 !important;
+  border-color: #d1d5db !important;
+}
+body.day-mode #settingsPanel input[type=radio] {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
 /* Prompt panel */
 body.day-mode .panel-modal {
   background: rgba(0, 0, 0, 0.5) !important;
@@ -2869,12 +2882,15 @@ body.day-mode .story-archive-feedback-action:hover {
 }
 
 body.day-mode #refreshStoryArchiveBtn.is-stop {
-  background: rgba(248, 113, 113, 0.14);
-  color: #b91c1c;
+  background: rgba(248, 113, 113, 0.14) !important;
+  border-color: rgba(248, 113, 113, 0.38) !important;
+  color: #b91c1c !important;
 }
 
 body.day-mode #refreshStoryArchiveBtn.is-stop:hover {
-  background: rgba(248, 113, 113, 0.2);
+  background: rgba(248, 113, 113, 0.2) !important;
+  border-color: rgba(248, 113, 113, 0.5) !important;
+  color: #991b1b !important;
 }
 
 body.day-mode .story-archive-overview-card,
