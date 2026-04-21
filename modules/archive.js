@@ -20,6 +20,7 @@ const ARCHIVE_PHASE_IDLE = 'idle';
 const ARCHIVE_PHASE_LOADING = 'loading';
 const ARCHIVE_PHASE_ERROR = 'error';
 const ARCHIVE_PHASE_CANCELLED = 'cancelled';
+const ARCHIVE_TOTAL_TIMEOUT_MS = 300000; // 总超时 5 分钟
 
 const archiveRuntimeMap = new Map();
 const archiveRuntimeTimerMap = new Map();
@@ -289,7 +290,12 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
   const runtime = getArchiveRuntime(tabId);
   const currentSignature = getStoryArchiveSourceSignature(tab);
 
-  if (runtime.phase === ARCHIVE_PHASE_LOADING && isArchiveGeneratingForTab(tabId)) {
+  if (runtime.phase === ARCHIVE_PHASE_LOADING) {
+    const elapsed = runtime.startedAt ? Date.now() - runtime.startedAt : 0;
+    const remaining = Math.max(0, Math.ceil((ARCHIVE_TOTAL_TIMEOUT_MS - elapsed) / 1000));
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    const countdownText = remaining > 0 ? `${minutes}:${String(seconds).padStart(2, '0')}` : '0:00';
     return {
       statusText: '正在整理',
       statusClassName: 'loading',
@@ -298,7 +304,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       refreshLoading: false,
       feedbackType: 'loading',
       feedbackTitle: '正在整理剧情档案',
-      feedbackBody: runtime.detail || '',
+      feedbackBody: `剩余时间 ${countdownText}`,
       feedbackHint: runtime.hint || '你可以先关闭面板，档案馆会继续在后台整理。',
       showRetry: false
     };
@@ -620,7 +626,8 @@ function buildArchivePrompt(tab, title) {
 1. 只根据提供内容整理，不要编造不存在的设定。
 2. 优先提取关系推进、重要事件、未回收伏笔和高情绪浓度片段。
 3. relationships 最多 ${STORY_ARCHIVE_MAX_RELATIONSHIPS} 条，timeline 最多 ${STORY_ARCHIVE_MAX_TIMELINE} 条，foreshadows 最多 ${STORY_ARCHIVE_MAX_FORESHADOWS} 条，highlights 最多 ${STORY_ARCHIVE_MAX_HIGHLIGHTS} 条。
-4. 名场面 excerpt 必须是适合二次创作回看的原话式摘录，可轻微压缩但不要改写成解释文。`
+4. 名场面 excerpt 必须是适合二次创作回看的原话式摘录，可轻微压缩但不要改写成解释文。
+5. 总输出必须控制在 2600 token 以内（约 1500 字）。每个字段务必简短概括：reason、summary、impact 各不超过 30 字，excerpt 不超过 80 字，overview 各字段不超过 50 字。宁可少写也不要超限。`
     },
     {
       role: 'user',
@@ -665,6 +672,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   const sourceSignature = getStoryArchiveSourceSignature(tab);
   const title = getTabDisplayName(tabId);
   const promptMessages = buildArchivePrompt(tab, title);
+  const snapshotTab = tab; // 快照：基于点击生成时的 tab 状态
   const abortController = new AbortController();
 
   state.archiveGenerationTabId = tabId;
@@ -680,13 +688,20 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
   });
   renderStoryArchive();
 
+  // 每秒刷新倒计时
+  const countdownTimer = setInterval(() => {
+    if (tabId === state.tabData.active) renderStoryArchive();
+  }, 1000);
+
+  let isTotalTimeout = false;
+  let totalTimer = null;
+  let debugInfo = '';
+
   try {
-    const totalTimeoutMs = 300000; // 总超时 5 分钟
-    let isTotalTimeout = false;
-    const totalTimer = setTimeout(() => {
+    totalTimer = setTimeout(() => {
       isTotalTimeout = true;
       abortController.abort();
-    }, totalTimeoutMs);
+    }, ARCHIVE_TOTAL_TIMEOUT_MS);
 
     const result = await callLLM({
       model: 'deepseek-chat',
@@ -701,7 +716,6 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     const rawText = typeof result === 'string' ? result : (result?.content || '');
     const cleanedText = rawText.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
     let rawArchive;
-    let debugInfo = '';
     try {
       rawArchive = JSON.parse(cleanedText);
     } catch (_) {
@@ -717,11 +731,11 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     }
 
     const currentTab = state.tabData.list[tabId];
-    if (!currentTab || getStoryArchiveSourceSignature(currentTab) !== sourceSignature) {
-      throw new Error('会话内容已变化，请重新整理一次');
+    if (!currentTab) {
+      throw new Error('会话已被删除');
     }
 
-    currentTab.storyArchive = normalizeArchive(rawArchive, currentTab, sourceMessageCount, sourceSignature);
+    currentTab.storyArchive = normalizeArchive(rawArchive, snapshotTab, sourceMessageCount, sourceSignature);
     saveTabs();
     clearArchiveRuntimeTimers(tabId);
     setArchiveRuntime(tabId, {
@@ -743,7 +757,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     return currentTab.storyArchive;
   } catch (e) {
     console.error('剧情档案生成失败:', e);
-    clearTimeout(totalTimer);
+    if (totalTimer) clearTimeout(totalTimer);
     clearArchiveRuntimeTimers(tabId);
     if (abortController.signal.aborted && !isTotalTimeout) {
       // 用户手动停止，静默返回
@@ -765,6 +779,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     showToast(`剧情档案整理失败：${isTotalTimeout ? '整理超时，会话内容可能过多' : (e.message || '请稍后再试')}`);
     return null;
   } finally {
+    clearInterval(countdownTimer);
     if (state.archiveGenerationTabId === tabId) {
       state.archiveGenerationTabId = null;
     }
