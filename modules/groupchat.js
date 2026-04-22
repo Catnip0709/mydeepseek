@@ -7,11 +7,13 @@
 
 import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent } from './utils.js';
-import { callLLM, callLLMJSON, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
+import { callLLM, callLLMJSON, callLLMAgent, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
 import { renderMarkdown } from './markdown.js';
 import { call as coreCall } from './core.js';
+import { GROUPCHAT_TOOLS_FULL } from './tools.js';
+import { groupchatToolExecutor } from './agent.js';
 
 // ========== Step 1: 路由判断 ==========
 
@@ -179,7 +181,8 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
   ];
 
   const result = await callLLM({ messages, temperature: 0.3, maxTokens: 10, signal, ...llmTimeoutOptions });
-  return String(result).trim().includes('是');
+  const resultText = typeof result === 'string' ? result : (result?.content || '');
+  return resultText.trim().includes('是');
 }
 
 // ========== 编排主函数（流式） ==========
@@ -284,6 +287,172 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
   return allReplies;
 }
 
+// ========== Agent 编排（Tool Calling 模式） ==========
+
+/**
+ * Agent 模式群聊编排：模型通过 character_reply / narrate 工具自主决定谁说话、说什么。
+ * 替代硬编码的"路由→回复→追问"三步流程。
+ */
+export async function orchestrateGroupChatAgent(userMessage, characters, history, options = {}) {
+  const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, groupContext, tabId } = options;
+  const llmTimeoutOptions = options.llmTimeoutOptions || {};
+  const allReplies = [];
+
+  function formatAction(action) {
+    const text = String(action || '').trim();
+    if (!text) return '';
+    if ((text.startsWith('（') && text.endsWith('）')) || (text.startsWith('(') && text.endsWith(')'))) {
+      return text;
+    }
+    return `（${text}）`;
+  }
+
+  // 回复追踪器：记录每个角色本轮发言次数
+  const replyTracker = {};
+
+  // 构建角色信息摘要（注入 system prompt）
+  const charInfos = characters.map(c => {
+    const parts = [`【${c.name}】`];
+    if (c.personality) parts.push(`性格：${c.personality}`);
+    if (c.background) parts.push(`背景：${c.background}`);
+    if (c.speakingStyle) parts.push(`说话风格：${c.speakingStyle}`);
+    if (c.catchphrases?.length) parts.push(`口头禅：${c.catchphrases.join('、')}`);
+    return parts.join('\n');
+  }).join('\n\n');
+
+  // 群聊背景信息
+  const userRoleInfo = groupContext?.userRoleName
+    ? `\n用户在群聊中的角色是「${groupContext.userRoleName}」，请以此称呼用户。`
+    : '';
+  const storyBgInfo = groupContext?.storyBackground
+    ? `\n当前故事背景：${groupContext.storyBackground}`
+    : '';
+  const summaryInfo = groupContext?.summary
+    ? `\n\n【对话记忆摘要】\n${groupContext.summary}`
+    : '';
+
+  // 最近对话历史
+  const recentHistory = history.slice(-20).map(m => {
+    if (m.role === 'user') return `用户：${m.content}`;
+    if (m.role === 'character') return `${m.characterName || '角色'}：${m.content}`;
+    return '';
+  }).filter(Boolean).join('\n');
+
+  const systemPrompt = `你是一个群聊导演。你控制群聊中所有角色的发言。
+${charInfos}
+${userRoleInfo}${storyBgInfo}${summaryInfo}
+
+规则：
+1. 使用 character_reply 工具让角色发言，不要直接输出角色台词
+2. 每个角色在本次用户输入触发的整次编排中最多发言 2 次
+3. 回复自然口语化，像真人聊天，不要像背台词，不要加引号/括号等格式标记
+4. 口头禅偶尔使用即可，不要刻意堆砌
+5. 如果用户消息暗示了某些角色不在场，不在场的角色不能发言
+6. 如果用户正在回复某个特定角色，该角色必须发言
+7. 至少让一个角色回复
+8. 角色之间可以有互动（一个角色说完后，相关角色可以回应）
+9. 偶尔可以用 narrate 工具描写场景或动作，但不要滥用
+10. 不要重复其他角色已经说过的话
+11. character_reply 的字段职责必须严格分离：
+   - dialogue：只写角色真正说出口的台词
+   - action：只写动作、神态、视线变化、停顿等舞台说明
+   - 不要把动作、神态、心理描写混进 dialogue
+12. 错误示例：
+   - dialogue: "慕容紫英眸光微凝，指尖收紧了几分。这封印确实古怪。"
+   - action: ""
+13. 正确示例：
+   - dialogue: "这封印确实古怪。"
+   - action: "眸光微凝，指尖收紧了几分"
+14. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。`;
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: (recentHistory ? `最近对话：\n${recentHistory}\n\n` : '') + `用户说：${userMessage}` }
+  ];
+
+  // 执行上下文：传给 toolExecutor
+  const executorContext = { characters, replyTracker, messages: history, tabId };
+
+  try {
+    const result = await callLLMAgent({
+      messages,
+      tools: GROUPCHAT_TOOLS_FULL,
+      toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
+      maxRounds: 3,
+      model: model || 'deepseek-chat',
+      temperature: 0.8,
+      maxTokens: 4096,
+      stream: true,
+      signal,
+      chunkTimeoutMs: llmTimeoutOptions.chunkTimeoutMs || 0,
+      onTimeout: llmTimeoutOptions.onTimeout || null,
+      onToolCall(name, args, resultStr) {
+        // 工具调用回调：处理 character_reply / narrate，创建 DOM 并渲染
+        if (name !== 'character_reply' && name !== 'narrate') return;
+
+        let parsed;
+        try { parsed = JSON.parse(resultStr); } catch (_) { return; }
+        if (!parsed.success) return;
+
+        let character;
+        let idx;
+        let fullContent = '';
+
+        if (name === 'character_reply') {
+          character = characters.find(c => c.id === parsed.character_id);
+          if (!character) return;
+          idx = characters.indexOf(character);
+          const content = parsed.dialogue || '';
+          const action = formatAction(parsed.action);
+          fullContent = [action, content].filter(Boolean).join('\n');
+        } else {
+          // narrate 不再吞掉：落成一条“旁白”消息，便于用户感知 Agent 正在做事。
+          // 使用伪角色对象复用现有渲染/存储链路，但打上 isNarration 标记，避免显示“回复”按钮。
+          character = { id: '__narrator__', name: '旁白', isNarration: true };
+          idx = -1;
+          fullContent = String(parsed.content || '').trim();
+        }
+
+        if (!fullContent) return;
+
+        if (onCharacterStart) onCharacterStart(character, idx);
+
+        // Agent 模式下工具调用是同步返回的（非流式），直接渲染完整内容
+        if (onCharacterChunk) {
+          onCharacterChunk(character, idx, { content: fullContent, fullContent });
+        }
+
+        allReplies.push({
+          characterId: character.id,
+          characterName: character.name,
+          content: limitSentences(fullContent),
+          isNarration: !!character.isNarration
+        });
+
+        if (onCharacterEnd) onCharacterEnd(character, idx, fullContent);
+      }
+    });
+
+    // 如果模型直接输出了文字（没用工具），作为旁白处理
+    if (result.content && allReplies.length === 0) {
+      // 模型没有调用任何工具，fallback 到传统编排
+      if (onFallbackReset) onFallbackReset();
+      allReplies.length = 0;
+      return await orchestrateGroupChat(userMessage, characters, history, options);
+    }
+
+  } catch (e) {
+    if (e.name === 'AbortError') return allReplies;
+    // Agent 模式失败，fallback 到传统编排
+    console.warn('[Agent] 群聊 Agent 模式失败，回退到传统编排:', e.message);
+    if (onFallbackReset) onFallbackReset();
+    allReplies.length = 0;
+    return await orchestrateGroupChat(userMessage, characters, history, options);
+  }
+
+  return allReplies;
+}
+
 // ========== 群聊消息发送（由 chat 模块调用） ==========
 
 export async function sendGroupMessage(tabId, userMessage, replyInfo) {
@@ -329,6 +498,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const currentMsgs = currentTab.messages || [];
   const history = currentMsgs;
   let shouldCheckSummary = false;
+  let pendingReplies = [];
 
   // 群聊流式 DOM 隔离（对齐单聊 CR-1 / CR2-B/C / CR3-E 的处理）：
   // 1) liveRenderBroken 粘性标志：一旦切走 tab 或目标节点游离，永久关闭 live render；
@@ -337,13 +507,37 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   let liveRenderBroken = false;
   let currentCharacterMsgBox = null;
 
+  function resetPreviewReplies() {
+    pendingReplies = [];
+    currentCharacterMsgBox = null;
+    if (state.tabData.active === lockedTabId) {
+      coreCall('renderChat');
+    } else {
+      coreCall('invalidateTabCache', lockedTabId);
+    }
+  }
+
+  function commitPendingReplies() {
+    if (!pendingReplies.length) return;
+    const targetTab = state.tabData.list[lockedTabId];
+    if (!targetTab) return;
+    const msgs = targetTab.messages || [];
+    msgs.push(...pendingReplies);
+    targetTab.messages = msgs;
+    pendingReplies = [];
+    saveTabs();
+    coreCall('markStoryArchiveStale', lockedTabId);
+  }
+
   try {
-    const replies = await orchestrateGroupChat(userMessage, characters, history, {
+    const replies = await orchestrateGroupChatAgent(userMessage, characters, history, {
       signal,
       replyInfo,
+      tabId: lockedTabId,
       model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
       groupContext,
       llmTimeoutOptions,
+      onFallbackReset: resetPreviewReplies,
       onCharacterStart(character, idx) {
         // 每次新 character 回复开始：先刷新粘性标志
         if (state.tabData.active !== lockedTabId) liveRenderBroken = true;
@@ -355,18 +549,23 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
           return;
         }
 
-        const msgIndex = currentMsgs.length;
-        const color = coreCall('getCharacterColor', idx);
+        const msgIndex = currentMsgs.length + pendingReplies.length;
         const msgBox = document.createElement("div");
         msgBox.id = `msg-${msgIndex}`;
-        msgBox.className = `message-box character-msg p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white`;
-        msgBox.style.setProperty('border-left-color', color, 'important');
-        msgBox.innerHTML = `
-          <div class="character-msg-label" style="background:${color}20;color:${color}">${escapeHtml(character.name)}</div>
-          <button class="delete-btn" data-index="${msgIndex}" title="删除">${deleteIconSvg}</button>
-          <button class="copy-btn" data-index="${msgIndex}" title="复制">${copyIconSvg}</button>
-          <div class="msg-content prose prose-invert max-w-none"></div>
-        `;
+        if (character.isNarration) {
+          msgBox.className = 'group-narration my-3 px-6';
+          msgBox.innerHTML = `<div class="msg-content group-narration-content max-w-2xl mx-auto"></div>`;
+        } else {
+          const color = coreCall('getCharacterColor', idx);
+          msgBox.className = `message-box character-msg p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white`;
+          msgBox.style.setProperty('border-left-color', color, 'important');
+          msgBox.innerHTML = `
+            <div class="character-msg-label" style="background:${color}20;color:${color}">${escapeHtml(character.name)}</div>
+            <button class="delete-btn" data-index="${msgIndex}" title="删除">${deleteIconSvg}</button>
+            <button class="copy-btn" data-index="${msgIndex}" title="复制">${copyIconSvg}</button>
+            <div class="msg-content prose prose-invert max-w-none"></div>
+          `;
+        }
         chat.appendChild(msgBox);
         currentCharacterMsgBox = msgBox;
         if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
@@ -389,27 +588,26 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         }
       },
       onCharacterEnd(character, idx, content) {
-        const targetTab = state.tabData.list[lockedTabId];
-        if (!targetTab) return;
-        const msgs = targetTab.messages || [];
-        msgs.push({
+        pendingReplies.push({
           role: "character",
           characterId: character.id,
           characterName: character.name,
+          isNarration: !!character.isNarration,
           content: content || '',
           generationState: tabEntry.abortReason === 'timeout' ? 'timeout' : (tabEntry.abortReason ? 'interrupted' : 'complete'),
           history: [{ content: content || '', reasoningContent: '', state: tabEntry.abortReason === 'timeout' ? 'timeout' : (tabEntry.abortReason ? 'interrupted' : 'complete') }],
           historyIndex: 0
         });
-        targetTab.messages = msgs;
-        saveTabs();
-        coreCall('markStoryArchiveStale', lockedTabId);
         // 本角色回复已完成，下一个 character 会由 onCharacterStart 重新赋值或置空
         currentCharacterMsgBox = null;
       }
     });
+    commitPendingReplies();
     shouldCheckSummary = !tabEntry.abortReason && Array.isArray(replies) && replies.length > 0;
   } catch (e) {
+    if (e.name === 'AbortError') {
+      commitPendingReplies();
+    }
     if (e.name !== 'AbortError') {
       console.error('群聊发送错误:', e);
       showToast('群聊发送失败：' + e.message);

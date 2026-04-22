@@ -234,7 +234,7 @@ async function requestGeneratedPrompt(userInput) {
     maxTokens: 300
   });
 
-  let content = String(text).trim()
+  let content = (typeof text === 'string' ? text : (text?.content || '')).trim()
     .replace(/^```[\w-]*\n?/i, '')
     .replace(/\n?```$/, '')
     .trim();

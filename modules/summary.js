@@ -232,7 +232,8 @@ async function generateNewSummary(tabId) {
   if (targetCover <= 0) return;
   const messagesToSummarize = tab.messages.slice(0, targetCover);
   const conversationText = buildConversationText(messagesToSummarize);
-  const summary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
 
   if (!summary || !summary.trim()) return;
 
@@ -256,7 +257,8 @@ async function rebuildSummaryToCover(tabId, coverIdx) {
 
   const messagesToSummarize = tab.messages.slice(0, coverIdx);
   const conversationText = buildConversationText(messagesToSummarize);
-  const summary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
   if (!summary || !summary.trim()) return;
 
   const currentTab = state.tabData.list[tabId];
@@ -287,7 +289,7 @@ async function updateExistingSummary(tabId) {
   // 新消息文本（保留完整消息，避免摘要遗漏关键细节）
   const newConversationText = buildConversationText(newMessages);
 
-  const summary = await callLLM({
+  const result = await callLLM({
     messages: [
       { role: 'system', content: UPDATE_SUMMARY_PROMPT },
       { role: 'user', content: `【旧摘要】\n${baseSummary}\n\n【新增对话】\n${newConversationText}` }
@@ -296,6 +298,8 @@ async function updateExistingSummary(tabId) {
     temperature: 0.3,
     maxTokens: SUMMARY_MAX_TOKENS
   });
+
+  const summary = typeof result === 'string' ? result : (result?.content || '');
 
   if (!summary || !summary.trim()) return;
 

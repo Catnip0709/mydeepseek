@@ -671,13 +671,12 @@ function renderStoryArchive() {
     item => `
       <div class="story-archive-item">
         <div class="story-archive-item-head">
-          <div class="story-archive-item-title">${item.status === 'resolved' ? '已回收' : '待回收'}伏笔</div>
+          <div class="story-archive-item-title">${escapeHtml(item.content)}</div>
           <div class="story-archive-chip-row">
             ${renderTextChip(item.status === 'resolved' ? '已回收' : '未回收', item.status === 'resolved' ? 'resolved' : 'warning')}
           </div>
         </div>
-        <div class="story-archive-item-desc">${escapeHtml(item.content)}</div>
-        ${item.note ? `<div class="story-archive-item-impact">备注：${escapeHtml(item.note)}</div>` : ''}
+        ${item.note ? `<div class="story-archive-item-desc">${escapeHtml(item.note)}</div>` : ''}
       </div>
     `,
     '目前还没有明显的伏笔或未解信息。'

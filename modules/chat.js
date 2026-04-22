@@ -65,7 +65,7 @@ async function decodeTxtFile(file) {
 }
 
 async function summarizeTextAttachment(originalText, signal = null, tabEntry = null) {
-  const summary = await callLLM({
+  const result = await callLLM({
     model: 'deepseek-reasoner',
     messages: [
       {
@@ -91,6 +91,7 @@ async function summarizeTextAttachment(originalText, signal = null, tabEntry = n
       if (tabEntry) tabEntry.abortReason = 'timeout';
     }
   });
+  const summary = typeof result === 'string' ? result : (result?.content || '');
   return trimTextToCharLimit(summary, TEXT_ATTACHMENT_FULL_CHAR_LIMIT);
 }
 
@@ -619,7 +620,13 @@ export function renderChat() {
     const msgBox = document.createElement("div");
     msgBox.id = `msg-${i}`;
 
-    if (isCharacter || isGroupAssistant) {
+    if (isCharacter && m.isNarration) {
+      msgBox.className = "group-narration my-3 px-6";
+      const contentDiv = document.createElement("div");
+      contentDiv.className = "msg-content group-narration-content max-w-2xl mx-auto";
+      renderMarkdown(contentDiv, m.content, i, 'content');
+      msgBox.appendChild(contentDiv);
+    } else if (isCharacter || isGroupAssistant) {
       const charIndex = (currentTab.characterIds || []).indexOf(m.characterId);
       const color = coreCall('getCharacterColor', charIndex >= 0 ? charIndex : 0);
       msgBox.className = `message-box character-msg p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white`;
@@ -627,7 +634,9 @@ export function renderChat() {
 
       let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
       buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
-      buttonsHtml += `<button class="reply-btn" data-index="${i}" data-char-id="${m.characterId || ''}" data-char-name="${escapeHtml(m.characterName || '角色')}" data-snippet="${escapeHtml((m.content || '').slice(0, 50))}" title="回复">${replyIconSvg}</button>`;
+      if (!m.isNarration && m.characterId) {
+        buttonsHtml += `<button class="reply-btn" data-index="${i}" data-char-id="${m.characterId || ''}" data-char-name="${escapeHtml(m.characterName || '角色')}" data-snippet="${escapeHtml((m.content || '').slice(0, 50))}" title="回复">${replyIconSvg}</button>`;
+      }
 
       const displayName = m.characterName || '角色';
       msgBox.innerHTML = `

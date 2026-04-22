@@ -367,6 +367,29 @@ body.search-active #emptyChatHint {
       min-width: 60px;
     }
 
+    .group-narration {
+      text-align: center;
+    }
+
+    .group-narration-content {
+      color: rgba(156, 163, 175, 0.76);
+      font-size: 0.72rem;
+      line-height: 1.7;
+      letter-spacing: 0.01em;
+      font-weight: 400;
+      font-style: normal;
+      text-align: center;
+    }
+
+    .group-narration-content :where(p, ul, ol, blockquote) {
+      margin: 0.2rem 0;
+    }
+
+    .group-narration-content :where(strong, b) {
+      font-weight: 400;
+      color: inherit;
+    }
+
     .message-meta {
       margin-bottom: 12px;
     }
@@ -1358,6 +1381,10 @@ body.day-mode .message-box.bg-gray-800 .msg-content.prose.prose-invert blockquot
   color: #374151 !important;
   border-left-color: #d1d5db !important;
   font-weight: 500;
+}
+
+body.day-mode .group-narration-content {
+  color: rgba(107, 114, 128, 0.84);
 }
 
 /* Assistant meta */

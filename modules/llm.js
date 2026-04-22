@@ -88,8 +88,11 @@ export async function callLLM({
   stream = false,
   temperature = 0.7,
   maxTokens = 4096,
+  tools = null,
+  toolChoice = 'auto',
   signal = null,
   onChunk = null,
+  onToolCallReady = null,
   chunkTimeoutMs = 0,
   onTimeout = null
 } = {}) {
@@ -110,7 +113,8 @@ export async function callLLM({
         messages,
         stream,
         temperature,
-        max_tokens: maxTokens
+        max_tokens: maxTokens,
+        ...(tools ? { tools, tool_choice: toolChoice } : {})
       }),
       signal: guard.signal
     });
@@ -122,23 +126,38 @@ export async function callLLM({
     }
 
     if (!stream) {
+      let data;
       if (!res.body) {
-        const data = await res.json();
-        return data?.choices?.[0]?.message?.content || '';
+        data = await res.json();
+      } else {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let text = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          guard.touch();
+          text += decoder.decode(value, { stream: true });
+        }
+        text += decoder.decode();
+        data = JSON.parse(text);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let text = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        guard.touch();
-        text += decoder.decode(value, { stream: true });
-      }
-      text += decoder.decode();
-      const data = JSON.parse(text);
-      return data?.choices?.[0]?.message?.content || '';
+      const message = data?.choices?.[0]?.message || {};
+      const toolCalls = message.tool_calls || null;
+
+      // 如果有 tool_calls，标准化为与流式一致的格式
+      const normalizedToolCalls = toolCalls ? toolCalls.map(tc => ({
+        id: tc.id,
+        type: tc.type || 'function',
+        function: { name: tc.function.name, arguments: tc.function.arguments }
+      })) : null;
+
+      return {
+        content: message.content || '',
+        reasoningContent: message.reasoning_content || '',
+        toolCalls: normalizedToolCalls
+      };
     }
 
     // 流式处理：连续 timeoutMs 没有新 chunk 才超时，而不是总时长超时
@@ -147,6 +166,8 @@ export async function callLLM({
     let buffer = "";
     let fullContent = "";
     let fullReasoningContent = "";
+    let fullToolCalls = []; // 收集流式 tool_calls
+    let lastCompletedToolIdx = -1; // 上一个已通过回调推送的 tool_call index
 
     while (true) {
       const { done, value } = await reader.read();
@@ -167,12 +188,53 @@ export async function callLLM({
           const delta = data.choices[0].delta;
           if (delta.reasoning_content) fullReasoningContent += delta.reasoning_content;
           if (delta.content) fullContent += delta.content;
-          if (onChunk) onChunk({ content: delta.content || '', reasoningContent: delta.reasoning_content || '', fullContent, fullReasoningContent });
+
+          // 流式 tool_calls 收集：按 index 拼接 function name 和 arguments
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+              if (!fullToolCalls[idx]) {
+                fullToolCalls[idx] = { id: tc.id || '', type: tc.type || 'function', function: { name: '', arguments: '' } };
+              }
+              if (tc.id) fullToolCalls[idx].id = tc.id;
+              if (tc.type) fullToolCalls[idx].type = tc.type;
+              if (tc.function?.name) fullToolCalls[idx].function.name += tc.function.name;
+              if (tc.function?.arguments) fullToolCalls[idx].function.arguments += tc.function.arguments;
+            }
+
+            // 即时推送已完成的 tool_call：当出现更高 index 时，之前的都已完成
+            if (onToolCallReady) {
+              const maxIdx = Math.max(...delta.tool_calls.map(tc => tc.index ?? 0));
+              for (let i = lastCompletedToolIdx + 1; i < maxIdx; i++) {
+                const completed = fullToolCalls[i];
+                if (completed && completed.function && completed.function.name) {
+                  onToolCallReady(completed);
+                  lastCompletedToolIdx = i;
+                }
+              }
+            }
+          }
+
+          if (onChunk) onChunk({ content: delta.content || '', reasoningContent: delta.reasoning_content || '', fullContent, fullReasoningContent, toolCalls: delta.tool_calls || null });
         } catch (e) { continue; }
       }
     }
 
-    return { content: fullContent, reasoningContent: fullReasoningContent };
+    // 流结束后，推送最后一个 tool_call（如果有）
+    if (onToolCallReady && fullToolCalls.length > 0) {
+      for (let i = lastCompletedToolIdx + 1; i < fullToolCalls.length; i++) {
+        const completed = fullToolCalls[i];
+        if (completed && completed.function && completed.function.name) {
+          onToolCallReady(completed);
+          lastCompletedToolIdx = i;
+        }
+      }
+    }
+
+    // 过滤掉空 tool_calls（可能因流式拼接产生空条目）
+    fullToolCalls = fullToolCalls.filter(tc => tc && tc.function && tc.function.name);
+
+    return { content: fullContent, reasoningContent: fullReasoningContent, toolCalls: fullToolCalls.length > 0 ? fullToolCalls : null };
   } finally {
     guard.cleanup();
   }
@@ -181,8 +243,9 @@ export async function callLLM({
 // ========== LLM JSON 调用封装 ==========
 
 export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
-  const text = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
-  const cleanedText = String(text || '').replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
+  const result = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
+  const text = typeof result === 'string' ? result : (result?.content || '');
+  const cleanedText = text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
   try {
     return JSON.parse(cleanedText);
   } catch (e) {
@@ -302,4 +365,159 @@ function _tryRepairTruncatedJson(raw) {
 
   trimmed += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces));
   return trimmed;
+}
+
+// ========== Agent 循环（Tool Calling） ==========
+
+/**
+ * Agent 模式调用：模型可以自主调用工具，执行后把结果喂回模型继续生成。
+ * 循环直到模型返回纯文字内容（不再请求工具调用）或达到最大轮数。
+ *
+ * @param {Object} options
+ * @param {Array} options.messages - 初始消息列表（会被修改）
+ * @param {Array} options.tools - 工具定义列表（OpenAI function calling 格式）
+ * @param {Function} options.toolExecutor - (name, args) => string|object|Promise<string|object> 工具执行函数
+ * @param {number} [options.maxRounds=5] - 最大工具调用轮数
+ * @param {Function} [options.onToolCall] - (name, args, result) 每次工具调用后的回调
+ * @param {Object} [options.callLLMOptions] - 透传给 callLLM 的其他参数
+ * @returns {Promise<{content: string, reasoningContent: string, toolCallLog: Array}>}
+ */
+export async function callLLMAgent({
+  messages,
+  tools = [],
+  toolExecutor,
+  maxRounds = 5,
+  onToolCall = null,
+  ...callLLMOptions
+} = {}) {
+  if (!tools || tools.length === 0 || !toolExecutor) {
+    // 没有 tools，退化为普通调用
+    const result = await callLLM(callLLMOptions);
+    return {
+      content: typeof result === 'string' ? result : (result?.content || ''),
+      reasoningContent: result?.reasoningContent || '',
+      toolCallLog: []
+    };
+  }
+
+  // 复制 messages，避免修改原始数组
+  let msgs = messages.map(m => ({ ...m }));
+  const toolCallLog = [];
+  let rounds = 0;
+
+  function parseToolArgs(tc) {
+    try {
+      return JSON.parse(tc.function.arguments);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function normalizeToolResult(toolResult) {
+    return typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult);
+  }
+
+  while (rounds < maxRounds) {
+    // 本轮已执行的 tool_call，按 tool_call_id 去重，避免“同名同参但不同 id”的合法重复调用被误合并
+    const executedToolCalls = new Map();
+
+    function getToolExecutionKey(tc) {
+      // OpenAI/DeepSeek 正常情况下会给每个 tool_call 一个唯一 id。
+      // 若流式早期/异常情况下 id 缺失，则退化为“当前 tc 对象引用”做轮内去重，
+      // 至少保证同一个 tool_call 在 onToolCallReady + 后续补 messages 阶段不会被双执行。
+      return tc?.id ? `id:${tc.id}` : tc;
+    }
+
+    const executeToolCall = (tc) => {
+      const toolCallId = tc?.id || '';
+      const executionKey = getToolExecutionKey(tc);
+      if (executedToolCalls.has(executionKey)) {
+        return executedToolCalls.get(executionKey);
+      }
+
+      const funcName = tc?.function?.name || '';
+      const funcArgs = parseToolArgs(tc);
+      const executionPromise = (async () => {
+        let toolResult;
+        try {
+          toolResult = await toolExecutor(funcName, funcArgs);
+        } catch (e) {
+          toolResult = `工具执行错误: ${e.message}`;
+        }
+
+        const resultStr = normalizeToolResult(toolResult);
+        toolCallLog.push({ toolCallId, name: funcName, args: funcArgs, result: resultStr });
+        if (onToolCall) {
+          try {
+            onToolCall(funcName, funcArgs, resultStr);
+          } catch (e) {
+            console.warn('[Agent] onToolCall 回调执行失败:', e);
+          }
+        }
+        return { toolCallId, funcName, funcArgs, resultStr };
+      })();
+
+      executedToolCalls.set(executionKey, executionPromise);
+      return executionPromise;
+    };
+
+    const result = await callLLM({
+      ...callLLMOptions,
+      messages: msgs,
+      tools,
+      toolChoice: 'auto',
+      stream: true, // 强制流式，实现即时 tool 执行
+      onToolCallReady(completedToolCall) {
+        // tool_call 完成时立即执行，不等流结束
+        // 这里不能再假设 toolExecutor 一定同步；统一走 executeToolCall，
+        // 同时按 tool_call_id 去重，避免“同名同参但不同 id”的重复调用被误合并。
+        void executeToolCall(completedToolCall);
+      }
+    });
+
+    const content = typeof result === 'string' ? result : (result?.content || '');
+    const reasoningContent = result?.reasoningContent || '';
+    const toolCalls = result?.toolCalls || null;
+
+    // 模型没有请求工具调用 → 返回最终文字
+    if (!toolCalls || toolCalls.length === 0) {
+      return { content, reasoningContent, toolCallLog };
+    }
+
+    // 模型请求了工具调用 → 构建 messages（tool 结果已在 onToolCallReady 中异步追加到 toolCallLog）
+    // 但 messages 需要同步追加，所以这里同步执行 tool 并追加
+    msgs.push({
+      role: 'assistant',
+      content: content || null,
+      tool_calls: toolCalls.map(tc => ({
+        id: tc.id,
+        type: tc.type || 'function',
+        function: { name: tc.function.name, arguments: tc.function.arguments }
+      }))
+    });
+
+    for (const tc of toolCalls) {
+      const { resultStr } = await executeToolCall(tc);
+      msgs.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: resultStr
+      });
+    }
+
+    rounds++;
+  }
+
+  // 超过最大轮数，最后调一次让模型总结（不传 tools，强制文字输出）
+  const final = await callLLM({
+    ...callLLMOptions,
+    messages: msgs,
+    tools: null
+  });
+
+  return {
+    content: typeof final === 'string' ? final : (final?.content || ''),
+    reasoningContent: final?.reasoningContent || '',
+    toolCallLog
+  };
 }
