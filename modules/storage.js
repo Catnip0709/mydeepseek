@@ -151,9 +151,9 @@ export function flushPendingSaveImmediately() {
 
 // ========== Token 限制检查 ==========
 
-export function isTokenLimitReached() {
-  const currentMsgs = state.tabData.list[state.tabData.active].messages || [];
-  const payloadMsgs = buildPayloadMessages(currentMsgs);
+export function isTokenLimitReached(tabId = state.tabData.active) {
+  const currentMsgs = state.tabData.list[tabId]?.messages || [];
+  const payloadMsgs = buildPayloadMessages(currentMsgs, currentMsgs.length, tabId);
   let estimatedTokens = 0;
   payloadMsgs.forEach(m => {
     estimatedTokens += estimateTokensByText(m.content);
@@ -177,8 +177,24 @@ export function getTabDisplayName(id) {
 
 // ========== 构建发送给 LLM 的消息列表 ==========
 
-export function buildPayloadMessages(messages, endExclusive = messages.length) {
-  const currentTab = state.tabData.list[state.tabData.active];
+export function buildPayloadMessages(messages, endExclusive = messages.length, tabId = state.tabData.active) {
+  const currentTab = state.tabData.list[tabId];
+
+  const parseBannedWords = (raw) => String(raw || '')
+    .split(/[\n,，、;；]+/)
+    .map(w => w.trim())
+    .filter(Boolean);
+
+  const buildBannedWordsRule = (raw) => {
+    const words = parseBannedWords(raw);
+    if (!words.length) return '';
+    return [
+      '【写作偏好硬规则】',
+      `- 全文禁止出现以下词语：${words.join('、')}`,
+      '- 如果自然想写到这些词，必须换一种表达',
+      '- 输出前自检一遍，若出现禁用词原文，先改写后再输出'
+    ].join('\n');
+  };
 
   // 全量模式：不使用摘要，直接发送全部消息
   if (state.memoryStrategy === MEMORY_STRATEGY_FULL) {
@@ -194,6 +210,10 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
     }
     if (currentTab && currentTab.storyBackground) {
       bgInfoParts.push(`当前对话背景：${currentTab.storyBackground}`);
+    }
+    const bannedWordsRule = buildBannedWordsRule(currentTab?.bannedWords || '');
+    if (bannedWordsRule) {
+      bgInfoParts.push(bannedWordsRule);
     }
 
     // 单角色聊天：注入角色 system prompt
@@ -251,6 +271,10 @@ export function buildPayloadMessages(messages, endExclusive = messages.length) {
   if (currentTab && currentTab.storyBackground) {
     bgInfoParts.push(`当前对话背景：${currentTab.storyBackground}`);
   }
+  const bannedWordsRule = buildBannedWordsRule(currentTab?.bannedWords || '');
+  if (bannedWordsRule) {
+    bgInfoParts.push(bannedWordsRule);
+  }
 
   // 单角色聊天：注入角色 system prompt + 摘要
   if (currentTab && currentTab.type === 'single-character' && currentTab.characterId) {
@@ -300,14 +324,14 @@ export function buildCharacterSystemPrompt(char) {
 
 // ========== 构建用户输入元信息 ==========
 
-export function buildUserInputMeta(messages, userIndex) {
+export function buildUserInputMeta(messages, userIndex, tabId = state.tabData.active) {
   const currentMessage = messages[userIndex];
   if (!currentMessage || currentMessage.role !== 'user') return null;
 
-  const currentTab = state.tabData.list[state.tabData.active];
+  const currentTab = state.tabData.list[tabId];
   const hasSummary = currentTab && tabHasUsableSummary(currentTab);
 
-  const payloadMsgs = buildPayloadMessages(messages, userIndex + 1);
+  const payloadMsgs = buildPayloadMessages(messages, userIndex + 1, tabId);
   const inputChars = countChars(currentMessage.content);
   const inputTokens = estimateTokensByChars(inputChars);
   const historyTokens = payloadMsgs

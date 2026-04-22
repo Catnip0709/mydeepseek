@@ -902,7 +902,7 @@ export async function sendMessage() {
   currentMsgs.push({ role: "user", content: userText });
   if (outgoing.userQuestion) currentMsgs[currentMsgs.length - 1].userQuestion = outgoing.userQuestion;
   if (outgoing.fileAttachment) currentMsgs[currentMsgs.length - 1].fileAttachment = outgoing.fileAttachment;
-  currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1);
+  currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1, sendingTabId);
   state.tabData.list[sendingTabId].messages = currentMsgs;
   saveTabs();
   coreCall('markStoryArchiveStale', sendingTabId);
@@ -969,7 +969,7 @@ export async function fetchAndStreamResponse(opts = {}) {
   const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
   const selectedModel = modelSelect.value;
 
-  const payloadMsgs = buildPayloadMessages(currentMsgs, isRegen ? targetIndex : currentMsgs.length);
+  const payloadMsgs = buildPayloadMessages(currentMsgs, isRegen ? targetIndex : currentMsgs.length, lockedTabId);
 
   // S-1 附带修复：在非 active 发起时，#chat 展示的是其他 tab 的内容。如果仍然往 #chat 插入
   // 新的 aiMsgDiv，会污染当前显示 tab 的 DOM（用户会看到一个凭空出现的 AI 气泡）。
@@ -1294,7 +1294,7 @@ export async function saveEditAndRegenerate() {
     await sendGroupMessage(editingTabId, newContent);
   } else {
     if (messagesToKeep[editIdx]?.role === 'user') {
-      messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx);
+      messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx, editingTabId);
       saveTabs();
       coreCall('markStoryArchiveStale', editingTabId);
     }

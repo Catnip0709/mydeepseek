@@ -83,6 +83,13 @@ export async function generateCharacterReply(character, userMessage, history, al
   const summaryInfo = groupContext.summary
     ? `\n\n【对话记忆摘要】\n${groupContext.summary}`
     : '';
+  const bannedWords = String(groupContext.bannedWords || '')
+    .split(/[\n,，、;；]+/)
+    .map(w => w.trim())
+    .filter(Boolean);
+  const bannedWordsInfo = bannedWords.length
+    ? `\n\n【写作偏好硬规则】\n1. 全文禁止出现以下词语：${bannedWords.join('、')}\n2. 若自然想写到这些词，必须换一种表达\n3. 输出前自检一遍，若出现禁用词原文，先改写后再输出`
+    : '';
 
   const recentHistory = history.slice(-20).map(m => {
     if (m.role === 'user') return `用户：${m.content}`;
@@ -105,7 +112,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 背景：${character.background || '无'}
 外貌：${character.appearance || '无'}
 说话风格：${character.speakingStyle || '自然'}
-口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}${userRoleInfo}${storyBgInfo}${summaryInfo}
+口头禅参考（仅供参考语气，不要刻意堆砌）：${(character.catchphrases || []).join('、') || '无'}${otherCharsInfo}${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
 
 规则：
 1. 严格以${character.name}的身份和性格回复
@@ -330,6 +337,13 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
   const summaryInfo = groupContext?.summary
     ? `\n\n【对话记忆摘要】\n${groupContext.summary}`
     : '';
+  const bannedWords = String(groupContext?.bannedWords || '')
+    .split(/[\n,，、;；]+/)
+    .map(w => w.trim())
+    .filter(Boolean);
+  const bannedWordsInfo = bannedWords.length
+    ? `\n\n【写作偏好硬规则】\n- 全文禁止出现以下词语：${bannedWords.join('、')}\n- character_reply / narrate 的所有输出都不得出现这些词\n- 若自然想写到这些词，必须换一种表达\n- 输出前自检禁用词，发现后先改写再提交工具调用`
+    : '';
 
   // 最近对话历史
   const recentHistory = history.slice(-20).map(m => {
@@ -340,7 +354,7 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
 
   const systemPrompt = `你是一个群聊导演。你控制群聊中所有角色的发言。
 ${charInfos}
-${userRoleInfo}${storyBgInfo}${summaryInfo}
+${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
 
 规则：
 1. 使用 character_reply 工具让角色发言，不要直接输出角色台词
@@ -381,7 +395,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}
       maxRounds: 3,
       model: model || 'deepseek-chat',
       temperature: 0.8,
-      maxTokens: 4096,
+      // 导演只需要产出 tool_calls（而不是长篇文字），maxTokens 太大会让模型“想很久/写很长”才出手。
+      // 下调上限可以明显降低首条输出延迟与 token 消耗。
+      maxTokens: 1024,
       stream: true,
       signal,
       chunkTimeoutMs: llmTimeoutOptions.chunkTimeoutMs || 0,
@@ -492,6 +508,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const groupContext = {
     userRoleName: currentTab.userRoleName || '',
     storyBackground: currentTab.storyBackground || '',
+    bannedWords: currentTab.bannedWords || '',
     summary: useSummary ? currentTab.summary : ''
   };
 
@@ -499,6 +516,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const history = currentMsgs;
   let shouldCheckSummary = false;
   let pendingReplies = [];
+  let typingIndicatorEl = null;
 
   // 群聊流式 DOM 隔离（对齐单聊 CR-1 / CR2-B/C / CR3-E 的处理）：
   // 1) liveRenderBroken 粘性标志：一旦切走 tab 或目标节点游离，永久关闭 live render；
@@ -510,6 +528,10 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   function resetPreviewReplies() {
     pendingReplies = [];
     currentCharacterMsgBox = null;
+    if (typingIndicatorEl) {
+      try { typingIndicatorEl.remove(); } catch (_) {}
+      typingIndicatorEl = null;
+    }
     if (state.tabData.active === lockedTabId) {
       coreCall('renderChat');
     } else {
@@ -529,7 +551,40 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
     coreCall('markStoryArchiveStale', lockedTabId);
   }
 
+  function shouldAutoScroll() {
+    // 用户在底部附近才跟随滚动，避免打断用户向上翻历史
+    return chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 80;
+  }
+
+  function ensureTypingIndicator() {
+    if (liveRenderBroken || state.tabData.active !== lockedTabId) return;
+    if (!typingIndicatorEl) {
+      typingIndicatorEl = document.createElement('div');
+      typingIndicatorEl.className = 'group-agent-typing my-2 px-6';
+      typingIndicatorEl.innerHTML = `
+        <div class="group-agent-typing-inner max-w-2xl mx-auto">
+          <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+        </div>
+      `;
+    }
+    // 确保始终在最底部
+    if (typingIndicatorEl.parentNode !== chat || typingIndicatorEl !== chat.lastElementChild) {
+      chat.appendChild(typingIndicatorEl);
+    }
+  }
+
+  function removeTypingIndicator() {
+    if (typingIndicatorEl) {
+      try { typingIndicatorEl.remove(); } catch (_) {}
+      typingIndicatorEl = null;
+    }
+  }
+
   try {
+    // Agent 群聊：首次 tool_call 之前可能长时间没有可渲染输出。
+    // 用底部 typing 三点作为“正在编排中”提示（不落盘，结束即清理）。
+    ensureTypingIndicator();
+
     const replies = await orchestrateGroupChatAgent(userMessage, characters, history, {
       signal,
       replyInfo,
@@ -546,8 +601,12 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
           // 已切走：不创建 DOM 节点，避免 chat.appendChild 把节点插入到非 lockedTabId 的 #chat 上
           // （原实现会把本属于 tab A 的群聊消息直接插进 tab B 的 DOM，造成用户可见的污染）。
           currentCharacterMsgBox = null;
+          removeTypingIndicator();
           return;
         }
+
+        // 有输出开始了，typing 依然保留在底部，但要保证永远在最底部
+        const autoScroll = shouldAutoScroll();
 
         const msgIndex = currentMsgs.length + pendingReplies.length;
         const msgBox = document.createElement("div");
@@ -568,9 +627,8 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         }
         chat.appendChild(msgBox);
         currentCharacterMsgBox = msgBox;
-        if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
-          chat.scrollTop = chat.scrollHeight;
-        }
+        ensureTypingIndicator();
+        if (autoScroll) chat.scrollTop = chat.scrollHeight;
       },
       onCharacterChunk(character, idx, chunk) {
         // 粘性检查：active 切走 / msgBox 游离（例如搜索触发 renderChat 清空 #chat）均永久关闭 live render
@@ -578,13 +636,15 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
             !currentCharacterMsgBox ||
             !currentCharacterMsgBox.isConnected) {
           liveRenderBroken = true;
+          removeTypingIndicator();
           return;
         }
         const contentDiv = currentCharacterMsgBox.querySelector('.msg-content');
         if (contentDiv && chunk.fullContent) {
+          const autoScroll = shouldAutoScroll();
           renderMarkdown(contentDiv, chunk.fullContent);
-          const isAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20;
-          if (isAtBottom) chat.scrollTop = chat.scrollHeight;
+          ensureTypingIndicator();
+          if (autoScroll) chat.scrollTop = chat.scrollHeight;
         }
       },
       onCharacterEnd(character, idx, content) {
@@ -600,11 +660,14 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         });
         // 本角色回复已完成，下一个 character 会由 onCharacterStart 重新赋值或置空
         currentCharacterMsgBox = null;
+        ensureTypingIndicator();
+        if (shouldAutoScroll()) chat.scrollTop = chat.scrollHeight;
       }
     });
     commitPendingReplies();
     shouldCheckSummary = !tabEntry.abortReason && Array.isArray(replies) && replies.length > 0;
   } catch (e) {
+    removeTypingIndicator();
     if (e.name === 'AbortError') {
       commitPendingReplies();
     }
@@ -613,6 +676,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       showToast('群聊发送失败：' + e.message);
     }
   } finally {
+    removeTypingIndicator();
     // 按 lockedTabId 清理发送状态（active tab 可能已切走）
     clearTabSending(lockedTabId);
     coreCall('updateComposerPrimaryButtonState');
@@ -657,12 +721,14 @@ export function openBgInfoPanel() {
   const panel = document.getElementById('bgInfoPanel');
   const roleInput = document.getElementById('bgInfoRoleInput');
   const bgInput = document.getElementById('bgInfoStoryInput');
+  const bannedWordsInput = document.getElementById('bgInfoBannedWordsInput');
   const currentTab = state.tabData.list[state.tabData.active];
 
   if (!currentTab) return;
 
   roleInput.value = currentTab.userRoleName || '';
   bgInput.value = currentTab.storyBackground || '';
+  if (bannedWordsInput) bannedWordsInput.value = currentTab.bannedWords || '';
   panel.classList.remove('hidden');
   setTimeout(() => roleInput.focus(), 30);
 }
@@ -675,12 +741,14 @@ export function closeBgInfoPanel() {
 export function saveBgInfo() {
   const roleInput = document.getElementById('bgInfoRoleInput');
   const bgInput = document.getElementById('bgInfoStoryInput');
+  const bannedWordsInput = document.getElementById('bgInfoBannedWordsInput');
   const currentTab = state.tabData.list[state.tabData.active];
 
   if (!currentTab) return;
 
   currentTab.userRoleName = roleInput.value.trim();
   currentTab.storyBackground = bgInput.value.trim();
+  currentTab.bannedWords = bannedWordsInput ? bannedWordsInput.value.trim() : '';
   saveTabs();
   closeBgInfoPanel();
   updateBgInfoChip();
