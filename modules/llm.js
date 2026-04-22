@@ -195,6 +195,8 @@ export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temp
 
 export function extractJsonFromText(text) {
   const candidates = [];
+
+  // 策略 1：标准提取 — 找首尾 {} 或 []
   const objectStart = text.indexOf('{');
   const objectEnd = text.lastIndexOf('}');
   if (objectStart !== -1 && objectEnd !== -1 && objectEnd > objectStart) {
@@ -207,10 +209,97 @@ export function extractJsonFromText(text) {
     candidates.push(text.slice(arrayStart, arrayEnd + 1));
   }
 
+  // 策略 2：截断修复 — LLM 输出被 maxTokens 截断时，JSON 末尾缺少 ] 和 }
+  // 从末尾向前回退，找到最后一个完整的 JSON 值，截断到那里后补全闭合符号
+  if (objectStart !== -1) {
+    const rawJson = text.slice(objectStart);
+    let repaired = _tryRepairTruncatedJson(rawJson);
+    if (repaired) candidates.push(repaired);
+  }
+
   for (const candidate of candidates) {
     try {
       return JSON.parse(candidate);
     } catch (_) {}
   }
   return null;
+}
+
+/**
+ * 尝试修复被截断的 JSON 字符串。
+ * 策略：从前往后扫描记录每个位置是否在字符串内部，
+ * 然后从后往前找第一个在字符串外部的 } 或 ] 作为安全截断点，
+ * 最后补全缺失的 ] 和 }。
+ */
+function _tryRepairTruncatedJson(raw) {
+  // 快速检查：如果没有未闭合的符号，直接返回
+  let openBraces = 0, openBrackets = 0;
+  for (const ch of raw) {
+    if (ch === '{') openBraces++;
+    else if (ch === '}') openBraces--;
+    else if (ch === '[') openBrackets++;
+    else if (ch === ']') openBrackets--;
+  }
+  if (openBraces <= 0 && openBrackets <= 0) return null;
+
+  // 从前往后扫描，记录每个位置是否在字符串外部
+  const n = raw.length;
+  const outsideString = new Uint8Array(n);
+  let inStr = false;
+
+  for (let i = 0; i < n; i++) {
+    if (!inStr) {
+      outsideString[i] = 1;
+      if (raw[i] === '"') {
+        inStr = true;
+      }
+    } else {
+      if (raw[i] === '"') {
+        let bc = 0;
+        let j = i - 1;
+        while (j >= 0 && raw[j] === '\\') { bc++; j--; }
+        if (bc % 2 === 0) {
+          inStr = false;
+          outsideString[i] = 1;
+        }
+      }
+    }
+  }
+
+  // 从后往前找第一个在字符串外部的 } 或 ]
+  let i = n - 1;
+  while (i >= 0) {
+    if (outsideString[i] && (raw[i] === '}' || raw[i] === ']')) {
+      break;
+    }
+    i--;
+  }
+
+  if (i < 0) {
+    // fallback：找不到闭合的 }/]，尝试找字符串外部的 { 或 [ 来闭合为空容器
+    i = n - 1;
+    while (i >= 0) {
+      if (outsideString[i] && (raw[i] === '{' || raw[i] === '[')) {
+        break;
+      }
+      i--;
+    }
+    if (i < 0) return null;
+    return raw.substring(0, i + 1) + (raw[i] === '{' ? '}' : ']');
+  }
+
+  let trimmed = raw.substring(0, i + 1);
+
+  // 重新计算未闭合的符号数
+  openBraces = 0;
+  openBrackets = 0;
+  for (const ch of trimmed) {
+    if (ch === '{') openBraces++;
+    else if (ch === '}') openBraces--;
+    else if (ch === '[') openBrackets++;
+    else if (ch === ']') openBrackets--;
+  }
+
+  trimmed += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces));
+  return trimmed;
 }
