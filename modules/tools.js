@@ -76,14 +76,14 @@ export const TOOL_QUERY_ARCHIVE = {
   type: 'function',
   function: {
     name: 'query_story_archive',
-    description: '查询当前对话的剧情档案，获取角色关系、事件时间线、伏笔、名场面等结构化信息',
+    description: '查询当前对话的剧情档案，获取角色关系、事件时间线、伏笔等结构化信息。注意：highlights（名场面）板块已废弃，仅用于兼容旧数据，新生成的档案不再包含此板块。',
     parameters: {
       type: 'object',
       properties: {
         section: {
           type: 'string',
           enum: ['overview', 'relationships', 'timeline', 'foreshadows', 'highlights'],
-          description: '要查询的档案板块'
+          description: '要查询的档案板块。highlights（名场面）已废弃，仅用于兼容旧数据。'
         },
         keyword: {
           type: 'string',

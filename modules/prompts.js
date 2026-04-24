@@ -10,6 +10,7 @@ import { savePrompts } from './storage.js';
 import { showToast, closeSidebar, showConfirmModal } from './panels.js';
 import { createNewTab } from './tabs.js';
 import { autoHeight } from './chat.js';
+import { callLLM } from './llm.js';
 
 // ========== 指令面板管理 ==========
 
@@ -299,30 +300,15 @@ ${original}`
     }
   ];
 
-  const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${state.apiKey}`,
-      "Cache-Control": "no-cache",
-      "Pragma": "no-cache"
-    },
-    body: JSON.stringify({
-      model: "deepseek-chat",
-      messages,
-      stream: false,
-      temperature: 0.5,
-      max_tokens: approxMaxTokens
-    })
+  const data = await callLLM({
+    model: state.selectedModel,
+    messages,
+    stream: false,
+    temperature: 0.5,
+    maxTokens: approxMaxTokens
   });
 
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || '请求失败，请检查 API Key 或稍后重试');
-  }
-
-  const data = await res.json();
-  let content = data?.choices?.[0]?.message?.content || '';
+  let content = typeof data === 'string' ? data : (data?.content || '');
 
   content = String(content).trim()
     .replace(/^```[\w-]*\n?/i, '')

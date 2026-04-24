@@ -206,6 +206,7 @@ async function requestFullSummaryFromMessages(messages) {
   const conversationText = buildConversationText(messages);
 
   return callLLM({
+    model: state.selectedModel,
     messages: [
       { role: 'system', content: FIRST_SUMMARY_PROMPT },
       { role: 'user', content: conversationText }
@@ -290,6 +291,7 @@ async function updateExistingSummary(tabId) {
   const newConversationText = buildConversationText(newMessages);
 
   const result = await callLLM({
+    model: state.selectedModel,
     messages: [
       { role: 'system', content: UPDATE_SUMMARY_PROMPT },
       { role: 'user', content: `【旧摘要】\n${baseSummary}\n\n【新增对话】\n${newConversationText}` }

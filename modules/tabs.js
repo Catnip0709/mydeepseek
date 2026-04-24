@@ -8,6 +8,7 @@ import { state, abortTabSending, clearTabSending } from './state.js';
 import { escapeHtml, editIconSvg, downloadIconSvg } from './utils.js';
 import { saveTabs, generateNewTabId, getTabDisplayName } from './storage.js';
 import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint } from './panels.js';
+import { removeFavoritesForTab } from './favorites.js';
 import { call as coreCall } from './core.js';
 
 // ========== Tab DOM 缓存 ==========
@@ -131,6 +132,7 @@ export function renderTabs() {
         // 这里显式设置 abortReason 以便 catch 分支能正确识别为"手动中断"。
         abortTabSending(delId, 'manual');
         clearTabSending(delId);
+        removeFavoritesForTab(delId, { silent: true });
 
         delete state.tabData.list[delId];
 

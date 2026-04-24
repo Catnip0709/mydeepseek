@@ -4,10 +4,10 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, getTabSending, abortTabSending } from './state.js';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
-  replyIconSvg, estimateTokensByChars, countChars, trackEvent
+  replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId
 } from './utils.js';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
@@ -20,6 +20,7 @@ import {
   showToast, openSettingsPanel, showEmptyChatHint,
   hideEmptyChatHint, hideReplyBar, showReplyBar
 } from './panels.js';
+import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js';
 import { call as coreCall } from './core.js';
 
 // ========== 聊天区域事件绑定（事件委托） ==========
@@ -66,7 +67,7 @@ async function decodeTxtFile(file) {
 
 async function summarizeTextAttachment(originalText, signal = null, tabEntry = null) {
   const result = await callLLM({
-    model: 'deepseek-reasoner',
+    model: state.selectedModel,
     messages: [
       {
         role: 'system',
@@ -481,8 +482,10 @@ function handleChatClick(e) {
     const index = parseInt(deleteBtn.getAttribute('data-index'));
     if (confirm("确定删除这条消息吗？")) {
       const activeTab = state.tabData.list[state.tabData.active];
+      const removedMessageId = activeTab.messages[index]?.id;
       coreCall('invalidateTabCache', state.tabData.active);
       activeTab.messages.splice(index, 1);
+      if (removedMessageId) removeFavoritesForMessageIds(state.tabData.active, [removedMessageId], { silent: true });
       // 删除摘要覆盖范围内的消息时，清除摘要
       if (activeTab.summaryCoversUpTo > 0 && index < activeTab.summaryCoversUpTo) {
         clearSummary(state.tabData.active);
@@ -491,6 +494,16 @@ function handleChatClick(e) {
       saveTabs();
       coreCall('markStoryArchiveStale', state.tabData.active);
       renderChat();
+    }
+    return;
+  }
+
+  const favoriteBtn = target.closest('.favorite-btn');
+  if (favoriteBtn) {
+    const index = parseInt(favoriteBtn.getAttribute('data-index'));
+    const message = currentMsgs[index];
+    if (message && canFavoriteMessage(message)) {
+      toggleFavoriteForMessage(state.tabData.active, message);
     }
     return;
   }
@@ -619,6 +632,7 @@ export function renderChat() {
 
     const msgBox = document.createElement("div");
     msgBox.id = `msg-${i}`;
+    if (m.id) msgBox.dataset.messageId = m.id;
 
     if (isCharacter && m.isNarration) {
       msgBox.className = "group-narration my-3 px-6";
@@ -634,6 +648,9 @@ export function renderChat() {
 
       let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
       buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+      if (canFavoriteMessage(m)) {
+        buttonsHtml += `<button class="favorite-btn ${isMessageFavorited(state.tabData.active, m.id) ? 'favorited' : ''}" data-index="${i}" title="${isMessageFavorited(state.tabData.active, m.id) ? '取消收藏' : '收藏'}">${favoriteIconSvg}</button>`;
+      }
       if (!m.isNarration && m.characterId) {
         buttonsHtml += `<button class="reply-btn" data-index="${i}" data-char-id="${m.characterId || ''}" data-char-name="${escapeHtml(m.characterName || '角色')}" data-snippet="${escapeHtml((m.content || '').slice(0, 50))}" title="回复">${replyIconSvg}</button>`;
       }
@@ -683,9 +700,15 @@ export function renderChat() {
       let buttonsHtml = `<button class="delete-btn" data-index="${i}" title="删除">${deleteIconSvg}</button>`;
       if (isAssistant) {
         buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+        if (canFavoriteMessage(m)) {
+          buttonsHtml += `<button class="favorite-btn ${isMessageFavorited(state.tabData.active, m.id) ? 'favorited' : ''}" data-index="${i}" title="${isMessageFavorited(state.tabData.active, m.id) ? '取消收藏' : '收藏'}">${favoriteIconSvg}</button>`;
+        }
         if (isLastAssistant) buttonsHtml += `<button class="regenerate-btn" data-index="${i}" title="重新生成">↻</button>`;
       } else if (isUser) {
         buttonsHtml += `<button class="copy-btn" data-index="${i}" title="复制">${copyIconSvg}</button>`;
+        if (canFavoriteMessage(m)) {
+          buttonsHtml += `<button class="favorite-btn ${isMessageFavorited(state.tabData.active, m.id) ? 'favorited' : ''}" data-index="${i}" title="${isMessageFavorited(state.tabData.active, m.id) ? '取消收藏' : '收藏'}">${favoriteIconSvg}</button>`;
+        }
         if (isLastUserMessage) buttonsHtml += `<button class="edit-btn" data-index="${i}" title="编辑">✎</button>`;
       }
 
@@ -863,7 +886,7 @@ export async function sendMessage() {
 
   // 群聊分支
   if (currentTab.type === 'group' && currentTab.characterIds && currentTab.characterIds.length > 0) {
-    const userMsg = { role: "user", content: userText };
+    const userMsg = { id: generateMessageId(), role: "user", content: userText };
     if (outgoing.userQuestion) userMsg.userQuestion = outgoing.userQuestion;
     if (outgoing.fileAttachment) userMsg.fileAttachment = outgoing.fileAttachment;
     if (state.replyTarget) {
@@ -899,7 +922,7 @@ export async function sendMessage() {
   }
 
   // 单聊分支
-  currentMsgs.push({ role: "user", content: userText });
+  currentMsgs.push({ id: generateMessageId(), role: "user", content: userText });
   if (outgoing.userQuestion) currentMsgs[currentMsgs.length - 1].userQuestion = outgoing.userQuestion;
   if (outgoing.fileAttachment) currentMsgs[currentMsgs.length - 1].fileAttachment = outgoing.fileAttachment;
   currentMsgs[currentMsgs.length - 1].inputMeta = buildUserInputMeta(currentMsgs, currentMsgs.length - 1, sendingTabId);
@@ -935,7 +958,8 @@ export async function sendMessage() {
 
 export async function fetchAndStreamResponse(opts = {}) {
   const chat = document.getElementById("chat");
-  const modelSelect = document.getElementById("modelSelect");
+  const { model: selectedModel, reasoningEffort, thinkingType } = getEffectiveModel();
+  const allowReasoning = thinkingType === 'enabled';
 
   // S-1 修复：优先使用调用方显式传入的 tabId。sendMessage 在 await buildOutgoingUserMessage 里
   // 可能等待 txt 摘要（一次真实 LLM 调用，耗时可观），期间用户可能切 tab；若此处继续用
@@ -967,7 +991,6 @@ export async function fetchAndStreamResponse(opts = {}) {
   const currentMsgs = state.tabData.list[lockedTabId].messages || [];
   const isRegen = opts.regenerateIndex !== undefined;
   const targetIndex = isRegen ? opts.regenerateIndex : currentMsgs.length;
-  const selectedModel = modelSelect.value;
 
   const payloadMsgs = buildPayloadMessages(currentMsgs, isRegen ? targetIndex : currentMsgs.length, lockedTabId);
 
@@ -1009,6 +1032,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     aiMsgDiv = document.createElement("div");
     aiMsgDiv.id = `msg-${targetIndex}`;
     aiMsgDiv.className = "message-box p-3 rounded-xl bg-gray-800 mr-auto max-w-[85%] text-white";
+    aiMsgDiv.dataset.messageId = `pending-${lockedTabId}-${targetIndex}`;
 
     let streamLabelHtml = '';
     const lockedTab = state.tabData.list[lockedTabId];
@@ -1064,6 +1088,16 @@ export async function fetchAndStreamResponse(opts = {}) {
   }
 
   try {
+    const requestBody = {
+      model: selectedModel,
+      messages: payloadMsgs,
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 4096,
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+      ...(thinkingType ? { thinking: { type: thinkingType } } : {}),
+    };
+
     const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1072,13 +1106,7 @@ export async function fetchAndStreamResponse(opts = {}) {
         "Cache-Control": "no-cache",
         "Pragma": "no-cache"
       },
-      body: JSON.stringify({
-        model: selectedModel,
-        messages: payloadMsgs,
-        stream: true,
-        temperature: 0.7,
-        max_tokens: 4096
-      }),
+      body: JSON.stringify(requestBody),
       signal: chunkGuard.signal
     });
     chunkGuard.touch();
@@ -1125,7 +1153,7 @@ export async function fetchAndStreamResponse(opts = {}) {
           if (state.tabData.active !== lockedTabId || !aiMsgDiv || !aiMsgDiv.isConnected) liveRenderBroken = true;
           const canLiveRender = !liveRenderBroken;
 
-          if (delta.reasoning_content) {
+          if (allowReasoning && delta.reasoning_content) {
             if (!hasReasoning) {
               // hasReasoning 只在能实时渲染时才置 true，避免"首 chunk 在非 active、后续回到 active"时
               // 因 hasReasoning 已 true 而永远不创建 details 节点（CR2-C）
@@ -1235,6 +1263,7 @@ export async function fetchAndStreamResponse(opts = {}) {
       currentMsgs[targetIndex].history[currentMsgs[targetIndex].historyIndex] = { content: fullContent, reasoningContent: fullReasoningContent, state: fState };
     } else {
       currentMsgs.push({
+        id: generateMessageId(),
         role: "assistant",
         content: fullContent,
         reasoningContent: fullReasoningContent,
@@ -1271,10 +1300,12 @@ export async function saveEditAndRegenerate() {
   if (state.editingMessageIndex < 0 || state.editingMessageIndex >= currentMsgs.length) return alert("编辑的消息不存在。");
 
   const editIdx = state.editingMessageIndex;
+  const removedMessageIds = currentMsgs.slice(editIdx).map(msg => msg?.id).filter(Boolean);
   const messagesToKeep = currentMsgs.slice(0, editIdx + 1);
   messagesToKeep[editIdx].content = newContent;
   delete messagesToKeep[editIdx].fileAttachment;
   delete messagesToKeep[editIdx].userQuestion;
+  removeFavoritesForMessageIds(editingTabId, removedMessageIds, { silent: true });
   currentTab.messages = messagesToKeep;
   // 编辑消息后，如果编辑位置在摘要覆盖范围内，清除摘要
   if (currentTab.summaryCoversUpTo > 0 && editIdx < currentTab.summaryCoversUpTo) {
@@ -1336,6 +1367,7 @@ export function regenerateResponse(messageIndex) {
   if (messageIndex < 0 || messageIndex >= currentMsgs.length) return alert("消息索引无效。");
   const targetMessage = currentMsgs[messageIndex];
   if (targetMessage.role !== 'assistant') return alert("只能重新生成AI的回复。");
+  if (targetMessage.id) removeFavoritesForMessageIds(regenTabId, [targetMessage.id], { silent: true });
 
   fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
 }
@@ -1418,7 +1450,7 @@ export async function generateTitleForCurrentTab() {
         "Authorization": `Bearer ${state.apiKey}`
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model: state.selectedModel,
         messages: [
           { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${titleSource}` }
         ],

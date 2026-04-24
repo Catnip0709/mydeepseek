@@ -25,6 +25,7 @@ import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from '
 import { bindSearchEvents, clearSearch } from './search.js';
 import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js';
 import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js';
+import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js';
 
 // ========== 注册跨模块函数到 core ==========
 
@@ -47,6 +48,30 @@ register('runLegacySummaryMigration', runLegacySummaryMigration);
 register('runLegacySummaryMigrationForTab', runLegacySummaryMigrationForTab);
 register('openStoryArchivePanel', openStoryArchivePanel);
 register('markStoryArchiveStale', markStoryArchiveStale);
+register('openFavoritesPanel', openFavoritesPanel);
+register('renderFavoritesPanel', renderFavoritesPanel);
+
+function applyDeepThinkStateGlobal(nextChecked) {
+  const deepThinkToggle = document.getElementById('deepThinkToggle');
+  if (!deepThinkToggle) return false;
+  deepThinkToggle.checked = !!nextChecked;
+  state.deepThink = !!nextChecked;
+  localStorage.setItem('dsDeepThink', String(state.deepThink));
+  return false;
+}
+
+window.applyDeepThinkState = applyDeepThinkStateGlobal;
+window.forceToggleDeepThinkFromUI = function(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const deepThinkToggle = document.getElementById('deepThinkToggle');
+  return applyDeepThinkStateGlobal(!(deepThinkToggle && deepThinkToggle.checked));
+};
+window.syncDeepThinkFromInput = function(checked) {
+  return applyDeepThinkStateGlobal(!!checked);
+};
 
 // ========== 初始化 ==========
 
@@ -151,6 +176,7 @@ function init() {
     bindMarketEvents();
     bindSearchEvents();
     bindStoryArchiveEvents();
+    bindFavoritesEvents();
 
     // 全局事件：visibilitychange
     document.addEventListener('visibilitychange', () => {
@@ -222,6 +248,13 @@ function init() {
         const promptMarketPanel = document.getElementById('promptMarketPanel');
         const aiGeneratePromptPanel = document.getElementById('aiGeneratePromptPanel');
         const storyArchivePanel = document.getElementById('storyArchivePanel');
+        const favoritesPanel = document.getElementById('favoritesPanel');
+        const favoritePreviewPanel = document.getElementById('favoritePreviewPanel');
+
+        if (favoritePreviewPanel && !favoritePreviewPanel.classList.contains('hidden')) {
+          closeFavoritePreviewPanel();
+          return;
+        }
 
         if (settingsPanel && !settingsPanel.classList.contains('hidden')) closeSettingsPanel();
         if (editPanel && !editPanel.classList.contains('hidden')) cancelEdit();
@@ -239,6 +272,7 @@ function init() {
         if (promptMarketPanel && !promptMarketPanel.classList.contains('hidden')) closePromptMarketPanel();
         if (aiGeneratePromptPanel && !aiGeneratePromptPanel.classList.contains('hidden')) closeAiGeneratePanel();
         if (storyArchivePanel && !storyArchivePanel.classList.contains('hidden')) closeStoryArchivePanel();
+        if (favoritesPanel && !favoritesPanel.classList.contains('hidden')) closeFavoritesPanel();
       }
     });
 

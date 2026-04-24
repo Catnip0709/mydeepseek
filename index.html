@@ -83,6 +83,9 @@
     </div>
 
     <div class="flex items-center gap-2">
+      <button id="openFavoritesBtn" class="flex-1 bg-gray-800 hover:bg-gray-700 p-3 rounded-lg text-gray-300 transition-colors flex items-center justify-center" title="收藏">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.75l2.86 5.79 6.39.93-4.62 4.5 1.09 6.36L12 17.32 6.28 20.33l1.09-6.36-4.62-4.5 6.39-.93L12 2.75z"></path></svg>
+      </button>
       <button id="openInfoBtn" class="flex-1 bg-gray-800 hover:bg-gray-700 p-3 rounded-lg text-gray-300 transition-colors flex items-center justify-center" title="关于本站">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
       </button>
@@ -92,6 +95,33 @@
       <button id="openDonateBtn" class="flex-1 bg-gray-800 hover:bg-gray-700 p-3 rounded-lg text-gray-300 transition-colors flex items-center justify-center" title="支持与捐赠">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
       </button>
+    </div>
+  </div>
+</div>
+
+<div id="favoritesPanel" class="panel-modal hidden">
+  <div id="favoritesPanelMask" class="panel-backdrop"></div>
+  <div class="prompt-panel-container favorites-panel-container">
+    <div class="prompt-panel-header">
+      <h3 class="text-white text-base font-semibold">收藏栏</h3>
+      <button id="favoritesPanelCloseBtn" class="text-gray-400 hover:text-white text-2xl leading-none" type="button" aria-label="关闭收藏栏">&times;</button>
+    </div>
+    <div id="favoritesList" class="prompt-panel-body favorites-list"></div>
+  </div>
+</div>
+
+<div id="favoritePreviewPanel" class="panel-modal hidden">
+  <div id="favoritePreviewPanelMask" class="panel-backdrop"></div>
+  <div class="prompt-panel-container favorite-preview-container">
+    <div class="prompt-panel-header">
+      <div>
+        <h3 class="text-white text-base font-semibold">收藏详情</h3>
+        <div id="favoritePreviewMeta" class="text-xs text-gray-400 mt-1"></div>
+      </div>
+      <button id="favoritePreviewPanelCloseBtn" class="text-gray-400 hover:text-white text-2xl leading-none" type="button" aria-label="关闭收藏详情">&times;</button>
+    </div>
+    <div class="prompt-panel-body favorite-preview-body">
+      <div id="favoritePreviewContent" class="favorite-preview-content"></div>
     </div>
   </div>
 </div>
@@ -148,6 +178,29 @@
     </div>
     
     <div class="mb-6">
+      <div class="flex items-center gap-2 mb-3">
+        <h4 class="text-white text-sm font-medium">模型选择</h4>
+        <button id="modelInfoToggle" type="button" class="model-info-btn" title="查看详情" onclick="document.getElementById('modelInfoPanel').classList.remove('hidden')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        </button>
+      </div>
+      <div class="space-y-2">
+        <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
+          <input type="radio" name="modelChoice" id="modelChoiceV4Flash" value="deepseek-v4-flash" checked class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+          <span class="text-sm text-white">V4-Flash <span class="text-xs text-blue-400 ml-1">推荐</span></span>
+        </label>
+        <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
+          <input type="radio" name="modelChoice" id="modelChoiceV4Pro" value="deepseek-v4-pro" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+          <span class="text-sm text-white">V4-Pro</span>
+        </label>
+        <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
+          <input type="radio" name="modelChoice" id="modelChoiceV32" value="deepseek-chat" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 focus:ring-blue-500">
+          <span class="text-sm text-white">V3.2</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="mb-6">
       <h4 class="text-white text-sm font-medium mb-3">记忆策略</h4>
       <div class="space-y-2">
         <label class="flex items-center gap-3 bg-gray-800 p-3 rounded-lg border border-gray-700 cursor-pointer hover:bg-gray-700 transition-colors">
@@ -193,15 +246,14 @@
 <div class="input-container safe-area-bottom">
   <div class="input-shell">
     <div class="input-toolbar">
-      <label for="deepThinkToggle" class="deepthink-chip">
-        <input type="checkbox" id="deepThinkToggle" class="sr-only peer">
+      <label class="deepthink-chip" onclick="return window.forceToggleDeepThinkFromUI ? window.forceToggleDeepThinkFromUI(event) : false;">
+        <input type="checkbox" id="deepThinkToggle" class="sr-only peer" onchange="if (window.syncDeepThinkFromInput) window.syncDeepThinkFromInput(this.checked);">
         <span class="deepthink-chip-icon" aria-hidden="true">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z"></path>
           </svg>
         </span>
         <span class="deepthink-chip-text">深度思考</span>
-        <span class="deepthink-chip-badge">R1</span>
       </label>
       <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
     </div>
@@ -239,7 +291,7 @@
           </svg>
         </span>
         <span class="composer-action-label">剧情档案馆</span>
-        <span class="composer-action-subtitle">整理关系和名场面</span>
+        <span class="composer-action-subtitle">整理关系和伏笔</span>
       </button>
       <button id="openBgInfoBtn" class="composer-action-item" type="button" title="设定背景信息">
         <span class="composer-action-icon" aria-hidden="true">
@@ -345,6 +397,44 @@
     <div class="edit-buttons mt-5">
       <button id="confirmCancelBtn" class="edit-btn-cancel">取消</button>
       <button id="confirmOkBtn" class="edit-btn-save">确认</button>
+    </div>
+  </div>
+</div>
+
+<div id="modelInfoPanel" class="edit-panel hidden">
+  <div class="edit-container">
+    <h3 class="text-white mb-3">模型说明</h3>
+    <div class="modal-desc text-xs space-y-3">
+      <div>
+        <div class="model-info-title font-medium mb-1.5">价格（每百万 token）</div>
+        <div class="grid grid-cols-3 gap-1 text-center text-xs">
+          <div></div>
+          <div class="model-info-sub">缓存命中</div>
+          <div class="model-info-sub">未命中</div>
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-center text-xs mt-1">
+          <div class="model-info-name">V4-Flash</div>
+          <div>¥0.2 / ¥2</div>
+          <div>¥1 / ¥2</div>
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-center text-xs">
+          <div class="model-info-name">V4-Pro</div>
+          <div>¥1 / ¥24</div>
+          <div>¥12 / ¥24</div>
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-center text-xs">
+          <div class="model-info-name">V3.2</div>
+          <div>¥0.2 / ¥2</div>
+          <div>¥1 / ¥2</div>
+        </div>
+        <div class="model-info-sub mt-1">输入价格 / 输出价格</div>
+      </div>
+      <div class="model-info-sub pt-2 model-info-border">
+        除对话外，TXT 文件解析、指令优化、档案馆整理等功能也会调用所选模型，请根据需要选择。
+      </div>
+    </div>
+    <div class="edit-buttons mt-5">
+      <button class="edit-btn-save" onclick="document.getElementById('modelInfoPanel').classList.add('hidden')">知道了</button>
     </div>
   </div>
 </div>
@@ -707,10 +797,6 @@
         <div id="storyArchiveForeshadows" class="story-archive-list"></div>
       </details>
 
-      <details class="story-archive-section" open>
-        <summary class="story-archive-section-title">名场面合集</summary>
-        <div id="storyArchiveHighlights" class="story-archive-list"></div>
-      </details>
     </div>
   </div>
 </div>

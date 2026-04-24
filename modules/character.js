@@ -92,7 +92,7 @@ export async function aiEnhanceCharacter(brief) {
       content: brief
     }
   ];
-  const result = await callLLMJSON({ messages, temperature: 0.8, maxTokens: 1500 });
+  const result = await callLLMJSON({ model: state.selectedModel, messages, temperature: 0.8, maxTokens: 1500 });
   return result;
 }
 

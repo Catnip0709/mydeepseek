@@ -5,8 +5,8 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending } from './state.js';
-import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent } from './utils.js';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
+import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId } from './utils.js';
 import { callLLM, callLLMJSON, callLLMAgent, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
@@ -57,7 +57,7 @@ async function routeMessageByLLM(userMessage, characters, history, signal, reply
     }
   ];
 
-  const result = await callLLMJSON({ messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
+  const result = await callLLMJSON({ model: state.selectedModel, messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
   if (!result || !Array.isArray(result)) return [0];
 
   const indices = result.map(n => parseInt(n) - 1).filter(n => n >= 0 && n < characters.length);
@@ -134,7 +134,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 
   if (options.stream && options.onChunk) {
     return await callLLM({
-      model: options.model || 'deepseek-chat',
+      model: options.model || state.selectedModel,
       messages,
       stream: true,
       temperature: 0.8,
@@ -146,7 +146,7 @@ export async function generateCharacterReply(character, userMessage, history, al
   }
 
   const reply = await callLLM({
-    model: options.model || 'deepseek-chat',
+    model: options.model || state.selectedModel,
     messages,
     stream: false,
     temperature: 0.8,
@@ -187,7 +187,7 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
     }
   ];
 
-  const result = await callLLM({ messages, temperature: 0.3, maxTokens: 10, signal, ...llmTimeoutOptions });
+  const result = await callLLM({ model: state.selectedModel, messages, temperature: 0.3, maxTokens: 10, signal, ...llmTimeoutOptions });
   const resultText = typeof result === 'string' ? result : (result?.content || '');
   return resultText.trim().includes('是');
 }
@@ -301,7 +301,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
  * 替代硬编码的"路由→回复→追问"三步流程。
  */
 export async function orchestrateGroupChatAgent(userMessage, characters, history, options = {}) {
-  const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, groupContext, tabId } = options;
+  const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, reasoningEffort, thinkingType, groupContext, tabId } = options;
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
   const allReplies = [];
 
@@ -393,7 +393,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
       tools: GROUPCHAT_TOOLS_FULL,
       toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
       maxRounds: 3,
-      model: model || 'deepseek-chat',
+      model: model || state.selectedModel,
+      reasoningEffort,
+      thinkingType,
       temperature: 0.8,
       // 导演只需要产出 tool_calls（而不是长篇文字），maxTokens 太大会让模型“想很久/写很长”才出手。
       // 下调上限可以明显降低首条输出延迟与 token 消耗。
@@ -473,7 +475,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
 
 export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const chat = document.getElementById("chat");
-  const modelSelect = document.getElementById("modelSelect");
+  const { model: selectedModel, reasoningEffort, thinkingType } = getEffectiveModel();
 
   const lockedTabId = tabId;
 
@@ -589,7 +591,9 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       signal,
       replyInfo,
       tabId: lockedTabId,
-      model: modelSelect.value === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat',
+      model: selectedModel,
+      reasoningEffort,
+      thinkingType,
       groupContext,
       llmTimeoutOptions,
       onFallbackReset: resetPreviewReplies,
@@ -649,6 +653,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       },
       onCharacterEnd(character, idx, content) {
         pendingReplies.push({
+          id: generateMessageId(),
           role: "character",
           characterId: character.id,
           characterName: character.name,

@@ -15,7 +15,6 @@ const STORY_ARCHIVE_MIN_MESSAGES = 4;
 const STORY_ARCHIVE_MAX_TIMELINE = 8;
 const STORY_ARCHIVE_MAX_RELATIONSHIPS = 8;
 const STORY_ARCHIVE_MAX_FORESHADOWS = 8;
-const STORY_ARCHIVE_MAX_HIGHLIGHTS = 10;
 const ARCHIVE_PHASE_IDLE = 'idle';
 const ARCHIVE_PHASE_LOADING = 'loading';
 const ARCHIVE_PHASE_ERROR = 'error';
@@ -38,8 +37,7 @@ function createEmptyStoryArchive() {
     },
     relationships: [],
     timeline: [],
-    foreshadows: [],
-    highlights: []
+    foreshadows: []
   };
 }
 
@@ -164,7 +162,6 @@ function getArchiveStabilityProfile(tab) {
         relationships: Math.min(5, STORY_ARCHIVE_MAX_RELATIONSHIPS),
         timeline: Math.min(5, STORY_ARCHIVE_MAX_TIMELINE),
         foreshadows: Math.min(6, STORY_ARCHIVE_MAX_FORESHADOWS),
-        highlights: 0,
         totalChars: 900
       }
     };
@@ -179,7 +176,6 @@ function getArchiveStabilityProfile(tab) {
         relationships: Math.min(6, STORY_ARCHIVE_MAX_RELATIONSHIPS),
         timeline: Math.min(6, STORY_ARCHIVE_MAX_TIMELINE),
         foreshadows: Math.min(8, STORY_ARCHIVE_MAX_FORESHADOWS),
-        highlights: Math.min(4, STORY_ARCHIVE_MAX_HIGHLIGHTS),
         totalChars: 1200
       }
     };
@@ -193,7 +189,6 @@ function getArchiveStabilityProfile(tab) {
       relationships: STORY_ARCHIVE_MAX_RELATIONSHIPS,
       timeline: STORY_ARCHIVE_MAX_TIMELINE,
       foreshadows: STORY_ARCHIVE_MAX_FORESHADOWS,
-      highlights: STORY_ARCHIVE_MAX_HIGHLIGHTS,
       totalChars: 1500
     }
   };
@@ -235,20 +230,16 @@ function applyArchiveLimits(rawArchive, profile) {
   const relLimit = Math.max(0, Number(limits.relationships ?? STORY_ARCHIVE_MAX_RELATIONSHIPS));
   const timelineLimit = Math.max(0, Number(limits.timeline ?? STORY_ARCHIVE_MAX_TIMELINE));
   const foreshadowLimit = Math.max(0, Number(limits.foreshadows ?? STORY_ARCHIVE_MAX_FORESHADOWS));
-  const highlightLimit = Math.max(0, Number(limits.highlights ?? STORY_ARCHIVE_MAX_HIGHLIGHTS));
-
   const relationships = Array.isArray(next.relationships) ? next.relationships.slice(0, relLimit) : [];
   const timeline = Array.isArray(next.timeline) ? next.timeline.slice(0, timelineLimit) : [];
   const foreshadows = Array.isArray(next.foreshadows) ? next.foreshadows.slice(0, foreshadowLimit) : [];
-  const highlights = (highlightLimit <= 0) ? [] : (Array.isArray(next.highlights) ? next.highlights.slice(0, highlightLimit) : []);
 
   return {
     ...next,
     overview: next.overview && typeof next.overview === 'object' ? next.overview : {},
     relationships,
     timeline,
-    foreshadows,
-    highlights
+    foreshadows
   };
 }
 
@@ -392,20 +383,6 @@ function normalizeArchive(rawArchive, tab, sourceMessageCount, sourceSignature) 
       }).filter(item => item.content)
     : [];
 
-  archive.highlights = Array.isArray(raw.highlights)
-    ? raw.highlights.slice(0, STORY_ARCHIVE_MAX_HIGHLIGHTS).map((item, index) => {
-        const highlight = item && typeof item === 'object' ? item : {};
-        return {
-          id: `scene_${Date.now()}_${index}`,
-          title: String(highlight.title || '').trim(),
-          excerpt: String(highlight.excerpt || '').trim(),
-          tone: String(highlight.tone || '').trim(),
-          tags: normalizeTags(highlight.tags),
-          reason: String(highlight.reason || '').trim()
-        };
-      }).filter(item => item.title && item.excerpt)
-    : [];
-
   return archive;
 }
 
@@ -491,7 +468,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
       feedbackType: 'info',
       feedbackTitle: hasEnoughMessages ? '还没有剧情档案' : '消息还不够多',
       feedbackBody: hasEnoughMessages
-        ? '点击“开始整理”后，会自动提取人物关系、关键事件、伏笔和名场面。'
+        ? '点击“开始整理”后，会自动提取人物关系、关键事件和伏笔。'
         : `至少需要 ${STORY_ARCHIVE_MIN_MESSAGES} 条消息后，才能整理剧情档案。`,
       feedbackHint: hasEnoughMessages ? '第一次生成可能会花一点时间。' : '继续聊几句后，点击“开始整理”即可生成剧情档案。',
       showRetry: false
@@ -522,7 +499,7 @@ function getArchiveViewState(tab, tabId = state.tabData.active) {
     refreshLoading: false,
     feedbackType: recentSuccess ? 'success' : '',
     feedbackTitle: recentSuccess ? '剧情档案已更新' : '',
-    feedbackBody: recentSuccess ? '已同步最新的人物关系、事件时间线、伏笔和名场面。' : '',
+    feedbackBody: recentSuccess ? '已同步最新的人物关系、事件时间线和伏笔。' : '',
     feedbackHint: recentSuccess ? formatArchiveTime(runtime.lastSuccessAt) : '',
     showRetry: false
   };
@@ -682,29 +659,6 @@ function renderStoryArchive() {
     '目前还没有明显的伏笔或未解信息。'
   );
 
-  renderArchiveSectionList(
-    'storyArchiveHighlights',
-    archive.highlights || [],
-    item => `
-      <div class="story-archive-item highlight">
-        <div class="story-archive-item-head">
-          <div class="story-archive-item-title">${escapeHtml(item.title)}</div>
-          <div class="story-archive-chip-row">
-            ${item.tone ? renderTextChip(item.tone, 'tone') : ''}
-          </div>
-        </div>
-        <details class="story-archive-quote-wrap">
-          <summary class="story-archive-quote-toggle">展开原文</summary>
-          <div class="story-archive-quote">${escapeHtml(item.excerpt)}</div>
-        </details>
-        <div class="story-archive-chip-row">
-          ${item.tags.map(tag => renderTextChip(tag)).join('')}
-        </div>
-        ${item.reason ? `<div class="story-archive-item-impact">入选理由：${escapeHtml(item.reason)}</div>` : ''}
-      </div>
-    `,
-    '还没有识别出高情绪浓度的名场面。'
-  );
 }
 
 function buildArchivePrompt(tab, title, options = {}) {
@@ -720,26 +674,19 @@ function buildArchivePrompt(tab, title, options = {}) {
   const maxRel = effectiveProfile?.limits?.relationships ?? STORY_ARCHIVE_MAX_RELATIONSHIPS;
   const maxTimeline = effectiveProfile?.limits?.timeline ?? STORY_ARCHIVE_MAX_TIMELINE;
   const maxForeshadows = effectiveProfile?.limits?.foreshadows ?? STORY_ARCHIVE_MAX_FORESHADOWS;
-  const maxHighlights = effectiveProfile?.limits?.highlights ?? STORY_ARCHIVE_MAX_HIGHLIGHTS;
   const totalCharsLimit = effectiveProfile?.limits?.totalChars ?? 1500;
 
   const stageHint = stage === 'core'
     ? '【任务】只输出 overview / relationships / timeline 三个字段，其它字段一律不要输出。'
     : (stage === 'extras'
-      ? '【任务】只输出 foreshadows / highlights 两个字段，其它字段一律不要输出。'
-      : '【任务】输出完整的剧情档案（overview/relationships/timeline/foreshadows/highlights）。');
+      ? '【任务】只输出 foreshadows 字段，其它字段一律不要输出。'
+      : '【任务】输出完整的剧情档案（overview/relationships/timeline/foreshadows）。');
 
   const schema = stage === 'core'
     ? `{\n  "overview": {\n    "premise": "一句话概括当前故事核心关系或设定",\n    "currentArc": "当前主线阶段或冲突状态",\n    "toneSummary": "整体氛围，如暧昧拉扯/高糖日常/冷战修复"\n  },\n  "relationships": [\n    {\n      "source": "角色A",\n      "target": "角色B",\n      "stage": "关系阶段",\n      "trend": "升温/拉扯/冷战/修复/稳定",\n      "reason": "本轮关系变化原因"\n    }\n  ],\n  "timeline": [\n    {\n      "title": "事件标题",\n      "summary": "事件摘要",\n      "impact": "对后续剧情或关系的影响",\n      "participants": [\"参与者1\", \"参与者2\"]\n    }\n  ]\n}`
     : (stage === 'extras'
-      ? `{\n  "foreshadows": [\n    {\n      "content": "尚未解释或尚未回收的信息",\n      "status": "open 或 resolved",\n      "note": "可选补充说明"\n    }\n  ],\n  "highlights": [\n    {\n      "title": "名场面标题",\n      "excerpt": "不超过80字的代表性摘录",\n      "tone": "高糖/高虐/拉扯/修罗场/治愈等",\n      "tags": [\"标签1\", \"标签2\"],\n      "reason": "这段为什么值得收藏"\n    }\n  ]\n}`
-      : `{\n  "overview": {\n    "premise": "一句话概括当前故事核心关系或设定",\n    "currentArc": "当前主线阶段或冲突状态",\n    "toneSummary": "整体氛围，如暧昧拉扯/高糖日常/冷战修复"\n  },\n  "relationships": [\n    {\n      "source": "角色A",\n      "target": "角色B",\n      "stage": "关系阶段",\n      "trend": "升温/拉扯/冷战/修复/稳定",\n      "reason": "本轮关系变化原因"\n    }\n  ],\n  "timeline": [\n    {\n      "title": "事件标题",\n      "summary": "事件摘要",\n      "impact": "对后续剧情或关系的影响",\n      "participants": [\"参与者1\", \"参与者2\"]\n    }\n  ],\n  "foreshadows": [\n    {\n      "content": "尚未解释或尚未回收的信息",\n      "status": "open 或 resolved",\n      "note": "可选补充说明"\n    }\n  ],\n  "highlights": [\n    {\n      "title": "名场面标题",\n      "excerpt": "不超过80字的代表性摘录",\n      "tone": "高糖/高虐/拉扯/修罗场/治愈等",\n      "tags": [\"标签1\", \"标签2\"],\n      "reason": "这段为什么值得收藏"\n    }\n  ]\n}`);
-
-  const excerptRule = maxHighlights <= 0
-    ? 'highlights 必须输出空数组 []。'
-    : (effectiveProfile?.mode === 'compact' || effectiveProfile?.mode === 'minimal'
-      ? 'excerpt 不超过 40 字，宁可删掉 highlights 条目也不要超限。'
-      : 'excerpt 不超过 60 字。');
+      ? `{\n  "foreshadows": [\n    {\n      "content": "尚未解释或尚未回收的信息",\n      "status": "open 或 resolved",\n      "note": "可选补充说明"\n    }\n  ]\n}`
+      : `{\n  "overview": {\n    "premise": "一句话概括当前故事核心关系或设定",\n    "currentArc": "当前主线阶段或冲突状态",\n    "toneSummary": "整体氛围，如暧昧拉扯/高糖日常/冷战修复"\n  },\n  "relationships": [\n    {\n      "source": "角色A",\n      "target": "角色B",\n      "stage": "关系阶段",\n      "trend": "升温/拉扯/冷战/修复/稳定",\n      "reason": "本轮关系变化原因"\n    }\n  ],\n  "timeline": [\n    {\n      "title": "事件标题",\n      "summary": "事件摘要",\n      "impact": "对后续剧情或关系的影响",\n      "participants": [\"参与者1\", \"参与者2\"]\n    }\n  ],\n  "foreshadows": [\n    {\n      "content": "尚未解释或尚未回收的信息",\n      "status": "open 或 resolved",\n      "note": "可选补充说明"\n    }\n  ]\n}`);
 
   const coreContext = (stage === 'extras' && coreArchiveJson)
     ? `\n\n【已生成的核心档案（用于对齐人名/主线，不要重复输出这部分字段）】\n${coreArchiveJson}`
@@ -755,17 +702,15 @@ ${stageHint}
 ${schema}
 要求：
 1. 只根据提供内容整理，不要编造不存在的设定。
-2. 优先提取关系推进、重要事件、未回收伏笔和高情绪浓度片段。
-3. relationships 最多 ${maxRel} 条，timeline 最多 ${maxTimeline} 条，foreshadows 最多 ${maxForeshadows} 条，highlights 最多 ${maxHighlights} 条。
-4. 名场面 excerpt 必须是适合二次创作回看的原话式摘录，可轻微压缩但不要改写成解释文；${excerptRule}
-5. 【字数硬限制——违反将导致输出截断和解析失败】
+2. 优先提取关系推进、重要事件和未回收伏笔。
+3. relationships 最多 ${maxRel} 条，timeline 最多 ${maxTimeline} 条，foreshadows 最多 ${maxForeshadows} 条。
+4. 【字数硬限制——违反将导致输出截断和解析失败】
    - premise / currentArc / toneSummary：各不超过 30 字
    - reason / summary / impact：各不超过 20 字
-   - excerpt：不超过 60 字（compact/minimal 时按第 4 条更严格）
    - note：不超过 15 字（或省略）
    - title：不超过 15 字
    - 总输出严格控制在 ${totalCharsLimit} 字以内（约 ${Math.ceil(totalCharsLimit * 1.8)} token）。宁可少写条目、省略 note 字段，也绝不超限。
-6. 每写完一个字段，默数一下字数。如果发现快超限了，立即停止写新条目，直接闭合 JSON。`
+5. 每写完一个字段，默数一下字数。如果发现快超限了，立即停止写新条目，直接闭合 JSON。`
     },
     {
       role: 'user',
@@ -849,7 +794,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
 
     // 成功率优先：长会话采用“两阶段生成”拆分输出，降低截断/解析失败率
     const coreResult = await callLLM({
-      model: 'deepseek-chat',
+      model: state.selectedModel,
       messages: promptMessages,
       stream: true,
       temperature: 0.2,
@@ -880,8 +825,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       overview: coreArchive.overview || {},
       relationships: coreArchive.relationships || [],
       timeline: coreArchive.timeline || [],
-      foreshadows: [],
-      highlights: []
+      foreshadows: []
     }, profile);
 
     let rawArchive;
@@ -889,12 +833,12 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       rawArchive = coreArchive;
     } else {
       // extras 失败不致命：核心档案能落盘优先
-      let extrasArchive = { foreshadows: [], highlights: [] };
-      if (profile.limits.foreshadows > 0 || profile.limits.highlights > 0) {
+      let extrasArchive = { foreshadows: [] };
+      if (profile.limits.foreshadows > 0) {
         const coreArchiveJson = buildCoreArchiveHint(coreArchive).slice(0, 1800);
         const extrasPrompt = buildArchivePrompt(tab, title, { profile, stage: 'extras', coreArchiveJson });
         const extrasResult = await callLLM({
-          model: 'deepseek-chat',
+          model: state.selectedModel,
           messages: extrasPrompt,
           stream: true,
           temperature: 0.2,
@@ -906,19 +850,18 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
         const extrasRawText = typeof extrasResult === 'string' ? extrasResult : (extrasResult?.content || '');
         const extrasCleanedText = extrasRawText.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
         try { extrasArchive = JSON.parse(extrasCleanedText); } catch (_) { extrasArchive = extractJsonFromText(extrasCleanedText); }
-        if (!extrasArchive) extrasArchive = { foreshadows: [], highlights: [] };
+        if (!extrasArchive) extrasArchive = { foreshadows: [] };
       }
 
       rawArchive = {
         overview: coreArchive.overview || {},
         relationships: coreArchive.relationships || [],
         timeline: coreArchive.timeline || [],
-        foreshadows: Array.isArray(extrasArchive.foreshadows) ? extrasArchive.foreshadows : [],
-        highlights: Array.isArray(extrasArchive.highlights) ? extrasArchive.highlights : []
+        foreshadows: Array.isArray(extrasArchive.foreshadows) ? extrasArchive.foreshadows : []
       };
     }
 
-    // CR 修复：强制按 profile 限制条目数（并在 minimal 模式强制 highlights 为空），避免模型写多导致输出膨胀/解析失败
+    // CR 修复：强制按 profile 限制条目数，避免模型写多导致输出膨胀/解析失败
     rawArchive = applyArchiveLimits(rawArchive, profile);
 
     // 两阶段生成下，总超时必须覆盖 extras；在成功落盘前再清理 timer

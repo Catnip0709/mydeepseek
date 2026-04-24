@@ -66,6 +66,18 @@ function readMemoryStrategy() {
   return MEMORY_STRATEGY_WINDOW; // 默认滑动窗口
 }
 
+// 模型选择
+const VALID_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat'];
+function readSelectedModel() {
+  const stored = localStorage.getItem('dsSelectedModel');
+  return VALID_MODELS.includes(stored) ? stored : 'deepseek-v4-flash';
+}
+
+// 深度思考开关
+function readDeepThink() {
+  return localStorage.getItem('dsDeepThink') === 'true';
+}
+
 // 集中的可变状态对象
 export const state = {
   // 用户ID
@@ -73,6 +85,12 @@ export const state = {
 
   // API Key
   apiKey: localStorage.getItem("dsApiKey"),
+
+  // 模型选择
+  selectedModel: readSelectedModel(),
+
+  // 深度思考
+  deepThink: readDeepThink(),
 
   // 记忆策略
   memoryStrategy: readMemoryStrategy(),
@@ -104,6 +122,16 @@ export const state = {
     {
       validate: Array.isArray,
       resetMessage: 'dsPrompts 数据损坏，已重置'
+    }
+  ),
+
+  // 收藏数据
+  favoriteData: readJsonWithFallback(
+    'dsFavorites',
+    () => [],
+    {
+      validate: Array.isArray,
+      resetMessage: 'dsFavorites 数据损坏，已重置'
     }
   ),
 
@@ -304,5 +332,30 @@ export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a
 
 export const MAX_CONTEXT_TOKENS = 131072;
 
+/**
+ * 获取当前生效的模型 ID 和额外参数。
+ * - V3.2 + 深度思考 → model: 'deepseek-chat', thinkingType: 'enabled'
+ * - V3.2 + 非深度思考 → model: 'deepseek-chat', thinkingType: 'disabled'
+ * - V4 + 深度思考 → model: 选中的 V4, thinkingType: 'enabled', reasoningEffort: 'max'
+ * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: 'disabled'
+ */
+export function getEffectiveModel() {
+  const model = state.selectedModel;
+  const isV4 = model.startsWith('deepseek-v4');
+  return {
+    model,
+    thinkingType: state.deepThink ? 'enabled' : 'disabled',
+    reasoningEffort: state.deepThink && isV4 ? 'max' : null
+  };
+}
+
+/**
+ * 判断当前是否为 V4 模型
+ */
+export function isV4Model() {
+  return state.selectedModel.startsWith('deepseek-v4');
+}
+
 export const CHARACTER_STORAGE_KEY = 'dsCharacters';
 export const PROMPT_STORAGE_KEY = 'dsPrompts';
+export const FAVORITES_STORAGE_KEY = 'dsFavorites';

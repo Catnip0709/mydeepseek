@@ -4,8 +4,8 @@
  * 负责 localStorage 的读写、存储用量统计、数据构建等。
  */
 
-import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, MAX_CONTEXT_TOKENS, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
-import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars } from './utils.js';
+import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, MAX_CONTEXT_TOKENS, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
+import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
 // ========== 存储用量统计 ==========
@@ -115,6 +115,16 @@ function _flushPendingSave() {
       _notifyPersistError('prompts', e);
     }
   }
+  if (typesToFlush.has('favorites')) {
+    try {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favoriteData));
+      wroteAnyData = true;
+    } catch (e) {
+      console.error('保存收藏数据失败:', e);
+      failedSaveTypes.add('favorites');
+      _notifyPersistError('favorites', e);
+    }
+  }
   if (wroteAnyData || typesToFlush.size > 0) {
     updateStorageUsage();
   }
@@ -140,6 +150,12 @@ export function saveCharacters() {
 
 export function savePrompts() {
   _pendingSaveTypes.add('prompts');
+  if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+  _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
+}
+
+export function saveFavorites() {
+  _pendingSaveTypes.add('favorites');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
@@ -407,6 +423,10 @@ export function normalizeTabSummaryState(tab) {
 // ========== 数据初始化与修复 ==========
 
 export function initializeData() {
+  const validMessageIdsByTab = new Map();
+  let shouldSaveTabsAfterInit = false;
+  let shouldSaveFavoritesAfterInit = false;
+
   // 修复 tabData 结构
   Object.keys(state.tabData.list).forEach(id => {
     if (Array.isArray(state.tabData.list[id])) {
@@ -423,14 +443,35 @@ export function initializeData() {
     }
 
     state.tabData.list[id].messages.forEach(msg => {
+      if (!msg.id) {
+        msg.id = generateMessageId();
+        shouldSaveTabsAfterInit = true;
+      }
       if (msg.history && typeof msg.history[0] === 'string') {
         msg.history = msg.history.map(content => ({ content: content, reasoningContent: "" }));
+        shouldSaveTabsAfterInit = true;
       }
     });
+    validMessageIdsByTab.set(id, new Set(state.tabData.list[id].messages.map(msg => msg.id).filter(Boolean)));
   });
+
+  const normalizedFavorites = Array.isArray(state.favoriteData)
+    ? state.favoriteData.filter(item => {
+        if (!item || typeof item !== 'object') return false;
+        if (!item.id || !item.tabId || !item.messageId) return false;
+        const validIds = validMessageIdsByTab.get(item.tabId);
+        return !!validIds && validIds.has(item.messageId);
+      })
+    : [];
+  if (normalizedFavorites.length !== state.favoriteData.length) {
+    shouldSaveFavoritesAfterInit = true;
+  }
+  state.favoriteData = normalizedFavorites;
 
   // 初始化存储用量
   updateStorageUsage();
+  if (shouldSaveTabsAfterInit) saveTabs();
+  if (shouldSaveFavoritesAfterInit) saveFavorites();
 }
 
 // ========== 数据修复（错误恢复时使用） ==========
@@ -453,6 +494,7 @@ export function repairData() {
         if (typeof tab.storyArchive === 'undefined') tab.storyArchive = null;
         normalizeTabSummaryState(tab);
         tab.messages.forEach(function(msg) {
+          if (!msg.id) msg.id = generateMessageId();
           if (!msg.role) msg.role = 'user';
           if (!msg.content) msg.content = '';
           if (msg.history && typeof msg.history[0] === 'string') {
@@ -468,6 +510,8 @@ export function repairData() {
       if (firstKey) parsed.active = firstKey;
     }
     localStorage.setItem("dsTabs", JSON.stringify(parsed));
+    const repairedFavorites = Array.isArray(state.favoriteData) ? state.favoriteData.filter(item => item && item.id && item.tabId && item.messageId) : [];
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(repairedFavorites));
     location.reload();
   } else {
     throw new Error('tabData 结构无效');

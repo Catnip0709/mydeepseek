@@ -17,6 +17,29 @@ import { renderChat } from './chat.js';
 import { renderTabs } from './tabs.js';
 import { call as coreCall } from './core.js';
 
+export function applyDeepThinkState(nextChecked, source = 'manual') {
+  const deepThinkToggle = document.getElementById('deepThinkToggle');
+  if (!deepThinkToggle) return;
+  deepThinkToggle.checked = !!nextChecked;
+  state.deepThink = !!nextChecked;
+  localStorage.setItem('dsDeepThink', String(state.deepThink));
+}
+
+export function forceToggleDeepThinkFromUI(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+  const deepThinkToggle = document.getElementById('deepThinkToggle');
+  if (!deepThinkToggle) return false;
+  applyDeepThinkState(!deepThinkToggle.checked, 'inline-ui');
+  return false;
+}
+
+export function syncDeepThinkFromInput(checked) {
+  applyDeepThinkState(!!checked, 'inline-input-change');
+}
+
 // ========== API Key 验证（内部函数） ==========
 
 function validateApiKey(key) {
@@ -114,6 +137,7 @@ export function bindSettingsEvents() {
   const replyBarCancel = document.getElementById('replyBarCancel');
   const modelSelect = document.getElementById('modelSelect');
   const deepThinkToggle = document.getElementById('deepThinkToggle');
+  const deepThinkChip = deepThinkToggle ? deepThinkToggle.closest('.deepthink-chip') : null;
 
   function triggerLegacySummaryMigrationAfterKeySaved() {
     coreCall('runLegacySummaryMigration');
@@ -308,15 +332,63 @@ export function bindSettingsEvents() {
   // 回复引用条取消
   if (replyBarCancel) replyBarCancel.addEventListener('click', hideReplyBar);
 
-  // 模型选择和深度思考
+  // 模型选择
+  const modelChoiceRadios = document.querySelectorAll('input[name="modelChoice"]');
+  if (modelChoiceRadios.length) {
+    // 初始化选中状态
+    modelChoiceRadios.forEach(radio => {
+      radio.checked = radio.value === state.selectedModel;
+    });
+    // 监听切换
+    modelChoiceRadios.forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        state.selectedModel = e.target.value;
+        localStorage.setItem('dsSelectedModel', state.selectedModel);
+        if (typeof updateDeepThinkBadge === 'function') {
+          updateDeepThinkBadge();
+        }
+      });
+    });
+  }
+
+  // 深度思考开关
+  if (deepThinkToggle) {
+    let suppressNextNativeChange = false;
+
+    applyDeepThinkState(state.deepThink, 'init');
+
+    if (deepThinkChip) {
+      const toggleFromChip = (source = 'chip-click') => {
+        suppressNextNativeChange = true;
+        applyDeepThinkState(!deepThinkToggle.checked, source);
+      };
+
+      deepThinkChip.addEventListener('click', (e) => {
+        if (e.target === deepThinkToggle) return;
+        e.preventDefault();
+        e.stopPropagation();
+        toggleFromChip('chip-click');
+      });
+
+      document.addEventListener('pointerdown', (e) => {
+        const chip = e.target.closest('.deepthink-chip');
+        if (!chip || chip !== deepThinkChip) return;
+        if (e.target === deepThinkToggle) return;
+        e.preventDefault();
+        toggleFromChip('delegated-pointerdown');
+      }, true);
+    }
+    deepThinkToggle.addEventListener("change", (e) => {
+      if (suppressNextNativeChange) {
+        suppressNextNativeChange = false;
+        return;
+      }
+      applyDeepThinkState(e.target.checked, 'native-change');
+    });
+  }
+
+  // 旧的 modelSelect 同步（保持兼容，隐藏的 select 也同步状态）
   if (modelSelect) {
     modelSelect.value = "deepseek-chat";
-  }
-  if (deepThinkToggle) {
-    deepThinkToggle.checked = false;
-    deepThinkToggle.addEventListener("change", (e) => {
-      const newModel = e.target.checked ? "deepseek-reasoner" : "deepseek-chat";
-      if (modelSelect) modelSelect.value = newModel;
-    });
   }
 }

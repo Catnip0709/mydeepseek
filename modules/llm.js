@@ -90,6 +90,8 @@ export async function callLLM({
   maxTokens = 4096,
   tools = null,
   toolChoice = 'auto',
+  reasoningEffort = null,
+  thinkingType = null,
   signal = null,
   onChunk = null,
   onToolCallReady = null,
@@ -98,8 +100,19 @@ export async function callLLM({
 } = {}) {
   const guard = createChunkInactivityGuard({ timeoutMs: chunkTimeoutMs, signal, onTimeout });
   let res;
+  const allowReasoning = thinkingType === 'enabled';
 
   try {
+    const bodyPayload = {
+      model,
+      messages,
+      stream,
+      temperature,
+      max_tokens: maxTokens,
+      ...(tools ? { tools, tool_choice: toolChoice } : {}),
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+      ...(thinkingType ? { thinking: { type: thinkingType } } : {})
+    };
     res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -108,14 +121,7 @@ export async function callLLM({
         "Cache-Control": "no-cache",
         "Pragma": "no-cache"
       },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream,
-        temperature,
-        max_tokens: maxTokens,
-        ...(tools ? { tools, tool_choice: toolChoice } : {})
-      }),
+      body: JSON.stringify(bodyPayload),
       signal: guard.signal
     });
     guard.touch();
@@ -155,7 +161,7 @@ export async function callLLM({
 
       return {
         content: message.content || '',
-        reasoningContent: message.reasoning_content || '',
+        reasoningContent: allowReasoning ? (message.reasoning_content || '') : '',
         toolCalls: normalizedToolCalls
       };
     }
@@ -186,7 +192,7 @@ export async function callLLM({
         try {
           const data = JSON.parse(dataStr);
           const delta = data.choices[0].delta;
-          if (delta.reasoning_content) fullReasoningContent += delta.reasoning_content;
+          if (allowReasoning && delta.reasoning_content) fullReasoningContent += delta.reasoning_content;
           if (delta.content) fullContent += delta.content;
 
           // 流式 tool_calls 收集：按 index 拼接 function name 和 arguments
@@ -215,7 +221,13 @@ export async function callLLM({
             }
           }
 
-          if (onChunk) onChunk({ content: delta.content || '', reasoningContent: delta.reasoning_content || '', fullContent, fullReasoningContent, toolCalls: delta.tool_calls || null });
+          if (onChunk) onChunk({
+            content: delta.content || '',
+            reasoningContent: allowReasoning ? (delta.reasoning_content || '') : '',
+            fullContent,
+            fullReasoningContent,
+            toolCalls: delta.tool_calls || null
+          });
         } catch (e) { continue; }
       }
     }

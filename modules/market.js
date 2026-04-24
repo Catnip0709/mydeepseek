@@ -227,7 +227,7 @@ async function requestGeneratedPrompt(userInput) {
   ];
 
   const text = await callLLM({
-    model: 'deepseek-chat',
+    model: state.selectedModel,
     messages,
     stream: false,
     temperature: 0.8,
