@@ -15,7 +15,7 @@ import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
   showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar
 } from './panels.js';
-import { bindSettingsEvents } from './settings.js';
+import { bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI, syncDeepThinkFromInput } from './settings.js';
 import { bindTabEvents } from './tabs.js';
 import { bindChatEvents } from './chat.js';
 import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js';
@@ -51,26 +51,17 @@ register('markStoryArchiveStale', markStoryArchiveStale);
 register('openFavoritesPanel', openFavoritesPanel);
 register('renderFavoritesPanel', renderFavoritesPanel);
 
-function applyDeepThinkStateGlobal(nextChecked) {
-  const deepThinkToggle = document.getElementById('deepThinkToggle');
-  if (!deepThinkToggle) return false;
-  deepThinkToggle.checked = !!nextChecked;
-  state.deepThink = !!nextChecked;
-  localStorage.setItem('dsDeepThink', String(state.deepThink));
+// 将深度思考函数挂载到 window，供 HTML inline handler 调用
+window.applyDeepThinkState = function(nextChecked) {
+  applyDeepThinkState(nextChecked, 'inline-global');
   return false;
-}
-
-window.applyDeepThinkState = applyDeepThinkStateGlobal;
+};
 window.forceToggleDeepThinkFromUI = function(event) {
-  if (event) {
-    event.preventDefault();
-    event.stopPropagation();
-  }
-  const deepThinkToggle = document.getElementById('deepThinkToggle');
-  return applyDeepThinkStateGlobal(!(deepThinkToggle && deepThinkToggle.checked));
+  forceToggleDeepThinkFromUI(event);
 };
 window.syncDeepThinkFromInput = function(checked) {
-  return applyDeepThinkStateGlobal(!!checked);
+  syncDeepThinkFromInput(checked);
+  return false;
 };
 
 // ========== 初始化 ==========

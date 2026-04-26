@@ -204,6 +204,7 @@ body.search-active #emptyChatHint {
     #input {
       min-height: 44px;
       max-height: 104px;
+      min-width: 0;
       line-height: 1.5;
       overflow-y: auto;
       resize: none;
@@ -1154,7 +1155,6 @@ body.search-active #emptyChatHint {
         font-size: 10px;
         padding: 3px 5px;
       }
-      .input-wrapper {
       .input-wrapper {
         gap: 10px;
         padding: 7px 7px 7px 12px;

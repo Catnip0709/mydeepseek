@@ -526,6 +526,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   //    "最后一个 .character-msg"（跨 tab 时会误中 tab B 的历史群聊消息，造成 DOM 污染）。
   let liveRenderBroken = false;
   let currentCharacterMsgBox = null;
+  let currentCharacterMsgId = null;
 
   function resetPreviewReplies() {
     pendingReplies = [];
@@ -605,6 +606,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
           // 已切走：不创建 DOM 节点，避免 chat.appendChild 把节点插入到非 lockedTabId 的 #chat 上
           // （原实现会把本属于 tab A 的群聊消息直接插进 tab B 的 DOM，造成用户可见的污染）。
           currentCharacterMsgBox = null;
+          currentCharacterMsgId = null;
           removeTypingIndicator();
           return;
         }
@@ -613,8 +615,11 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         const autoScroll = shouldAutoScroll();
 
         const msgIndex = currentMsgs.length + pendingReplies.length;
+        const msgId = generateMessageId();
+        currentCharacterMsgId = msgId;
         const msgBox = document.createElement("div");
         msgBox.id = `msg-${msgIndex}`;
+        msgBox.dataset.messageId = msgId;
         if (character.isNarration) {
           msgBox.className = 'group-narration my-3 px-6';
           msgBox.innerHTML = `<div class="msg-content group-narration-content max-w-2xl mx-auto"></div>`;
@@ -652,8 +657,10 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         }
       },
       onCharacterEnd(character, idx, content) {
+        const msgId = currentCharacterMsgId || generateMessageId();
+        currentCharacterMsgId = null;
         pendingReplies.push({
-          id: generateMessageId(),
+          id: msgId,
           role: "character",
           characterId: character.id,
           characterName: character.name,

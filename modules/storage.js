@@ -510,7 +510,21 @@ export function repairData() {
       if (firstKey) parsed.active = firstKey;
     }
     localStorage.setItem("dsTabs", JSON.stringify(parsed));
-    const repairedFavorites = Array.isArray(state.favoriteData) ? state.favoriteData.filter(item => item && item.id && item.tabId && item.messageId) : [];
+    // 收藏修复：基于修复后的 parsed 数据验证 messageId 是否有效
+    const validMessageIdsByTab = new Map();
+    Object.keys(parsed.list).forEach(function(id) {
+      const tab = parsed.list[id];
+      if (Array.isArray(tab.messages)) {
+        validMessageIdsByTab.set(id, new Set(tab.messages.map(function(msg) { return msg.id; }).filter(Boolean)));
+      }
+    });
+    const repairedFavorites = Array.isArray(state.favoriteData)
+      ? state.favoriteData.filter(function(item) {
+          if (!item || !item.id || !item.tabId || !item.messageId) return false;
+          const validIds = validMessageIdsByTab.get(item.tabId);
+          return !!validIds && validIds.has(item.messageId);
+        })
+      : [];
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(repairedFavorites));
     location.reload();
   } else {

@@ -187,9 +187,8 @@ export function renderFavoritesPanel() {
   if (!list) return;
 
   const changed = pruneInvalidFavorites();
-  if (changed) {
-    // prune 后重新获取当前有效收藏，避免使用过期引用
-  }
+  // pruneInvalidFavorites 内部已修改 state.favoriteData 并保存，
+  // 下面的 .map(resolveFavoriteItem).filter(Boolean) 会自然过滤无效项。
 
   const items = state.favoriteData
     .map(resolveFavoriteItem)
@@ -286,7 +285,10 @@ export function bindFavoritesEvents() {
   document.getElementById('favoritesPanelCloseBtn')?.addEventListener('click', closeFavoritesPanel);
   document.getElementById('favoritesPanelMask')?.addEventListener('click', closeFavoritesPanel);
   document.getElementById('favoritePreviewPanelCloseBtn')?.addEventListener('click', closeFavoritePreviewPanel);
-  document.getElementById('favoritePreviewPanelMask')?.addEventListener('click', closeFavoritePreviewPanel);
+  document.getElementById('favoritePreviewPanelMask')?.addEventListener('click', (e) => {
+    e.stopPropagation(); // 防止冒泡到收藏栏遮罩，避免同时关闭两层面板
+    closeFavoritePreviewPanel();
+  });
   document.getElementById('favoritesList')?.addEventListener('click', e => {
     const target = e.target.closest('[data-action][data-favorite-id]');
     if (!target) return;

@@ -344,9 +344,6 @@ export function bindSettingsEvents() {
       radio.addEventListener('change', (e) => {
         state.selectedModel = e.target.value;
         localStorage.setItem('dsSelectedModel', state.selectedModel);
-        if (typeof updateDeepThinkBadge === 'function') {
-          updateDeepThinkBadge();
-        }
       });
     });
   }

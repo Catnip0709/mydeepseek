@@ -335,16 +335,16 @@ export const MAX_CONTEXT_TOKENS = 131072;
 /**
  * 获取当前生效的模型 ID 和额外参数。
  * - V3.2 + 深度思考 → model: 'deepseek-chat', thinkingType: 'enabled'
- * - V3.2 + 非深度思考 → model: 'deepseek-chat', thinkingType: 'disabled'
+ * - V3.2 + 非深度思考 → model: 'deepseek-chat', thinkingType: null
  * - V4 + 深度思考 → model: 选中的 V4, thinkingType: 'enabled', reasoningEffort: 'max'
- * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: 'disabled'
+ * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: null
  */
 export function getEffectiveModel() {
   const model = state.selectedModel;
   const isV4 = model.startsWith('deepseek-v4');
   return {
     model,
-    thinkingType: state.deepThink ? 'enabled' : 'disabled',
+    thinkingType: state.deepThink ? 'enabled' : null,
     reasoningEffort: state.deepThink && isV4 ? 'max' : null
   };
 }
