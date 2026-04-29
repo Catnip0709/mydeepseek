@@ -110,6 +110,43 @@ export function limitSentences(text, maxSentences = 5) {
   return sentences.slice(0, maxSentences).join('');
 }
 
+// ========== 角色扮演动作格式化 ==========
+
+function isWrappedActionLine(line) {
+  return /^（[\s\S]*）$/.test(line) || /^\([\s\S]*\)$/.test(line);
+}
+
+function normalizeActionLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return '';
+  if (/^\([\s\S]*\)$/.test(text)) {
+    return `（${text.slice(1, -1).trim()}）`;
+  }
+  return text;
+}
+
+function looksLikeActionLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return false;
+  if (isWrappedActionLine(text)) return false;
+  if (/[“”"'「」『』]/.test(text)) return false;
+  if (/^(嗯|啊|哦|哼|诶|喂|你|我|这|那|怎么|为何|别|好|行|可以|不行|不是|当然)/.test(text)) return false;
+  return /(抬|垂|抿|勾|扬|挑|蹙|皱|眯|阖|睨|瞥|扫|望|看|盯|瞧|笑|冷笑|轻笑|低笑|嗤笑|偏头|侧身|侧过|转身|俯身|靠|倚|上前|后退|逼近|点头|摇头|耸肩|叹|顿了顿|停顿|沉默|把玩|摩挲|敲|轻敲|抬手|抬眸|垂眸|目光|眸光|眉梢|唇角|指尖|酒杯|袖口|衣摆)/.test(text);
+}
+
+export function formatRoleplayReply(text) {
+  if (!text) return text;
+  const rawLines = String(text).split(/\n+/).map(line => line.trim()).filter(Boolean);
+  if (rawLines.length === 0) return '';
+
+  const lines = rawLines.map(normalizeActionLine);
+  if (lines.length >= 2 && !isWrappedActionLine(lines[0]) && looksLikeActionLine(lines[0])) {
+    lines[0] = `（${lines[0]}）`;
+  }
+
+  return lines.join('\n');
+}
+
 // ========== 事件埋点 ==========
 
 export function trackEvent(eventType) {
@@ -148,4 +185,3 @@ export function isHtmlRelatedMessage(m) {
   }
   return false;
 }
-

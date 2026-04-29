@@ -6,7 +6,7 @@
  */
 
 import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
-import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId } from './utils.js';
+import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId, formatRoleplayReply } from './utils.js';
 import { callLLM, callLLMJSON, callLLMAgent, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
@@ -18,9 +18,9 @@ import { groupchatToolExecutor } from './agent.js';
 import { isHtmlRelatedMessage } from './utils.js';
 
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
-const GROUPCHAT_MAX_ROUNDS = 5;
+const GROUPCHAT_MAX_ROUNDS = 10;
 const GROUPCHAT_MAX_SENTENCES = 6;
-const GROUPCHAT_AGENT_MAX_TOKENS = 1536;
+const GROUPCHAT_AGENT_MAX_TOKENS = 3072;
 
 // ========== Step 1: 路由判断 ==========
 
@@ -126,7 +126,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 2. 保持角色一致性，不要出戏
 3. 回复自然口语化，像真人聊天，不要像背台词
 4. 最多说6句话，宁可多给一点有信息量的回应，也不要只敷衍一句
-5. 不要加引号、括号等格式标记
+5. 如果有动作、神态、视线、停顿等描写，请单独放在前一行，并使用全角括号包裹，例如：` + '\n（抬眸看了她一眼）' + `\n下一行再写真正说出口的台词
 6. 不要重复其他角色已经说过的话，要给出新的回应
 7. 口头禅偶尔使用即可，不要每句话都带，更不要生硬插入
 8. 注意场景设定：如果用户描述了某些角色不在场，你不在场时不要发言`
@@ -142,7 +142,7 @@ export async function generateCharacterReply(character, userMessage, history, al
   const charTemp = character.talkativeness ?? 0.8;
 
   if (options.stream && options.onChunk) {
-    return await callLLM({
+    const result = await callLLM({
       model: options.model || state.selectedModel,
       messages,
       stream: true,
@@ -152,6 +152,8 @@ export async function generateCharacterReply(character, userMessage, history, al
       onChunk: options.onChunk,
       ...llmTimeoutOptions
     });
+    if (typeof result === 'string') return limitSentences(formatRoleplayReply(result), GROUPCHAT_MAX_SENTENCES);
+    return { ...result, content: formatRoleplayReply(result?.content || '') };
   }
 
   const reply = await callLLM({
@@ -164,8 +166,8 @@ export async function generateCharacterReply(character, userMessage, history, al
     ...llmTimeoutOptions
   });
 
-  if (typeof reply === 'string') return limitSentences(reply, GROUPCHAT_MAX_SENTENCES);
-  return reply;
+  if (typeof reply === 'string') return limitSentences(formatRoleplayReply(reply), GROUPCHAT_MAX_SENTENCES);
+  return { ...reply, content: formatRoleplayReply(reply?.content || '') };
 }
 
 // ========== Step 3: 追问判断 ==========
@@ -378,13 +380,13 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 规则：
 1. 所有可见输出都必须通过 character_reply 或 narrate 工具产生，不要在 assistant content 里直接输出角色台词、旁白、解释或总结
 2. 每个角色在本次用户输入触发的整次编排中最多发言 3 次
-3. 回复自然口语化，像真人聊天，不要像背台词，不要加引号/括号等格式标记
+3. 回复自然口语化，像真人聊天，不要像背台词；dialogue 里不要加引号，动作由 action 字段提供，最终会渲染成全角括号格式
 4. 口头禅偶尔使用即可，不要刻意堆砌
 5. 如果用户消息暗示了某些角色不在场，不在场的角色不能发言
 6. 如果用户正在回复某个特定角色，该角色必须发言；若你已知被回复角色是谁，则第一条 character_reply 必须来自该角色
-7. 至少让一个角色回复；普通情况下，优先让 2-3 个与当前话题相关的角色参与
-8. 如果明显是私下对话、用户只点名某一个角色、或场景上只有少数角色在场，可以只让 1 个角色回复
-9. 角色之间可以有互动（一个角色说完后，相关角色可以回应、追问、吐槽或补充）
+7. 默认让 2 个以上角色参与回复，营造群聊氛围；只有明确是私聊/独处/用户只点名某一个角色时，才让 1 个角色回复
+8. 如果场景是私下对话、用户只点名某一个角色、或场景上只有少数角色在场，可以只让 1 个角色回复
+9. 角色之间应该有互动（一个角色说完后，相关角色可以回应、追问、吐槽或补充），不要各说各的
 10. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 0-1 条简短 narrate 串联气氛
 11. 不要连续使用 narrate，也不要写成长篇旁白
 12. 不要重复其他角色已经说过的话
@@ -398,7 +400,10 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 15. 正确示例：
    - dialogue: "这封印确实古怪。"
    - action: "眸光微凝，指尖收紧了几分"
-16. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。`;
+16. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。
+17. 最终显示格式应尽量接近：
+   - （眸光微凝，指尖收紧了几分）
+   - 这封印确实古怪。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -424,13 +429,13 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       idx = characters.indexOf(character);
       const content = parsed.dialogue || '';
       const action = formatAction(parsed.action);
-      fullContent = [action, content].filter(Boolean).join('\n');
+      fullContent = formatRoleplayReply([action, content].filter(Boolean).join('\n'));
     } else {
       // narrate 不再吞掉：落成一条“旁白”消息，便于用户感知 Agent 正在做事。
       // 使用伪角色对象复用现有渲染/存储链路，但打上 isNarration 标记，避免显示“回复”按钮。
       character = { id: '__narrator__', name: '旁白', isNarration: true };
       idx = -1;
-      fullContent = String(parsed.content || '').trim();
+      fullContent = formatRoleplayReply(String(parsed.content || '').trim());
     }
 
     if (!fullContent) return false;

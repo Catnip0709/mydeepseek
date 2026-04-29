@@ -7,7 +7,7 @@
 import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, isV4Model } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
-  replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId
+  replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId, formatRoleplayReply
 } from './utils.js';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
@@ -1291,6 +1291,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     // 防御：发起时的 tab 可能已被用户删除
     const lockedTab = state.tabData.list[lockedTabId];
     if (!lockedTab) return;
+    if (lockedTab.type === 'single-character') {
+      fullContent = formatRoleplayReply(fullContent);
+    }
 
     if (isRegen) {
       currentMsgs[targetIndex].generationState = fState;

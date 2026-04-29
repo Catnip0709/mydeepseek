@@ -15,7 +15,7 @@ export const TOOL_CHARACTER_REPLY = {
   type: 'function',
   function: {
     name: 'character_reply',
-    description: '以某个角色的身份回复。每次调用代表一个角色说了一段话。每个角色在本次编排中最多回复 3 次。重要：dialogue 只写角色真正说出口的台词；动作、神态、视线变化、停顿、语气提示、心理描写必须写到 action，不要混入 dialogue。',
+    description: '以某个角色的身份回复。每次调用代表一个角色说了一段话。每个角色在本次编排中最多回复 3 次。重要：dialogue 只写角色真正说出口的台词；动作、神态、视线变化、停顿、语气提示、心理描写必须写到 action，不要混入 dialogue。action 会最终渲染成单独一行的全角括号格式，例如：（抬眸看了你一眼）。',
     parameters: {
       type: 'object',
       properties: {
@@ -29,7 +29,7 @@ export const TOOL_CHARACTER_REPLY = {
         },
         action: {
           type: 'string',
-          description: '角色的动作或神态描写（可选），只写舞台说明，不要写台词正文。例如："微微皱眉"、"转身看向窗外"、"眸光微凝，指尖轻轻收紧"。如果没有动作就留空，不要把动作并入 dialogue。'
+          description: '角色的动作或神态描写（可选），只写舞台说明，不要写台词正文。例如："微微皱眉"、"转身看向窗外"、"眸光微凝，指尖轻轻收紧"。如果没有动作就留空，不要把动作并入 dialogue。系统会将这里渲染为：（动作描写）。'
         },
         emotion: {
           type: 'string',
