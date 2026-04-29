@@ -1096,7 +1096,7 @@ export async function fetchAndStreamResponse(opts = {}) {
       messages: payloadMsgs,
       stream: true,
       temperature: 0.7,
-      max_tokens: 4096,
+      max_tokens: 16384,
       ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       ...(thinkingType ? { thinking: { type: thinkingType } } : {}),
     };
