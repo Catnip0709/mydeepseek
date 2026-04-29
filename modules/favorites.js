@@ -91,9 +91,37 @@ function pruneInvalidFavorites() {
   return false;
 }
 
-function syncFavoriteStateToChat(tabId) {
+function applyFavoriteButtonState(button, isFavorited) {
+  if (!button) return;
+  button.classList.toggle('favorited', !!isFavorited);
+  button.title = isFavorited ? '取消收藏' : '收藏';
+}
+
+function syncFavoriteStateToChat(tabId, messageIds = [], options = {}) {
   if (!tabId || state.tabData.active !== tabId) return;
-  coreCall('renderChat');
+  const ids = Array.isArray(messageIds)
+    ? messageIds.filter(Boolean)
+    : (messageIds ? [messageIds] : []);
+
+  if (options.forceRender || ids.length === 0) {
+    coreCall('renderChat');
+    return;
+  }
+
+  let updatedCount = 0;
+  ids.forEach(messageId => {
+    const selector = `[data-message-id="${CSS.escape(messageId)}"] .favorite-btn`;
+    const buttons = document.querySelectorAll(selector);
+    const isFavorited = isMessageFavorited(tabId, messageId);
+    buttons.forEach(button => {
+      applyFavoriteButtonState(button, isFavorited);
+      updatedCount++;
+    });
+  });
+
+  if (updatedCount === 0) {
+    coreCall('renderChat');
+  }
 }
 
 export function isMessageFavorited(tabId, messageId) {
@@ -107,7 +135,7 @@ export function toggleFavoriteForMessage(tabId, message) {
     state.favoriteData.splice(favoriteIndex, 1);
     saveFavorites();
     renderFavoritesPanel();
-    syncFavoriteStateToChat(tabId);
+    syncFavoriteStateToChat(tabId, message.id);
     showToast('已取消收藏');
     return false;
   }
@@ -120,7 +148,7 @@ export function toggleFavoriteForMessage(tabId, message) {
   });
   saveFavorites();
   renderFavoritesPanel();
-  syncFavoriteStateToChat(tabId);
+  syncFavoriteStateToChat(tabId, message.id);
   showToast('已收藏');
   return true;
 }
@@ -134,7 +162,7 @@ export function removeFavoriteById(favoriteId, options = {}) {
     saveFavorites();
     renderFavoritesPanel();
     if (currentPreviewFavoriteId === favoriteId) closeFavoritePreviewPanel();
-    syncFavoriteStateToChat(removedItem?.tabId);
+    syncFavoriteStateToChat(removedItem?.tabId, removedItem?.messageId);
     if (!silent) showToast('已移除收藏');
   }
 }
@@ -148,7 +176,7 @@ export function removeFavoritesForMessageIds(tabId, messageIds = [], options = {
   if (removed > 0) {
     saveFavorites();
     renderFavoritesPanel();
-    syncFavoriteStateToChat(tabId);
+    syncFavoriteStateToChat(tabId, [...ids]);
     if (!options.silent) showToast(`已移除 ${removed} 条收藏`);
   }
   return removed;
@@ -156,6 +184,10 @@ export function removeFavoritesForMessageIds(tabId, messageIds = [], options = {
 
 export function removeFavoritesForTab(tabId, options = {}) {
   if (!tabId) return 0;
+  const removedMessageIds = state.favoriteData
+    .filter(item => item.tabId === tabId)
+    .map(item => item.messageId)
+    .filter(Boolean);
   const before = state.favoriteData.length;
   state.favoriteData = state.favoriteData.filter(item => item.tabId !== tabId);
   const removed = before - state.favoriteData.length;
@@ -165,7 +197,7 @@ export function removeFavoritesForTab(tabId, options = {}) {
     if (currentPreviewFavoriteId && !state.favoriteData.some(item => item.id === currentPreviewFavoriteId)) {
       closeFavoritePreviewPanel();
     }
-    syncFavoriteStateToChat(tabId);
+    syncFavoriteStateToChat(tabId, removedMessageIds);
     if (!options.silent) showToast(`已移除 ${removed} 条收藏`);
   }
   return removed;
@@ -186,7 +218,7 @@ export function renderFavoritesPanel() {
   const { list } = getFavoritesPanelElements();
   if (!list) return;
 
-  const changed = pruneInvalidFavorites();
+  pruneInvalidFavorites();
   // pruneInvalidFavorites 内部已修改 state.favoriteData 并保存，
   // 下面的 .map(resolveFavoriteItem).filter(Boolean) 会自然过滤无效项。
 

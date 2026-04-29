@@ -54,8 +54,8 @@ function buildDefaultTabData() {
 }
 
 // 记忆策略常量
-export const MEMORY_STRATEGY_WINDOW = 'window';  // 滑动窗口摘要（默认，省 token）
-export const MEMORY_STRATEGY_FULL = 'full';      // 全量发送（不摘要，用户自行承担 token）
+export const MEMORY_STRATEGY_WINDOW = 'window';  // 滑动窗口摘要（省 token）
+export const MEMORY_STRATEGY_FULL = 'full';      // 全量发送（默认，不摘要，用户自行承担 token）
 
 // 读取记忆策略配置
 function readMemoryStrategy() {
@@ -63,7 +63,7 @@ function readMemoryStrategy() {
   if (stored === MEMORY_STRATEGY_WINDOW || stored === MEMORY_STRATEGY_FULL) {
     return stored;
   }
-  return MEMORY_STRATEGY_WINDOW; // 默认滑动窗口
+  return MEMORY_STRATEGY_FULL; // 默认全量
 }
 
 // 模型选择
