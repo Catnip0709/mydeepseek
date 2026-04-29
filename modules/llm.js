@@ -623,16 +623,19 @@ export async function callLLMWithAutoContinue({
       signal,
       chunkTimeoutMs,
       onChunk: onChunk
-        ? (payload) => {
-            try {
-              // 对外包装：带上当前累计长度便于 UI 更新
-              onChunk({
-                ...payload,
-                totalChars: fullText.length + (payload?.content?.length || 0),
-                round: round + 1
-              });
-            } catch (_) {}
-          }
+        ? (() => {
+            let roundAccum = 0;
+            return (payload) => {
+              roundAccum += (payload?.content?.length || 0);
+              try {
+                onChunk({
+                  ...payload,
+                  totalChars: fullText.length + roundAccum,
+                  round: round + 1
+                });
+              } catch (_) {}
+            };
+          })()
         : null
     });
 
