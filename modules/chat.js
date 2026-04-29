@@ -4,7 +4,7 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel } from './state.js';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, isV4Model } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId
@@ -813,10 +813,11 @@ export function renderChat() {
 
   // Token 限制警告
   if (currentMsgs.length > 0 && !isGroupChat && isTokenLimitReached()) {
+    const maxLabel = isV4Model() ? '100万' : '12.8万';
     const warningDiv = document.createElement("div");
     warningDiv.className = "text-xs text-gray-500 text-center mt-6 mb-4 px-2";
     warningDiv.innerHTML = `
-      当前对话框上下文即将达到上限。建议总结并开启新对话：<br>
+      当前对话框上下文即将达到上限（${maxLabel} tokens）。建议总结并开启新对话：<br>
       <div class="inline-block bg-gray-800 rounded p-2 mt-2 text-left border border-gray-700 relative pr-10 max-w-[90%] mx-auto">
         <span id="promptText" class="text-gray-400 break-all">请帮我把目前为止的故事剧情、出场人物设定、伏笔和当前的主线任务做一个极其详细的总结（约6000字）。</span>
         <button id="copyPromptBtn" class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white bg-gray-700 rounded p-1 transition-colors" title="复制指令">

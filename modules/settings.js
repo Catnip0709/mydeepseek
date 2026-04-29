@@ -6,7 +6,7 @@
 
 import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
 import { copyText, checkIconSvg } from './utils.js';
-import { getTabDisplayName, updateStorageUsage } from './storage.js';
+import { getTabDisplayName, updateStorageUsage, isTokenLimitReached } from './storage.js';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
@@ -344,6 +344,10 @@ export function bindSettingsEvents() {
       radio.addEventListener('change', (e) => {
         state.selectedModel = e.target.value;
         localStorage.setItem('dsSelectedModel', state.selectedModel);
+        // 切换模型后，若当前对话已超过新模型的上下文上限，立即刷新渲染以显示警告
+        if (isTokenLimitReached()) {
+          renderChat();
+        }
       });
     });
   }

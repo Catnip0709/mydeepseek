@@ -4,7 +4,7 @@
  * 负责 localStorage 的读写、存储用量统计、数据构建等。
  */
 
-import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, MAX_CONTEXT_TOKENS, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
+import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
 import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
@@ -174,7 +174,7 @@ export function isTokenLimitReached(tabId = state.tabData.active) {
   payloadMsgs.forEach(m => {
     estimatedTokens += estimateTokensByText(m.content);
   });
-  return estimatedTokens >= MAX_CONTEXT_TOKENS * 0.98;
+  return estimatedTokens >= getMaxContextTokens() * 0.98;
 }
 
 // ========== Tab 显示名 ==========
