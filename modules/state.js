@@ -333,17 +333,6 @@ export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a
 export const MAX_CONTEXT_TOKENS_V3 = 131072;   // V3.2: 128K
 export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // V4: 1M
 
-/** 向后兼容别名 */
-export const MAX_CONTEXT_TOKENS = MAX_CONTEXT_TOKENS_V3;
-
-/**
- * 根据当前选择的模型返回对应的上下文 token 上限。
- * V4 系列（Flash / Pro）→ 1M，V3.2 → 128K。
- */
-export function getMaxContextTokens() {
-  return isV4Model() ? MAX_CONTEXT_TOKENS_V4 : MAX_CONTEXT_TOKENS_V3;
-}
-
 /**
  * 获取当前生效的模型 ID 和额外参数。
  * - V3.2 + 深度思考 → model: 'deepseek-chat', thinkingType: 'enabled'
@@ -366,6 +355,14 @@ export function getEffectiveModel() {
  */
 export function isV4Model() {
   return state.selectedModel.startsWith('deepseek-v4');
+}
+
+/**
+ * 根据当前选择的模型返回对应的上下文 token 上限。
+ * V4 系列（Flash / Pro）→ 1M，V3.2 → 128K。
+ */
+export function getMaxContextTokens() {
+  return isV4Model() ? MAX_CONTEXT_TOKENS_V4 : MAX_CONTEXT_TOKENS_V3;
 }
 
 export const CHARACTER_STORAGE_KEY = 'dsCharacters';

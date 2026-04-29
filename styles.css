@@ -4077,3 +4077,221 @@ body.day-mode .html-preview-close:hover {
     border-radius: 0 0 8px 8px;
   }
 }
+
+/* ========== 「预览网页」chip（复用 deepthink-chip 风格） ========== */
+.htmlmode-chip .deepthink-chip-icon {
+  color: #fbbf24;
+}
+.htmlmode-chip:has(.peer:checked) {
+  background: rgba(251, 191, 36, 0.16);
+  border-color: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.22) inset;
+}
+.htmlmode-chip:has(.peer:checked) .deepthink-chip-icon {
+  color: #fde68a;
+}
+.htmlmode-chip.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+/* HTML 模式开启时，深度思考 chip 会被打上 disabled 标识（互斥置灰） */
+.deepthink-chip.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+body.day-mode .deepthink-chip.disabled {
+  opacity: 0.5;
+}
+
+body.day-mode .htmlmode-chip .deepthink-chip-icon {
+  color: #d97706;
+}
+body.day-mode .htmlmode-chip:has(.peer:checked) {
+  background: rgba(217, 119, 6, 0.14);
+  border-color: #d97706;
+  color: #1f2937;
+}
+
+/* ========== HTML 引导弹框 ========== */
+#htmlModeGuidePanel:not(.hidden) {
+  display: flex !important;
+}
+.html-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fbbf24;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.html-guide-title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.html-guide-body {
+  color: #e5e7eb;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+.html-guide-body p + p {
+  margin-top: 6px;
+}
+.html-guide-example {
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+.html-guide-example-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.html-guide-example-label {
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.html-guide-example-label::before {
+  content: '💡';
+  font-size: 12px;
+}
+.html-guide-example-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+.html-guide-example-btn {
+  background: transparent;
+  border: none;
+  color: #d1d5db;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.html-guide-example-btn:hover {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+.html-guide-example-btn.copied {
+  color: #34d399;
+}
+.html-guide-example-text {
+  color: #f3f4f6;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 48px;
+}
+.html-guide-confirm-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.html-guide-confirm-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.35);
+}
+
+body.day-mode .html-guide-title { color: #b45309; }
+body.day-mode .html-guide-body { color: #1f2937; }
+body.day-mode .html-guide-body .text-gray-400 { color: #6b7280 !important; }
+body.day-mode .html-guide-example {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+body.day-mode .html-guide-example-label { color: #b45309; }
+body.day-mode .html-guide-example-text { color: #1f2937; }
+body.day-mode .html-guide-example-btn { color: #6b7280; }
+body.day-mode .html-guide-example-btn:hover {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+body.day-mode .html-guide-example-btn.copied { color: #059669; }
+body.day-mode .html-guide-confirm-btn {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25);
+}
+body.day-mode .html-guide-confirm-btn:hover {
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.45);
+}
+
+/* 引导弹框日间模式 — 遮罩 + 卡片 + 关闭按钮 */
+body.day-mode #htmlModeGuidePanel {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+body.day-mode #htmlModeGuidePanel .bg-gray-900 {
+  background: #ffffff !important;
+  border-color: #e5e7eb !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+body.day-mode #htmlModeGuidePanel #htmlModeGuideCloseBtn {
+  color: #9ca3af !important;
+}
+body.day-mode #htmlModeGuidePanel #htmlModeGuideCloseBtn:hover {
+  color: #374151 !important;
+}
+
+/* ========== 生成中气泡状态文案 ========== */
+.html-gen-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  color: #fde68a;
+  font-size: 13px;
+}
+.html-gen-status-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(251, 191, 36, 0.3);
+  border-top-color: #fbbf24;
+  border-radius: 50%;
+  animation: htmlGenSpin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes htmlGenSpin {
+  to { transform: rotate(360deg); }
+}
+.html-gen-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+body.day-mode .html-gen-status {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.3);
+  color: #78350f;
+}
+body.day-mode .html-gen-status-spinner {
+  border-color: rgba(217, 119, 6, 0.25);
+  border-top-color: #d97706;
+}

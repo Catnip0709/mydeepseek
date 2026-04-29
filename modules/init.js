@@ -26,6 +26,7 @@ import { bindSearchEvents, clearSearch } from './search.js';
 import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js';
 import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js';
 import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js';
+import { bindHtmlModeEvents } from './htmlmode.js';
 
 // ========== 注册跨模块函数到 core ==========
 
@@ -168,6 +169,7 @@ function init() {
     bindSearchEvents();
     bindStoryArchiveEvents();
     bindFavoritesEvents();
+    bindHtmlModeEvents();
 
     // 全局事件：visibilitychange
     document.addEventListener('visibilitychange', () => {

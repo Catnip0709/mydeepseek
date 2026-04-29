@@ -20,6 +20,20 @@ import { call as coreCall } from './core.js';
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
   if (!deepThinkToggle) return;
+
+  // 互斥：HTML 模式开启时，拒绝"开启深度思考"的动作（关闭动作放行）
+  // 使用同步 require 避免循环依赖时死锁：通过全局变量透传 htmlmode 的状态
+  if (nextChecked && source !== 'html-mode-auto-off') {
+    const htmlModeOn = !!window.__mydeepseek_htmlModeOn;
+    if (htmlModeOn) {
+      // 回滚 UI
+      deepThinkToggle.checked = false;
+      state.deepThink = false;
+      try { showToast('预览网页模式下无法开启深度思考'); } catch (_) {}
+      return;
+    }
+  }
+
   deepThinkToggle.checked = !!nextChecked;
   state.deepThink = !!nextChecked;
   localStorage.setItem('dsDeepThink', String(state.deepThink));
@@ -32,6 +46,13 @@ export function forceToggleDeepThinkFromUI(event) {
   }
   const deepThinkToggle = document.getElementById('deepThinkToggle');
   if (!deepThinkToggle) return false;
+
+  // 互斥拦截：HTML 模式开启时，忽略点击
+  if (window.__mydeepseek_htmlModeOn && !deepThinkToggle.checked) {
+    try { showToast('预览网页模式下无法开启深度思考'); } catch (_) {}
+    return false;
+  }
+
   applyDeepThinkState(!deepThinkToggle.checked, 'inline-ui');
   return false;
 }

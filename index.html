@@ -255,6 +255,17 @@
         </span>
         <span class="deepthink-chip-text">深度思考</span>
       </label>
+      <label class="deepthink-chip htmlmode-chip" id="htmlModeChip">
+        <input type="checkbox" id="htmlModeToggle" class="sr-only peer">
+        <span class="deepthink-chip-icon" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="14" rx="2"></rect>
+            <path d="M3 8h18"></path>
+            <path d="M8 20h8"></path>
+          </svg>
+        </span>
+        <span class="deepthink-chip-text">预览网页</span>
+      </label>
       <div class="input-counter toolbar-input-counter text-xs text-gray-500" id="inputCounter">0 字</div>
     </div>
     <div id="txtAttachmentBar" class="txt-attachment-bar hidden">
@@ -315,6 +326,50 @@
         <span class="composer-action-subtitle">上传文本做上下文</span>
       </button>
     </div>
+  </div>
+</div>
+
+<!-- HTML 预览引导弹框 -->
+<div id="htmlModeGuidePanel" class="fixed inset-0 bg-black/80 items-center justify-center z-50 hidden" style="display:none;">
+  <div class="bg-gray-900 p-6 rounded-2xl w-[92%] max-w-md border border-gray-700 relative">
+    <button id="htmlModeGuideCloseBtn" class="absolute top-3 right-3 text-gray-400 hover:text-white text-xl leading-none" type="button" aria-label="关闭">&times;</button>
+    <div class="html-guide-title">
+      <span class="html-guide-title-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="14" rx="2"></rect>
+          <path d="M3 8h18"></path>
+          <path d="M8 20h8"></path>
+        </svg>
+      </span>
+      <span>预览网页 · 把创意变成能看见的页面</span>
+    </div>
+    <div class="html-guide-body">
+      <p>开启后，AI 的回答会自动变成一个真实可预览的网页——无论是角色资料卡、同人作品展示页，还是一张纪念你和 CP 故事的"证件"，生成完成后一键预览即可。</p>
+      <p class="text-gray-400">不用懂代码，描述你想要的样子就行。</p>
+    </div>
+    <div class="html-guide-example">
+      <div class="html-guide-example-head">
+        <span class="html-guide-example-label">指令示例</span>
+        <div class="html-guide-example-actions">
+          <button id="htmlModeGuideRefreshBtn" type="button" class="html-guide-example-btn" title="换一个示例" aria-label="换一个示例">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+            </svg>
+          </button>
+          <button id="htmlModeGuideCopyBtn" type="button" class="html-guide-example-btn" title="复制到输入框" aria-label="复制到输入框">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="htmlModeGuideExample" class="html-guide-example-text"></div>
+    </div>
+    <button id="htmlModeGuideConfirmBtn" type="button" class="html-guide-confirm-btn">好，开始创作</button>
   </div>
 </div>
 

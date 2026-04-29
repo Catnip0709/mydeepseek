@@ -162,7 +162,8 @@ export async function callLLM({
       return {
         content: message.content || '',
         reasoningContent: allowReasoning ? (message.reasoning_content || '') : '',
-        toolCalls: normalizedToolCalls
+        toolCalls: normalizedToolCalls,
+        finishReason: data?.choices?.[0]?.finish_reason || null
       };
     }
 
@@ -174,6 +175,7 @@ export async function callLLM({
     let fullReasoningContent = "";
     let fullToolCalls = []; // 收集流式 tool_calls
     let lastCompletedToolIdx = -1; // 上一个已通过回调推送的 tool_call index
+    let finishReason = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -192,6 +194,9 @@ export async function callLLM({
         try {
           const data = JSON.parse(dataStr);
           const delta = data.choices[0].delta;
+          // 捕获本 chunk 的 finish_reason；OpenAI/DeepSeek 在最后一个 data: 块上给 finish_reason
+          const fr = data.choices[0].finish_reason;
+          if (fr) finishReason = fr;
           if (allowReasoning && delta.reasoning_content) fullReasoningContent += delta.reasoning_content;
           if (delta.content) fullContent += delta.content;
 
@@ -246,7 +251,7 @@ export async function callLLM({
     // 过滤掉空 tool_calls（可能因流式拼接产生空条目）
     fullToolCalls = fullToolCalls.filter(tc => tc && tc.function && tc.function.name);
 
-    return { content: fullContent, reasoningContent: fullReasoningContent, toolCalls: fullToolCalls.length > 0 ? fullToolCalls : null };
+    return { content: fullContent, reasoningContent: fullReasoningContent, toolCalls: fullToolCalls.length > 0 ? fullToolCalls : null, finishReason };
   } finally {
     guard.cleanup();
   }
@@ -531,5 +536,137 @@ export async function callLLMAgent({
     content: typeof final === 'string' ? final : (final?.content || ''),
     reasoningContent: final?.reasoningContent || '',
     toolCallLog
+  };
+}
+
+// ========== HTML 自动续写 ==========
+
+/**
+ * 判断一段文本是否已经形成"闭合"的 HTML（以 </html> 结尾，允许尾部空白/换行）。
+ */
+function isHtmlClosed(text) {
+  if (!text) return false;
+  return /<\/html\s*>\s*$/i.test(text.trim());
+}
+
+/**
+ * 剥离 assistant 已生成文本末尾可能的 markdown 围栏（续写上下文用）。
+ */
+function stripTrailingFence(text) {
+  if (!text) return '';
+  return text.replace(/```\s*$/i, '').trimEnd();
+}
+
+/**
+ * 自动续写调用：内部多轮调 callLLM，直到 HTML 闭合或达到最大轮数。
+ *
+ * @param {Object} opts
+ * @param {string} opts.model
+ * @param {Array}  opts.messages          - 初始 system + user（不含 assistant）
+ * @param {number} [opts.maxRounds]       - 最大续写轮数，默认 6
+ * @param {number} [opts.maxTokensPerRound] - 每轮 max_tokens，默认 8192
+ * @param {number} [opts.temperature]
+ * @param {AbortSignal} [opts.signal]
+ * @param {number} [opts.chunkTimeoutMs]
+ * @param {Function} [opts.onStatus]  - ({ round, totalChars, lastPiece }) => void
+ * @param {Function} [opts.onChunk]   - 每个 chunk 回调（通常外层不直接渲染）
+ * @param {Function} [opts.isDoneFn]  - (fullText) => boolean 自定义完成判断
+ * @returns {Promise<{content:string, finishReason:string|null, rounds:number, truncated:boolean}>}
+ */
+export async function callLLMWithAutoContinue({
+  model = 'deepseek-chat',
+  messages = [],
+  maxRounds = 6,
+  maxTokensPerRound = 8192,
+  temperature = 0.3,
+  signal = null,
+  chunkTimeoutMs = CHUNK_INACTIVITY_TIMEOUT_MS,
+  onStatus = null,
+  onChunk = null,
+  isDoneFn = null
+} = {}) {
+  const doneFn = typeof isDoneFn === 'function' ? isDoneFn : isHtmlClosed;
+  let fullText = '';
+  let lastFinishReason = null;
+  let round = 0;
+
+  while (round < maxRounds) {
+    if (signal?.aborted) break;
+
+    if (onStatus) {
+      try {
+        onStatus({ round: round + 1, totalChars: fullText.length, lastPiece: '' });
+      } catch (_) {}
+    }
+
+    // 续写时使用裁剪过的已生成内容作为 assistant 上下文，避免带上 markdown 围栏
+    const roundMessages = round === 0
+      ? messages
+      : [
+          ...messages,
+          { role: 'assistant', content: stripTrailingFence(fullText) },
+          {
+            role: 'user',
+            content:
+              '刚才的 HTML 输出被长度上限截断了。请严格从上次中断的那一个字符开始继续输出，' +
+              '不要重复任何已有内容，不要道歉、不要解释、不要再次输出 ```html 代码块围栏，' +
+              '直接接着写，直到以 </html> 结尾。'
+          }
+        ];
+
+    const result = await callLLM({
+      model,
+      messages: roundMessages,
+      stream: true,
+      temperature,
+      maxTokens: maxTokensPerRound,
+      signal,
+      chunkTimeoutMs,
+      onChunk: onChunk
+        ? (payload) => {
+            try {
+              // 对外包装：带上当前累计长度便于 UI 更新
+              onChunk({
+                ...payload,
+                totalChars: fullText.length + (payload?.content?.length || 0),
+                round: round + 1
+              });
+            } catch (_) {}
+          }
+        : null
+    });
+
+    const piece = typeof result === 'string' ? result : (result?.content || '');
+    fullText += piece;
+    lastFinishReason = result?.finishReason || null;
+    round++;
+
+    if (onStatus) {
+      try {
+        onStatus({ round, totalChars: fullText.length, lastPiece: piece });
+      } catch (_) {}
+    }
+
+    const closed = doneFn(fullText);
+    if (closed && lastFinishReason !== 'length') break;
+
+    // 死循环防御：本轮产出过少（<4 字符），说明模型已经无话可说或遇到异常，直接退出
+    if (round > 0 && piece.length < 4) break;
+
+    // 模型自己停早了（stop 但未闭合）→ 再续 1 轮
+    if (lastFinishReason === 'stop' && !closed) continue;
+
+    // length 截断 → 继续续写
+    if (lastFinishReason === 'length') continue;
+
+    // 未知情况：若内容已经闭合则结束
+    if (closed) break;
+  }
+
+  return {
+    content: fullText,
+    finishReason: lastFinishReason,
+    rounds: round,
+    truncated: !doneFn(fullText)
   };
 }

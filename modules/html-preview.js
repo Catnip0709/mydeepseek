@@ -14,8 +14,8 @@
 function looksLikeFullHtml(code) {
   const lower = code.trim().toLowerCase();
   const hasDocDecl = lower.startsWith('<!doctype') || lower.startsWith('<html');
-  const hasBody = lower.includes('<body');
-  return hasDocDecl && hasBody;
+  const hasBodyOrContent = lower.includes('<body') || lower.includes('<head') || lower.includes('<div');
+  return hasDocDecl && hasBodyOrContent;
 }
 
 /**
@@ -106,7 +106,7 @@ function openHtmlPreviewModal(htmlCode) {
 
   const iframe = document.createElement('iframe');
   iframe.className = 'html-preview-iframe';
-  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  iframe.setAttribute('sandbox', 'allow-scripts allow-popups');
   iframe.setAttribute('referrerpolicy', 'no-referrer');
 
   modal.appendChild(header);
@@ -124,8 +124,9 @@ function openHtmlPreviewModal(htmlCode) {
   // ESC 关闭
   document.addEventListener('keydown', _onPreviewEsc);
 
-  // 写入 HTML 内容
-  iframe.srcdoc = htmlCode;
+  // 写入 HTML 内容（剥离 <base> 标签防止资源劫持）
+  const safeHtml = htmlCode.replace(/<base[^>]*>/gi, '');
+  iframe.srcdoc = safeHtml;
 }
 
 function closeHtmlPreviewModal() {

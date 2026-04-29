@@ -887,6 +887,31 @@ export async function sendMessage() {
     updatePendingTextAttachmentUI();
   }
 
+  // HTML 模式分支：走自动续写通道，忽略角色扮演/群聊/附件等上下文
+  try {
+    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js');
+    if (isHtmlModeEnabled()) {
+      input.value = "";
+      autoHeight();
+      updateInputCounter();
+      hideReplyBar();
+      try {
+        await sendHtmlGenerationMessage({ tabId: sendingTabId, userText });
+      } finally {
+        clearPendingTextAttachment();
+      }
+      if (isFirstMessage && state.tabData.active === sendingTabId) {
+        const tab = state.tabData.list[sendingTabId];
+        if (tab && tab.type !== 'single-character') {
+          generateTitleForCurrentTab();
+        }
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('HTML 模式分支异常:', err);
+  }
+
   // 群聊分支
   if (currentTab.type === 'group' && currentTab.characterIds && currentTab.characterIds.length > 0) {
     const userMsg = { id: generateMessageId(), role: "user", content: userText };
@@ -1096,7 +1121,7 @@ export async function fetchAndStreamResponse(opts = {}) {
       messages: payloadMsgs,
       stream: true,
       temperature: 0.7,
-      max_tokens: 16384,
+      max_tokens: 8192,
       ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       ...(thinkingType ? { thinking: { type: thinkingType } } : {}),
     };
