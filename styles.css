@@ -3463,6 +3463,90 @@ body.day-mode .character-brief-ai-btn.ai-generating .prompt-ai-label {
   flex: 1;
 }
 
+/* ========== 角色活跃度滑块 ========== */
+.talkativeness-slider-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.talkativeness-label-left,
+.talkativeness-label-right {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.talkativeness-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: #374151;
+  outline: none;
+  cursor: pointer;
+}
+
+.talkativeness-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #60a5fa;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.talkativeness-slider::-webkit-slider-thumb:hover {
+  background: #93c5fd;
+}
+
+.talkativeness-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #60a5fa;
+  cursor: pointer;
+  border: none;
+}
+
+.talkativeness-value {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* 活跃度日间模式 */
+body.day-mode .talkativeness-label-left,
+body.day-mode .talkativeness-label-right {
+  color: #6b7280;
+}
+
+body.day-mode .talkativeness-slider {
+  background: #d1d5db;
+}
+
+body.day-mode .talkativeness-slider::-webkit-slider-thumb {
+  background: #2563eb;
+}
+
+body.day-mode .talkativeness-slider::-webkit-slider-thumb:hover {
+  background: #1d4ed8;
+}
+
+body.day-mode .talkativeness-slider::-moz-range-thumb {
+  background: #2563eb;
+}
+
+body.day-mode .talkativeness-value {
+  color: #6b7280;
+}
+
 /* ========== 角色选择面板 ========== */
 .character-select-item {
   display: flex;

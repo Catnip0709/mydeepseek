@@ -405,6 +405,7 @@ export async function callLLMAgent({
   toolExecutor,
   maxRounds = 5,
   onToolCall = null,
+  toolChoice = 'auto',
   ...callLLMOptions
 } = {}) {
   if (!tools || tools.length === 0 || !toolExecutor) {
@@ -482,7 +483,7 @@ export async function callLLMAgent({
       ...callLLMOptions,
       messages: msgs,
       tools,
-      toolChoice: 'auto',
+      toolChoice,
       stream: true, // 强制流式，实现即时 tool 执行
       onToolCallReady(completedToolCall) {
         // tool_call 完成时立即执行，不等流结束

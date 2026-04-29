@@ -32,6 +32,7 @@ export function createCharacter(data) {
     appearance: data.appearance || '',
     speakingStyle: data.speakingStyle || '',
     catchphrases: data.catchphrases || [],
+    talkativeness: data.talkativeness ?? 0.8,
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
@@ -170,6 +171,8 @@ export function showCharacterEditForm(char = null) {
   const characterEditAppearance = document.getElementById('characterEditAppearance');
   const characterEditSpeakingStyle = document.getElementById('characterEditSpeakingStyle');
   const characterEditCatchphrases = document.getElementById('characterEditCatchphrases');
+  const characterEditTalkativeness = document.getElementById('characterEditTalkativeness');
+  const characterEditTalkativenessVal = document.getElementById('characterEditTalkativenessVal');
   const characterEditBrief = document.getElementById('characterEditBrief');
 
   characterEditPanel.classList.remove('hidden');
@@ -182,6 +185,9 @@ export function showCharacterEditForm(char = null) {
     characterEditAppearance.value = char.appearance || '';
     characterEditSpeakingStyle.value = char.speakingStyle || '';
     characterEditCatchphrases.value = (char.catchphrases || []).join('、');
+    const talkVal = char.talkativeness ?? 0.8;
+    characterEditTalkativeness.value = talkVal;
+    characterEditTalkativenessVal.textContent = talkVal.toFixed(1);
     characterEditBrief.value = '';
   } else {
     state.editingCharacterId = null;
@@ -192,6 +198,8 @@ export function showCharacterEditForm(char = null) {
     characterEditAppearance.value = '';
     characterEditSpeakingStyle.value = '';
     characterEditCatchphrases.value = '';
+    characterEditTalkativeness.value = 0.8;
+    characterEditTalkativenessVal.textContent = '0.8';
     characterEditBrief.value = '';
   }
   setTimeout(() => characterEditName.focus(), 50);
@@ -255,6 +263,7 @@ export function saveCharacterForm() {
   const characterEditAppearance = document.getElementById('characterEditAppearance');
   const characterEditSpeakingStyle = document.getElementById('characterEditSpeakingStyle');
   const characterEditCatchphrases = document.getElementById('characterEditCatchphrases');
+  const characterEditTalkativeness = document.getElementById('characterEditTalkativeness');
 
   const name = characterEditName.value.trim();
   if (!name) { alert('请输入角色名字'); characterEditName.focus(); return; }
@@ -267,7 +276,8 @@ export function saveCharacterForm() {
     background: characterEditBackground.value.trim(),
     appearance: characterEditAppearance.value.trim(),
     speakingStyle: characterEditSpeakingStyle.value.trim(),
-    catchphrases
+    catchphrases,
+    talkativeness: parseFloat(characterEditTalkativeness.value) ?? 0.8
   };
 
   if (state.editingCharacterId) {
@@ -355,4 +365,13 @@ export function bindCharacterEvents() {
   if (saveCharacterBtn) saveCharacterBtn.addEventListener('click', saveCharacterForm);
   if (aiEnhanceBtn) aiEnhanceBtn.addEventListener('click', handleAiEnhance);
   if (openCharacterBtn) openCharacterBtn.addEventListener('click', () => { closeSidebar(); openCharacterPanel(); });
+
+  // 活跃度滑块实时更新数值
+  const talkSlider = document.getElementById('characterEditTalkativeness');
+  const talkVal = document.getElementById('characterEditTalkativenessVal');
+  if (talkSlider && talkVal) {
+    talkSlider.addEventListener('input', () => {
+      talkVal.textContent = parseFloat(talkSlider.value).toFixed(1);
+    });
+  }
 }

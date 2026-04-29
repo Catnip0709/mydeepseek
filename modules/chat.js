@@ -1116,11 +1116,19 @@ export async function fetchAndStreamResponse(opts = {}) {
   }
 
   try {
+    // 角色单聊时读取角色的活跃度（温度）
+    const _tab = state.tabData.list[lockedTabId];
+    let chatTemperature = 0.7;
+    if (_tab?.type === 'single-character' && _tab.characterId) {
+      const _char = coreCall('getCharacterById', _tab.characterId);
+      if (_char) chatTemperature = _char.talkativeness ?? 0.8;
+    }
+
     const requestBody = {
       model: selectedModel,
       messages: payloadMsgs,
       stream: true,
-      temperature: 0.7,
+      temperature: chatTemperature,
       max_tokens: 8192,
       ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
       ...(thinkingType ? { thinking: { type: thinkingType } } : {}),

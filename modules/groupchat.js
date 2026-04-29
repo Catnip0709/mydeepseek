@@ -139,12 +139,14 @@ export async function generateCharacterReply(character, userMessage, history, al
     }
   ];
 
+  const charTemp = character.talkativeness ?? 0.8;
+
   if (options.stream && options.onChunk) {
     return await callLLM({
       model: options.model || state.selectedModel,
       messages,
       stream: true,
-      temperature: 0.8,
+      temperature: charTemp,
       maxTokens: 1024,
       signal: options.signal,
       onChunk: options.onChunk,
@@ -156,7 +158,7 @@ export async function generateCharacterReply(character, userMessage, history, al
     model: options.model || state.selectedModel,
     messages,
     stream: false,
-    temperature: 0.8,
+    temperature: charTemp,
     maxTokens: 1024,
     signal: options.signal,
     ...llmTimeoutOptions
@@ -374,7 +376,7 @@ ${charInfos}
 ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
 规则：
-1. 使用 character_reply 工具让角色发言，不要直接输出角色台词
+1. 所有可见输出都必须通过 character_reply 或 narrate 工具产生，不要在 assistant content 里直接输出角色台词、旁白、解释或总结
 2. 每个角色在本次用户输入触发的整次编排中最多发言 3 次
 3. 回复自然口语化，像真人聊天，不要像背台词，不要加引号/括号等格式标记
 4. 口头禅偶尔使用即可，不要刻意堆砌
@@ -457,6 +459,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       tools: GROUPCHAT_TOOLS_FULL,
       toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
       maxRounds: GROUPCHAT_MAX_ROUNDS,
+      toolChoice: 'required',
       model: model || state.selectedModel,
       reasoningEffort,
       thinkingType,
@@ -496,6 +499,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     });
 
     if (!replyTargetSatisfied) {
+      if (allReplies.length > 0) {
+        return allReplies;
+      }
       if (onFallbackReset) onFallbackReset();
       allReplies.length = 0;
       return await orchestrateGroupChat(userMessage, characters, history, options);
@@ -511,7 +517,12 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
   } catch (e) {
     if (e.name === 'AbortError') return allReplies;
-    // Agent 模式失败，fallback 到传统编排
+    // 已经有角色/旁白出声后，不再回退传统编排，避免已渲染内容被 reset 后产生“撤回感”。
+    if (allReplies.length > 0) {
+      console.warn('[Agent] 群聊 Agent 模式中途失败，保留已生成回复，不回退传统编排:', e.message);
+      return allReplies;
+    }
+    // Agent 模式失败且尚未产出任何回复，fallback 到传统编排
     console.warn('[Agent] 群聊 Agent 模式失败，回退到传统编排:', e.message);
     if (onFallbackReset) onFallbackReset();
     allReplies.length = 0;
@@ -734,6 +745,9 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
       commitPendingReplies();
     }
     if (e.name !== 'AbortError') {
+      if (pendingReplies.length > 0) {
+        commitPendingReplies();
+      }
       console.error('群聊发送错误:', e);
       showToast('群聊发送失败：' + e.message);
     }

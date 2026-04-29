@@ -710,6 +710,15 @@
           <label class="character-field-label">口头禅</label>
           <input id="characterEditCatchphrases" class="prompt-input" type="text" placeholder="用顿号分隔，如：哼、才不是呢、别误会">
         </div>
+        <div class="character-edit-field">
+          <label class="character-field-label">活跃度</label>
+          <div class="talkativeness-slider-wrapper">
+            <span class="talkativeness-label-left">冷淡</span>
+            <input id="characterEditTalkativeness" type="range" min="0.5" max="1.0" step="0.1" value="0.8" class="talkativeness-slider">
+            <span class="talkativeness-label-right">活泼</span>
+          </div>
+          <span id="characterEditTalkativenessVal" class="talkativeness-value">0.8</span>
+        </div>
         <div class="prompt-form-actions">
           <button id="cancelCharacterEditBtn" class="btn-gray">取消</button>
           <button id="saveCharacterBtn" class="btn-blue">保存</button>
