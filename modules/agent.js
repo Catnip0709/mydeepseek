@@ -37,9 +37,9 @@ export function groupchatToolExecutor(name, args, context = {}) {
         return JSON.stringify({ success: false, error: `角色"${charName}"不在群聊中` });
       }
 
-      // 检查发言次数限制（每角色在本次编排中最多 2 次）
+      // 检查发言次数限制（每角色在本次编排中最多 3 次）
       const speakCount = replyTracker[character.id] || 0;
-      if (speakCount >= 2) {
+      if (speakCount >= 3) {
         return JSON.stringify({ success: false, error: `${charName}本次编排已发言${speakCount}次，不能再发言` });
       }
 

@@ -15,7 +15,7 @@ export const TOOL_CHARACTER_REPLY = {
   type: 'function',
   function: {
     name: 'character_reply',
-    description: '以某个角色的身份回复。每次调用代表一个角色说了一段话。每个角色在本次编排中最多回复 2 次。重要：dialogue 只写角色真正说出口的台词；动作、神态、视线变化、停顿、语气提示、心理描写必须写到 action，不要混入 dialogue。',
+    description: '以某个角色的身份回复。每次调用代表一个角色说了一段话。每个角色在本次编排中最多回复 3 次。重要：dialogue 只写角色真正说出口的台词；动作、神态、视线变化、停顿、语气提示、心理描写必须写到 action，不要混入 dialogue。',
     parameters: {
       type: 'object',
       properties: {
@@ -48,7 +48,7 @@ export const TOOL_NARRATE = {
   type: 'function',
   function: {
     name: 'narrate',
-    description: '以旁白/叙述者身份描写场景、环境变化、动作细节。用于推动剧情或营造氛围，不要滥用。',
+    description: '以旁白/叙述者身份描写场景、环境变化、动作细节。适合用于场景切换、人物动作衔接、多人沉默对视或气氛变化时串联剧情，保持简短，不要滥用。',
     parameters: {
       type: 'object',
       properties: {

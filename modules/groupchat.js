@@ -17,6 +17,11 @@ import { groupchatToolExecutor } from './agent.js';
 
 import { isHtmlRelatedMessage } from './utils.js';
 
+const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
+const GROUPCHAT_MAX_ROUNDS = 5;
+const GROUPCHAT_MAX_SENTENCES = 6;
+const GROUPCHAT_AGENT_MAX_TOKENS = 1536;
+
 // ========== Step 1: 路由判断 ==========
 
 async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null, llmTimeoutOptions = {}) {
@@ -120,7 +125,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 1. 严格以${character.name}的身份和性格回复
 2. 保持角色一致性，不要出戏
 3. 回复自然口语化，像真人聊天，不要像背台词
-4. 最多说5句话
+4. 最多说6句话，宁可多给一点有信息量的回应，也不要只敷衍一句
 5. 不要加引号、括号等格式标记
 6. 不要重复其他角色已经说过的话，要给出新的回应
 7. 口头禅偶尔使用即可，不要每句话都带，更不要生硬插入
@@ -157,7 +162,7 @@ export async function generateCharacterReply(character, userMessage, history, al
     ...llmTimeoutOptions
   });
 
-  if (typeof reply === 'string') return limitSentences(reply);
+  if (typeof reply === 'string') return limitSentences(reply, GROUPCHAT_MAX_SENTENCES);
   return reply;
 }
 
@@ -172,12 +177,13 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
       content: `你判断群聊中一个角色是否需要对其他角色的发言做出回应。
 只回答"是"或"否"，不要输出其他内容。
 判断标准：
-- 默认回答"否"，只有在非常必要时才回应
+- 默认先看“你是否会自然接话”，不要过度保守
 - 如果用户消息暗示了某些角色不在场（如"只有我和XX"、"私下对话"、"回到房间"等），不在场的角色必须回答"否"
-- 如果对方的话直接点名你、质疑你、或者与你产生强烈冲突，可以回答"是"
-- 如果对方的话只是普通聊天、你已经表达过类似观点、或者话题与你关系不大，回答"否"
+- 如果对方的话直接点名你、质疑你、提到你、或者与你产生明显互动，优先回答"是"
+- 如果当前话题与你强相关、你会自然插嘴、补充信息能推进气氛或剧情，也可以回答"是"
+- 如果对方的话只是普通闲聊、你已经表达过类似观点、或者话题与你关系很弱，回答"否"
 - 如果场景是私密的或你不在场，即使话题与你相关也回答"否"
-- 不要为了聊天而聊天，避免无意义的附和`
+- 避免无意义附和，但允许自然的短接话、吐槽、追问、补充`
     },
     {
       role: "user",
@@ -199,7 +205,6 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
 export async function orchestrateGroupChat(userMessage, characters, history, options = {}) {
   const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo, groupContext } = options;
   const allReplies = [];
-  const MAX_ROUNDS = 3;
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
 
   // 构建角色回复的公共 options
@@ -227,7 +232,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
         ...charOptions,
         stream: !!onCharacterChunk,
         onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(character, idx, chunk) : null,
-        currentRoundReplies: allReplies
+          currentRoundReplies: allReplies
       });
     } catch (e) {
       if (e.name === 'AbortError') break;
@@ -235,14 +240,14 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
     }
 
     const content = typeof reply === 'string' ? reply : reply.content;
-    allReplies.push({ characterId: character.id, characterName: character.name, content: limitSentences(content || '') });
+    allReplies.push({ characterId: character.id, characterName: character.name, content: limitSentences(content || '', GROUPCHAT_MAX_SENTENCES) });
 
     if (onCharacterEnd) onCharacterEnd(character, idx, content);
   }
 
   // Step 3: 多轮互动循环
   if (allReplies.length > 0 && characters.length > 1) {
-    for (let round = 0; round < MAX_ROUNDS; round++) {
+    for (let round = 0; round < GROUPCHAT_MAX_ROUNDS; round++) {
       if (signal && signal.aborted) break;
 
       const lastReply = allReplies[allReplies.length - 1];
@@ -255,7 +260,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
         if (signal && signal.aborted) break;
 
         const speakCount = allReplies.filter(r => r.characterId === otherChar.id).length;
-        if (speakCount >= 2) continue;
+        if (speakCount >= GROUPCHAT_MAX_SPEAKS_PER_CHARACTER) continue;
 
         let needFollow;
         try {
@@ -281,7 +286,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
           }
 
           const content = typeof reply === 'string' ? reply : reply.content;
-          allReplies.push({ characterId: otherChar.id, characterName: otherChar.name, content: limitSentences(content || '') });
+          allReplies.push({ characterId: otherChar.id, characterName: otherChar.name, content: limitSentences(content || '', GROUPCHAT_MAX_SENTENCES) });
 
           if (onCharacterEnd) onCharacterEnd(otherChar, characters.indexOf(otherChar), content);
           anyoneSpoke = true;
@@ -303,9 +308,16 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
  * 替代硬编码的"路由→回复→追问"三步流程。
  */
 export async function orchestrateGroupChatAgent(userMessage, characters, history, options = {}) {
-  const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, reasoningEffort, thinkingType, groupContext, tabId } = options;
+  const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, reasoningEffort, thinkingType, groupContext, tabId, replyInfo } = options;
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
   const allReplies = [];
+  const replyTargetCharacter = replyInfo?.characterId
+    ? characters.find(c => c.id === replyInfo.characterId) || null
+    : null;
+  const replyTargetId = replyTargetCharacter?.id || '';
+  const replyTargetName = replyTargetCharacter?.name || '';
+  let replyTargetSatisfied = !replyTargetId;
+  const bufferedRepliesBeforeTarget = [];
 
   function formatAction(action) {
     const text = String(action || '').trim();
@@ -346,6 +358,9 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
   const bannedWordsInfo = bannedWords.length
     ? `\n\n【写作偏好硬规则】\n- 全文禁止出现以下词语：${bannedWords.join('、')}\n- character_reply / narrate 的所有输出都不得出现这些词\n- 若自然想写到这些词，必须换一种表达\n- 输出前自检禁用词，发现后先改写再提交工具调用`
     : '';
+  const replyTargetInfo = replyTargetId
+    ? `\n\n【本次引用回复】\n- 用户这次是在明确回复「${replyTargetName}」\n- 你必须让「${replyTargetName}」先发言\n- 第一条 character_reply 必须是「${replyTargetName}」\n- 在「${replyTargetName}」说完之前，不要让其他角色发言，也不要先 narrate`
+    : '';
 
   // 最近对话历史
   const recentHistory = history.filter(m => !isHtmlRelatedMessage(m)).slice(-20).map(m => {
@@ -356,52 +371,99 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
 
   const systemPrompt = `你是一个群聊导演。你控制群聊中所有角色的发言。
 ${charInfos}
-${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
+${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
 规则：
 1. 使用 character_reply 工具让角色发言，不要直接输出角色台词
-2. 每个角色在本次用户输入触发的整次编排中最多发言 2 次
+2. 每个角色在本次用户输入触发的整次编排中最多发言 3 次
 3. 回复自然口语化，像真人聊天，不要像背台词，不要加引号/括号等格式标记
 4. 口头禅偶尔使用即可，不要刻意堆砌
 5. 如果用户消息暗示了某些角色不在场，不在场的角色不能发言
-6. 如果用户正在回复某个特定角色，该角色必须发言
-7. 至少让一个角色回复
-8. 角色之间可以有互动（一个角色说完后，相关角色可以回应）
-9. 偶尔可以用 narrate 工具描写场景或动作，但不要滥用
-10. 不要重复其他角色已经说过的话
-11. character_reply 的字段职责必须严格分离：
+6. 如果用户正在回复某个特定角色，该角色必须发言；若你已知被回复角色是谁，则第一条 character_reply 必须来自该角色
+7. 至少让一个角色回复；普通情况下，优先让 2-3 个与当前话题相关的角色参与
+8. 如果明显是私下对话、用户只点名某一个角色、或场景上只有少数角色在场，可以只让 1 个角色回复
+9. 角色之间可以有互动（一个角色说完后，相关角色可以回应、追问、吐槽或补充）
+10. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 0-1 条简短 narrate 串联气氛
+11. 不要连续使用 narrate，也不要写成长篇旁白
+12. 不要重复其他角色已经说过的话
+13. character_reply 的字段职责必须严格分离：
    - dialogue：只写角色真正说出口的台词
    - action：只写动作、神态、视线变化、停顿等舞台说明
    - 不要把动作、神态、心理描写混进 dialogue
-12. 错误示例：
+14. 错误示例：
    - dialogue: "慕容紫英眸光微凝，指尖收紧了几分。这封印确实古怪。"
    - action: ""
-13. 正确示例：
+15. 正确示例：
    - dialogue: "这封印确实古怪。"
    - action: "眸光微凝，指尖收紧了几分"
-14. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。`;
+16. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: (recentHistory ? `最近对话：\n${recentHistory}\n\n` : '') + `用户说：${userMessage}` }
+    {
+      role: 'user',
+      content: (recentHistory ? `最近对话：\n${recentHistory}\n\n` : '')
+        + (replyTargetId ? `本次引用回复：用户正在回复「${replyTargetName}」${replyInfo?.snippet ? `，被引用内容是：${replyInfo.snippet}` : ''}\n\n` : '')
+        + `用户说：${userMessage}`
+    }
   ];
 
   // 执行上下文：传给 toolExecutor
-  const executorContext = { characters, replyTracker, messages: history, tabId };
+  const executorContext = { characters, replyTracker, messages: history, tabId, replyInfo };
+
+  function emitToolReply(name, parsed) {
+    let character;
+    let idx;
+    let fullContent = '';
+
+    if (name === 'character_reply') {
+      character = characters.find(c => c.id === parsed.character_id);
+      if (!character) return false;
+      idx = characters.indexOf(character);
+      const content = parsed.dialogue || '';
+      const action = formatAction(parsed.action);
+      fullContent = [action, content].filter(Boolean).join('\n');
+    } else {
+      // narrate 不再吞掉：落成一条“旁白”消息，便于用户感知 Agent 正在做事。
+      // 使用伪角色对象复用现有渲染/存储链路，但打上 isNarration 标记，避免显示“回复”按钮。
+      character = { id: '__narrator__', name: '旁白', isNarration: true };
+      idx = -1;
+      fullContent = String(parsed.content || '').trim();
+    }
+
+    if (!fullContent) return false;
+
+    if (onCharacterStart) onCharacterStart(character, idx);
+
+    // Agent 模式下工具调用是同步返回的（非流式），直接渲染完整内容
+    if (onCharacterChunk) {
+      onCharacterChunk(character, idx, { content: fullContent, fullContent });
+    }
+
+    allReplies.push({
+      characterId: character.id,
+      characterName: character.name,
+      content: limitSentences(fullContent, GROUPCHAT_MAX_SENTENCES),
+      isNarration: !!character.isNarration
+    });
+
+    if (onCharacterEnd) onCharacterEnd(character, idx, fullContent);
+    return true;
+  }
 
   try {
     const result = await callLLMAgent({
       messages,
       tools: GROUPCHAT_TOOLS_FULL,
       toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
-      maxRounds: 3,
+      maxRounds: GROUPCHAT_MAX_ROUNDS,
       model: model || state.selectedModel,
       reasoningEffort,
       thinkingType,
       temperature: 0.8,
       // 导演只需要产出 tool_calls（而不是长篇文字），maxTokens 太大会让模型“想很久/写很长”才出手。
       // 下调上限可以明显降低首条输出延迟与 token 消耗。
-      maxTokens: 1024,
+      maxTokens: GROUPCHAT_AGENT_MAX_TOKENS,
       stream: true,
       signal,
       chunkTimeoutMs: llmTimeoutOptions.chunkTimeoutMs || 0,
@@ -414,44 +476,30 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}
         try { parsed = JSON.parse(resultStr); } catch (_) { return; }
         if (!parsed.success) return;
 
-        let character;
-        let idx;
-        let fullContent = '';
-
-        if (name === 'character_reply') {
-          character = characters.find(c => c.id === parsed.character_id);
-          if (!character) return;
-          idx = characters.indexOf(character);
-          const content = parsed.dialogue || '';
-          const action = formatAction(parsed.action);
-          fullContent = [action, content].filter(Boolean).join('\n');
-        } else {
-          // narrate 不再吞掉：落成一条“旁白”消息，便于用户感知 Agent 正在做事。
-          // 使用伪角色对象复用现有渲染/存储链路，但打上 isNarration 标记，避免显示“回复”按钮。
-          character = { id: '__narrator__', name: '旁白', isNarration: true };
-          idx = -1;
-          fullContent = String(parsed.content || '').trim();
+        if (!replyTargetSatisfied) {
+          const isTargetReply = name === 'character_reply' && parsed.character_id === replyTargetId;
+          if (!isTargetReply) {
+            bufferedRepliesBeforeTarget.push({ name, parsed });
+            return;
+          }
+          replyTargetSatisfied = true;
+          emitToolReply(name, parsed);
+          while (bufferedRepliesBeforeTarget.length > 0) {
+            const buffered = bufferedRepliesBeforeTarget.shift();
+            emitToolReply(buffered.name, buffered.parsed);
+          }
+          return;
         }
 
-        if (!fullContent) return;
-
-        if (onCharacterStart) onCharacterStart(character, idx);
-
-        // Agent 模式下工具调用是同步返回的（非流式），直接渲染完整内容
-        if (onCharacterChunk) {
-          onCharacterChunk(character, idx, { content: fullContent, fullContent });
-        }
-
-        allReplies.push({
-          characterId: character.id,
-          characterName: character.name,
-          content: limitSentences(fullContent),
-          isNarration: !!character.isNarration
-        });
-
-        if (onCharacterEnd) onCharacterEnd(character, idx, fullContent);
+        emitToolReply(name, parsed);
       }
     });
+
+    if (!replyTargetSatisfied) {
+      if (onFallbackReset) onFallbackReset();
+      allReplies.length = 0;
+      return await orchestrateGroupChat(userMessage, characters, history, options);
+    }
 
     // 如果模型直接输出了文字（没用工具），作为旁白处理
     if (result.content && allReplies.length === 0) {
