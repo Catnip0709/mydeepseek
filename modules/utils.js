@@ -137,3 +137,15 @@ export const downloadIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1
 export const replyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>`;
 
 export const favoriteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.75l2.86 5.79 6.39.93-4.62 4.5 1.09 6.36L12 17.32 6.28 20.33l1.09-6.36-4.62-4.5 6.39-.93L12 2.75z"></path></svg>`;
+
+export function isHtmlRelatedMessage(m) {
+  if (!m) return false;
+  if (m.role === 'user' && m.htmlModeRequest === true) return true;
+  if (m.role === 'assistant' && m.htmlGeneration) return true;
+  if (m.role === 'assistant' && typeof m.content === 'string') {
+    const trimmed = m.content.trim();
+    if (/^```html[\s\S]*```$/i.test(trimmed)) return true;
+  }
+  return false;
+}
+

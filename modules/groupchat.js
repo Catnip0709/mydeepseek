@@ -15,6 +15,8 @@ import { call as coreCall } from './core.js';
 import { GROUPCHAT_TOOLS_FULL } from './tools.js';
 import { groupchatToolExecutor } from './agent.js';
 
+import { isHtmlRelatedMessage } from './utils.js';
+
 // ========== Step 1: 路由判断 ==========
 
 async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null, llmTimeoutOptions = {}) {
@@ -91,7 +93,7 @@ export async function generateCharacterReply(character, userMessage, history, al
     ? `\n\n【写作偏好硬规则】\n1. 全文禁止出现以下词语：${bannedWords.join('、')}\n2. 若自然想写到这些词，必须换一种表达\n3. 输出前自检一遍，若出现禁用词原文，先改写后再输出`
     : '';
 
-  const recentHistory = history.slice(-20).map(m => {
+  const recentHistory = history.filter(m => !isHtmlRelatedMessage(m)).slice(-20).map(m => {
     if (m.role === 'user') return `用户：${m.content}`;
     if (m.role === 'character') return `${m.characterName || '角色'}：${m.content}`;
     if (m.role === 'assistant') return `AI：${m.content}`;
@@ -346,7 +348,7 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
     : '';
 
   // 最近对话历史
-  const recentHistory = history.slice(-20).map(m => {
+  const recentHistory = history.filter(m => !isHtmlRelatedMessage(m)).slice(-20).map(m => {
     if (m.role === 'user') return `用户：${m.content}`;
     if (m.role === 'character') return `${m.characterName || '角色'}：${m.content}`;
     return '';

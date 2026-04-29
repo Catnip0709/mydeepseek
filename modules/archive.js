@@ -7,6 +7,7 @@
 import { state } from './state.js';
 import { callLLM, extractJsonFromText } from './llm.js';
 import { saveTabs, getTabDisplayName } from './storage.js';
+import { isHtmlRelatedMessage } from './utils.js';
 import { showToast, closeSidebar } from './panels.js';
 import { call as coreCall } from './core.js';
 
@@ -103,7 +104,7 @@ function getMessageSpeakerLabel(message, tab) {
 }
 
 function buildConversationForArchive(tab) {
-  const messages = Array.isArray(tab?.messages) ? tab.messages : [];
+  const messages = Array.isArray(tab?.messages) ? tab.messages.filter(m => !isHtmlRelatedMessage(m)) : [];
   return messages.map((message, index) => {
     const speaker = getMessageSpeakerLabel(message, tab);
     const content = String(message.content || '').trim();
@@ -113,7 +114,7 @@ function buildConversationForArchive(tab) {
 
 function buildConversationForArchiveWithLimit(tab, options = {}) {
   const { headCount = 12, tailCount = 48 } = options;
-  const messages = Array.isArray(tab?.messages) ? tab.messages : [];
+  const messages = Array.isArray(tab?.messages) ? tab.messages.filter(m => !isHtmlRelatedMessage(m)) : [];
   const total = messages.length;
   if (!total) return '';
   if (total <= headCount + tailCount + 8) {
@@ -144,7 +145,7 @@ function buildConversationForArchiveWithLimit(tab, options = {}) {
 
 function getArchiveStabilityProfile(tab) {
   // 成功率优先：长会话自动精简输出 + 输入截断 + 两阶段生成（拆分输出，降低截断/解析失败率）
-  const messages = Array.isArray(tab?.messages) ? tab.messages : [];
+  const messages = Array.isArray(tab?.messages) ? tab.messages.filter(m => !isHtmlRelatedMessage(m)) : [];
   const messageCount = messages.length;
   const totalChars = messages.reduce((sum, m) => sum + String(m?.content || '').length, 0);
 
@@ -276,7 +277,7 @@ function hashString(text) {
 }
 
 function buildArchiveSourcePayload(tab) {
-  const messages = Array.isArray(tab?.messages) ? tab.messages : [];
+  const messages = Array.isArray(tab?.messages) ? tab.messages.filter(m => !isHtmlRelatedMessage(m)) : [];
   return {
     type: String(tab?.type || 'single'),
     title: String(tab?.title || ''),

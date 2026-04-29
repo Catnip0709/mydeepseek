@@ -5,7 +5,7 @@
  */
 
 import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
-import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId } from './utils.js';
+import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
 // ========== 存储用量统计 ==========
@@ -214,7 +214,7 @@ export function buildPayloadMessages(messages, endExclusive = messages.length, t
 
   // 全量模式：不使用摘要，直接发送全部消息
   if (state.memoryStrategy === MEMORY_STRATEGY_FULL) {
-    let payloadMsgs = messages.slice(0, endExclusive).map(m => ({
+    let payloadMsgs = messages.slice(0, endExclusive).filter(m => !isHtmlRelatedMessage(m)).map(m => ({
       role: m.role,
       content: m.content
     }));
@@ -261,19 +261,19 @@ export function buildPayloadMessages(messages, endExclusive = messages.length, t
     const startIdx = Math.min(effectiveSummaryCover, safeEnd);
     if (startIdx < safeEnd) {
       // 正常情况：摘要 + 近期消息
-      payloadMsgs = messages.slice(startIdx, safeEnd).map(m => ({
+      payloadMsgs = messages.slice(startIdx, safeEnd).filter(m => !isHtmlRelatedMessage(m)).map(m => ({
         role: m.role,
         content: m.content
       }));
     } else {
       // 异常情况：摘要覆盖了全部消息，回退到发送全部消息
-      payloadMsgs = messages.slice(0, safeEnd).map(m => ({
+      payloadMsgs = messages.slice(0, safeEnd).filter(m => !isHtmlRelatedMessage(m)).map(m => ({
         role: m.role,
         content: m.content
       }));
     }
   } else {
-    payloadMsgs = messages.slice(0, endExclusive).map(m => ({
+    payloadMsgs = messages.slice(0, endExclusive).filter(m => !isHtmlRelatedMessage(m)).map(m => ({
       role: m.role,
       content: m.content
     }));

@@ -7,6 +7,7 @@
 
 import { state, MEMORY_STRATEGY_FULL } from './state.js';
 import { callLLM } from './llm.js';
+import { isHtmlRelatedMessage } from './utils.js';
 import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
@@ -220,7 +221,7 @@ async function requestFullSummaryFromMessages(messages) {
 function isConversationSnapshotUnchanged(tabId, startIdx, endIdx, expectedText) {
   const tab = state.tabData.list[tabId];
   if (!tab) return false;
-  const currentMessages = tab.messages.slice(startIdx, endIdx);
+  const currentMessages = tab.messages.slice(startIdx, endIdx).filter(m => !isHtmlRelatedMessage(m));
   return buildConversationText(currentMessages) === expectedText;
 }
 
@@ -231,7 +232,7 @@ async function generateNewSummary(tabId) {
   const tab = state.tabData.list[tabId];
   const targetCover = getTargetSummaryCoverIndex(tab.messages.length);
   if (targetCover <= 0) return;
-  const messagesToSummarize = tab.messages.slice(0, targetCover);
+  const messagesToSummarize = tab.messages.slice(0, targetCover).filter(m => !isHtmlRelatedMessage(m));
   const conversationText = buildConversationText(messagesToSummarize);
   const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
   const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
@@ -256,7 +257,7 @@ async function rebuildSummaryToCover(tabId, coverIdx) {
   const tab = state.tabData.list[tabId];
   if (!tab || coverIdx <= 0) return;
 
-  const messagesToSummarize = tab.messages.slice(0, coverIdx);
+  const messagesToSummarize = tab.messages.slice(0, coverIdx).filter(m => !isHtmlRelatedMessage(m));
   const conversationText = buildConversationText(messagesToSummarize);
   const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
   const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
@@ -284,7 +285,7 @@ async function updateExistingSummary(tabId) {
   const startIdx = tab.summaryCoversUpTo;
   const endIdx = getTargetSummaryCoverIndex(tab.messages.length);
   if (endIdx <= startIdx) return;
-  const newMessages = tab.messages.slice(startIdx, endIdx);
+  const newMessages = tab.messages.slice(startIdx, endIdx).filter(m => !isHtmlRelatedMessage(m));
   const baseSummary = tab.summary;
 
   // 新消息文本（保留完整消息，避免摘要遗漏关键细节）

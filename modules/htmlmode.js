@@ -12,7 +12,7 @@
 import { state, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
 import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js';
 import { saveTabs } from './storage.js';
-import { generateMessageId, trackEvent, copyText } from './utils.js';
+import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js';
 import { applyDeepThinkState } from './settings.js';
 import { showToast } from './panels.js';
 
@@ -20,7 +20,7 @@ import { showToast } from './panels.js';
 
 // 指令示例池：写死 10 条，弹框每次只展示一条
 const HTML_EXAMPLES = [
-  '请根据 ** 的性格特点，创作10条生动、贴合其个性的朋友圈内容。每条需体现人物评论、回复、点赞、视频、配图、屏蔽、提醒、时间等朋友圈功能。',
+  '请根据 ** 的性格特点，创作 10 条生动、贴合其个性的朋友圈内容。每条需体现人物评论、回复、点赞、视频、配图、屏蔽、提醒、时间等朋友圈功能。',
   '请根据 ** 的性格特点，创作 10 条生动、贴合其个性的微博内容。每条需体现转发、评论、点赞、热搜、话题标签、配图 / 长图 / 视频、仅粉丝可见、分组屏蔽、特别关注提醒、发布时间、置顶、私信互动等微博平台功能。',
   '请根据 ** 的性格特点，创作 10 条生动、贴合其个性的贴吧发帖内容。每条需体现楼中楼评论、层主回复、点赞 / 踩、收藏、帖子配图 / 视频、仅吧友可见、拉黑屏蔽、吧内 @提醒、发帖时间、精品帖、置顶帖、楼主追更等贴吧平台功能。',
   '请根据 ** 的性格特点，创作 10 条生动、贴合其个性的小红书笔记内容。每条需体现评论区互动、作者回复、点赞收藏、话题标签、图文 / 短视频配图、好友可见、屏蔽用户、@好友提醒、发布时间、笔记置顶、合集收录、私信催更等小红书平台功能。',
@@ -29,7 +29,6 @@ const HTML_EXAMPLES = [
   '设计一个暗黑系角色资料卡页面，主角是"**"，职业是刑侦队长，冷色调背景，顶部一张人物卡片带数据面板（战斗力 92、智谋 98、亲和 30），下方是三段角色小传，字体用衬线体，整体氛围冷峻克制。',
   '帮我做一个极简黑白风个人博客首页，顶部是我的名字「**」和一句话简介"****"，中间列出五篇文章标题和发布日期，hover 时标题有下划线动画，底部放三个社交图标。',
   '做一个情人节表白页，玫瑰色渐变背景，中间一行大字"***，嫁给我好不好"，下方两个按钮"好"和"再想想"，点"再想想"会让按钮跑开，点"好"出现漫天爱心动画。',
-  '做一个复古终端风格的倒计时页面，黑底绿字，顶部用打字机效果显示"距离我们重逢还有"，下方是一个大号倒计时（到 2026 年 1 月 1 日零点），字体用等宽字体，光标闪烁。',
   '做一个 CP 纪念页，标题"我们的第 100 天"，顶部放三张占位图（用灰色方块代替），每张图下写一句短日记，整体用奶油色背景 + 米白卡片，手写体中文字体，有翻页按钮切换不同月份。',
   '做一个同人社团主页，社团名"***"，顶部是社团 logo 占位和一句宣言"写给所有热爱故事的人"，中间是四张成员卡片（昵称、擅长类型、代表作），底部是招新按钮，整体用水墨中国风。',
   '做一个角色扮演打卡页，主角是"你今天扮演的自己"，顶部一个大标题"Day 42"，中间三个打卡区块：今日心情、今日台词、今日小剧场，每个区块配一个表情 emoji 和一句引导语，背景用浅粉渐变。'
@@ -142,20 +141,6 @@ const RECENT_MSG_MAX_CHARS = 8000;     // 最近消息拼接上限（调高到 8
 const SUMMARY_MAX_CHARS_FOR_HTML = 8000; // 摘要注入上限（调高到 8000 字，基本上不截断）
 const CONTEXT_BLOCK_MAX_CHARS = 16000; // 整个参考资料分区硬上限（调高到 16000 字）
 
-/**
- * 判断一条消息是否是 HTML 生成相关的消息（避免把 HTML 代码块污染回 HTML 指令）。
- */
-function isHtmlRelatedMessage(m) {
-  if (!m) return false;
-  if (m.role === 'user' && m.htmlModeRequest === true) return true;
-  if (m.role === 'assistant' && m.htmlGeneration) return true;
-  // 兜底：content 里整段都是 ```html ... ``` 的也视为 HTML 历史
-  if (m.role === 'assistant' && typeof m.content === 'string') {
-    const trimmed = m.content.trim();
-    if (/^```html[\s\S]*```$/i.test(trimmed)) return true;
-  }
-  return false;
-}
 
 function truncateAtBoundary(text, maxChars) {
   if (!text) return '';
