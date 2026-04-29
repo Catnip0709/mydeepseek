@@ -16,6 +16,7 @@ import {
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
 import { callLLM, createChunkInactivityGuard, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { renderMarkdown } from './markdown.js';
+import { enhanceHtmlCodeBlocks } from './html-preview.js';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
   hideEmptyChatHint, hideReplyBar, showReplyBar
@@ -840,6 +841,7 @@ export function renderChat() {
   }
 
   rebindChatButtons();
+  enhanceHtmlCodeBlocks();
 
   // 仅在用户原本就在底部时才自动滚到底
   if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
