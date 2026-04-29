@@ -1357,6 +1357,21 @@ export async function saveEditAndRegenerate() {
       saveTabs();
       coreCall('markStoryArchiveStale', editingTabId);
     }
+    
+    // 如果编辑的是一个 HTML 模式生成的 user 消息，重定向到 HTML 分支
+    if (messagesToKeep[editIdx]?.htmlModeRequest) {
+      try {
+        const { sendHtmlGenerationMessage } = await import('./htmlmode.js');
+        // 由于是编辑 user 消息，重生成的是后面紧跟着的 assistant 消息，这与普通的 sendMessage 不同。
+        // 不过由于前面的代码直接把 user 消息之后的全部切掉了（messagesToKeep 只有前面一半），
+        // 等价于发了一条新消息，所以我们直接当新消息发送即可。
+        await sendHtmlGenerationMessage({ tabId: editingTabId, userText: newContent, fromEdit: true });
+        return;
+      } catch (err) {
+        console.error('重载 HTML 模式生成异常:', err);
+      }
+    }
+    
     await fetchAndStreamResponse({ tabId: editingTabId });
   }
 }
@@ -1396,6 +1411,17 @@ export function regenerateResponse(messageIndex) {
   const targetMessage = currentMsgs[messageIndex];
   if (targetMessage.role !== 'assistant') return alert("只能重新生成AI的回复。");
   if (targetMessage.id) removeFavoritesForMessageIds(regenTabId, [targetMessage.id], { silent: true });
+
+  // 识别 HTML 模式消息并重定向到专门通道
+  if (targetMessage.htmlGeneration) {
+    import('./htmlmode.js').then(({ sendHtmlGenerationMessage }) => {
+      sendHtmlGenerationMessage({ tabId: regenTabId, regenerateIndex: messageIndex });
+    }).catch(err => {
+      console.error('重载 HTML 模式生成异常:', err);
+      fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
+    });
+    return;
+  }
 
   fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
 }

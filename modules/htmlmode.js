@@ -20,6 +20,7 @@ import { showToast } from './panels.js';
 
 // 指令示例池：写死 10 条，弹框每次只展示一条
 const HTML_EXAMPLES = [
+  '请根据char的性格特点，创作10条生动、贴合其个性的朋友圈内容。每条需体现人物评论、回复、点赞、视频、配图、屏蔽、提醒、时间等朋友圈功能。',
   '做一个仿微博个人主页，用户名叫***，头像用深色剪影，简介写"***"，再生成三条伪装成他本人发的微博，配一点图标和点赞数。',
   '做一张"***与***的电子结婚证"，红金配色，上方"婚姻登记证"五个大字，中间两位的名字和登记日期 2025.10.07，下方贴一段两人的恋爱寄语，整体要有 90 年代红本本的复古质感。',
   '设计一个暗黑系角色资料卡页面，主角是"**"，职业是刑侦队长，冷色调背景，顶部一张人物卡片带数据面板（战斗力 92、智谋 98、亲和 30），下方是三段角色小传，字体用衬线体，整体氛围冷峻克制。',
@@ -480,22 +481,50 @@ function removeGeneratingBubble(tabId) {
  * @param {string} opts.tabId            - 锁定的目标 tab id
  * @param {string} opts.userText         - 用户原始输入
  */
-export async function sendHtmlGenerationMessage({ tabId, userText }) {
+export async function sendHtmlGenerationMessage({ tabId, userText, regenerateIndex, fromEdit }) {
   const tab = state.tabData.list[tabId];
   if (!tab) return;
 
-  // push user 消息
   const currentMsgs = tab.messages || [];
-  currentMsgs.push({
-    id: generateMessageId(),
-    role: 'user',
-    content: userText,
-    htmlModeRequest: true
-  });
+  let assistantId = generateMessageId();
+  let actualUserText = userText;
+
+  if (regenerateIndex !== undefined) {
+    // 重新生成：保留之前的消息（除了当前的 assistantMsg）
+    // 但我们需要拿到对应的 userText
+    const targetMsg = currentMsgs[regenerateIndex];
+    if (targetMsg && targetMsg.role === 'assistant') {
+      assistantId = targetMsg.id || assistantId;
+      // 往前找最近的 user 消息
+      for (let i = regenerateIndex - 1; i >= 0; i--) {
+        if (currentMsgs[i].role === 'user') {
+          actualUserText = currentMsgs[i].content;
+          break;
+        }
+      }
+      
+      // 在 history 中增加 generating 状态
+      if (!targetMsg.history) {
+        targetMsg.history = [{ content: targetMsg.content, reasoningContent: targetMsg.reasoningContent || "", state: targetMsg.generationState || 'complete' }];
+        targetMsg.historyIndex = 0;
+      }
+      targetMsg.history.push({ content: "", reasoningContent: "", state: "generating" });
+      targetMsg.historyIndex = targetMsg.history.length - 1;
+      targetMsg.content = "";
+      targetMsg.generationState = "generating";
+    }
+  } else if (!fromEdit) {
+    // 正常发送：push user 消息
+    currentMsgs.push({
+      id: generateMessageId(),
+      role: 'user',
+      content: userText,
+      htmlModeRequest: true
+    });
+  }
+  
   tab.messages = currentMsgs;
   saveTabs();
-
-  const assistantId = generateMessageId();
 
   // 在 DOM 里渲染 user 消息 + 生成中气泡（loading 气泡用 tab 维度固定 id，自愈重建）
   if (state.tabData.active === tabId) {
@@ -542,13 +571,44 @@ export async function sendHtmlGenerationMessage({ tabId, userText }) {
   }
 
   const userPayload = storyContext
-    ? `【本次指令】\n${userText}\n\n---\n【用户创作背景（仅供填充网页内文本，不要影响页面结构/配色/布局）】\n${storyContext}`
-    : userText;
+    ? `【本次指令】\n${actualUserText}\n\n---\n【用户创作背景（仅供填充网页内文本，不要影响页面结构/配色/布局）】\n${storyContext}`
+    : actualUserText;
 
   const payloadMsgs = [
-    { role: 'system', content: HTML_MODE_SYSTEM_PROMPT },
-    { role: 'user', content: userPayload }
+    { role: 'system', content: HTML_MODE_SYSTEM_PROMPT }
   ];
+
+  // 支持多轮网页修改：将最近一次 HTML 对话带入（不带入所有，避免 token 爆炸）
+  // 在当前 user 消息之前的消息中，寻找最近的一对 htmlModeRequest -> htmlGeneration
+  let lastHtmlUser = null;
+  let lastHtmlAssistant = null;
+  // regenerateIndex 存在时，当前消息索引是 regenerateIndex，我们要找它前面的。
+  // 不存在时，当前 user 消息已经在数组最后了（或者 fromEdit 为 true 也是最后），往前找即可。
+  const searchEndIndex = regenerateIndex !== undefined ? regenerateIndex - 1 : currentMsgs.length - 2;
+  
+  for (let i = searchEndIndex; i >= 0; i--) {
+    const msg = currentMsgs[i];
+    if (msg.role === 'assistant' && msg.htmlGeneration && msg.content) {
+      lastHtmlAssistant = msg;
+      // 接着往前找它的 user 消息
+      for (let j = i - 1; j >= 0; j--) {
+        if (currentMsgs[j].role === 'user' && currentMsgs[j].htmlModeRequest) {
+          lastHtmlUser = currentMsgs[j];
+          break;
+        }
+      }
+      break;
+    }
+  }
+
+  if (lastHtmlUser && lastHtmlAssistant) {
+    payloadMsgs.push({ role: 'user', content: lastHtmlUser.content });
+    // 传递上一次的 HTML，为了防止代码带前缀后缀，我们最好清理一下
+    const cleanOldHtml = sanitizeHtmlOutput(lastHtmlAssistant.content);
+    payloadMsgs.push({ role: 'assistant', content: cleanOldHtml ? `\`\`\`html\n${cleanOldHtml}\n\`\`\`` : lastHtmlAssistant.content });
+  }
+
+  payloadMsgs.push({ role: 'user', content: userPayload });
 
   let finalContent = '';
   let finishReason = null;
@@ -637,9 +697,27 @@ export async function sendHtmlGenerationMessage({ tabId, userText }) {
     historyIndex: 0
   };
 
-  // 插入到 messages 里
+  // 插入或更新 messages 里
   const msgs = lockedTab.messages || [];
-  msgs.push(assistantMsg);
+  if (regenerateIndex !== undefined) {
+    const targetMsg = msgs[regenerateIndex];
+    if (targetMsg) {
+      targetMsg.content = assistantMsg.content;
+      targetMsg.reasoningContent = assistantMsg.reasoningContent;
+      targetMsg.generationState = assistantMsg.generationState;
+      targetMsg.htmlGeneration = assistantMsg.htmlGeneration;
+      
+      // 更新 history 中最后一个记录
+      if (targetMsg.history && targetMsg.history.length > 0) {
+        const lastHist = targetMsg.history[targetMsg.history.length - 1];
+        lastHist.content = assistantMsg.content;
+        lastHist.reasoningContent = assistantMsg.reasoningContent;
+        lastHist.state = assistantMsg.generationState;
+      }
+    }
+  } else {
+    msgs.push(assistantMsg);
+  }
   lockedTab.messages = msgs;
   saveTabs();
 
