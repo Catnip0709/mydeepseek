@@ -12,15 +12,53 @@ import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
 import { renderMarkdown } from './markdown.js';
 import { call as coreCall } from './core.js';
-import { GROUPCHAT_TOOLS_FULL } from './tools.js';
+import { GROUPCHAT_TOOLS_STABLE } from './tools.js';
 import { groupchatToolExecutor } from './agent.js';
 
 import { isHtmlRelatedMessage } from './utils.js';
 
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
-const GROUPCHAT_MAX_ROUNDS = 10;
+const GROUPCHAT_MAX_ROUNDS = 30;
 const GROUPCHAT_MAX_SENTENCES = 6;
 const GROUPCHAT_AGENT_MAX_TOKENS = 3072;
+
+function escapeRegex(str = '') {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getMentionedCharacters(text, characters = []) {
+  const source = String(text || '');
+  if (!source.trim()) return [];
+  return characters.filter(char => {
+    const name = String(char?.name || '').trim();
+    if (!name) return false;
+    return new RegExp(escapeRegex(name), 'i').test(source);
+  });
+}
+
+function inferAgentParticipantPlan(userMessage, characters) {
+  const text = String(userMessage || '');
+  const mentionedCharacters = getMentionedCharacters(text, characters);
+  const mentionedCount = mentionedCharacters.length;
+  const singleScenePattern = /(只有我和|只有咱们|只剩下我和|私下对话|私底下单独|单独聊聊|独处|房间里只剩|回到房间后只剩|悄悄说|悄悄告诉|单线交流|只有我们两个人)/i;
+  const publicScenePattern = /(大家|你们|所有人|众人|全员|一起|都在场|围观|起哄|争执|吵|对峙|会议|讨论|商量|任务|审判|七嘴八舌|同时看向|纷纷)/i;
+  const clearlySingle = singleScenePattern.test(text);
+  const allowExpansion = !clearlySingle && (publicScenePattern.test(text) || mentionedCount >= 3 || characters.length >= 4);
+  const minParticipants = clearlySingle ? 1 : Math.min(2, characters.length);
+  const softTargetParticipants = clearlySingle
+    ? 1
+    : allowExpansion
+      ? Math.min(Math.max(3, mentionedCount || 3), Math.min(4, characters.length))
+      : Math.min(2, characters.length);
+
+  return {
+    minParticipants,
+    softTargetParticipants,
+    allowExpansion,
+    clearlySingle,
+    mentionedCharacterIds: mentionedCharacters.map(char => char.id)
+  };
+}
 
 // ========== Step 1: 路由判断 ==========
 
@@ -315,6 +353,7 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
   const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, reasoningEffort, thinkingType, groupContext, tabId, replyInfo } = options;
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
   const allReplies = [];
+  const participantPlan = inferAgentParticipantPlan(userMessage, characters);
   const replyTargetCharacter = replyInfo?.characterId
     ? characters.find(c => c.id === replyInfo.characterId) || null
     : null;
@@ -383,25 +422,28 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 3. 回复自然口语化，像真人聊天，不要像背台词；dialogue 里不要加引号，动作由 action 字段提供，最终会渲染成全角括号格式
 4. 口头禅偶尔使用即可，不要刻意堆砌
 5. 如果用户消息暗示了某些角色不在场，不在场的角色不能发言
-6. 如果用户正在回复某个特定角色，该角色必须发言；若你已知被回复角色是谁，则第一条 character_reply 必须来自该角色
-7. 默认让 2 个以上角色参与回复，营造群聊氛围；只有明确是私聊/独处/用户只点名某一个角色时，才让 1 个角色回复
-8. 如果场景是私下对话、用户只点名某一个角色、或场景上只有少数角色在场，可以只让 1 个角色回复
-9. 角色之间应该有互动（一个角色说完后，相关角色可以回应、追问、吐槽或补充），不要各说各的
-10. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 0-1 条简短 narrate 串联气氛
-11. 不要连续使用 narrate，也不要写成长篇旁白
-12. 不要重复其他角色已经说过的话
-13. character_reply 的字段职责必须严格分离：
+6. 如果用户正在回复某个特定角色，该角色必须发言；若你已知被回复角色是谁，则第一条 character_reply 必须来自该角色。注意：这只决定谁先说，不等于整轮只能由一个角色完成回应
+7. 本轮最低参与人数是 ${participantPlan.minParticipants} 个不同角色；在达到这个人数之前，不要过早结束
+8. 本轮理想参与人数是 ${participantPlan.softTargetParticipants} 个不同角色；若场景存在围观、争执、多人共同任务、多人都与话题强相关等情况，可自然扩张到这个范围
+9. 只有在明确私聊/独处/其他角色明显不在场时，才允许只由 1 个角色完成回应；只是点名或引用某个角色，不自动视为单人场景
+10. 达到最低人数后，也不要机械收尾；如果仍有明显自然接话者，就继续让相关角色回应、追问、吐槽或补充
+11. 不要为了凑人数让无关角色硬插话；但也不要让第一个角色说完就停
+12. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 0-1 条简短 narrate 串联气氛
+13. 不要连续使用 narrate，也不要写成长篇旁白
+14. search_conversation 和 query_story_archive 仅在当前注入上下文不足、确实需要补查旧信息时才调用，不要先手滥用检索工具抢占轮次
+15. 不要重复其他角色已经说过的话
+16. character_reply 的字段职责必须严格分离：
    - dialogue：只写角色真正说出口的台词
    - action：只写动作、神态、视线变化、停顿等舞台说明
    - 不要把动作、神态、心理描写混进 dialogue
-14. 错误示例：
+17. 错误示例：
    - dialogue: "慕容紫英眸光微凝，指尖收紧了几分。这封印确实古怪。"
    - action: ""
-15. 正确示例：
+18. 正确示例：
    - dialogue: "这封印确实古怪。"
    - action: "眸光微凝，指尖收紧了几分"
-16. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。
-17. 最终显示格式应尽量接近：
+19. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。
+20. 最终显示格式应尽量接近：
    - （眸光微凝，指尖收紧了几分）
    - 这封印确实古怪。`;
 
@@ -458,10 +500,101 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     return true;
   }
 
+  async function emitSupplementReply(character) {
+    if (!character || signal?.aborted) return false;
+    const idx = characters.indexOf(character);
+    if (idx < 0) return false;
+
+    if (onCharacterStart) onCharacterStart(character, idx);
+
+    let reply;
+    try {
+      reply = await generateCharacterReply(character, userMessage, history, characters, {
+        signal,
+        model: model || state.selectedModel,
+        groupContext,
+        llmTimeoutOptions,
+        stream: !!onCharacterChunk,
+        onChunk: onCharacterChunk ? (chunk) => onCharacterChunk(character, idx, chunk) : null,
+        currentRoundReplies: allReplies
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') return false;
+      throw e;
+    }
+
+    const content = typeof reply === 'string' ? reply : reply.content;
+    const finalContent = limitSentences(formatRoleplayReply(content || ''), GROUPCHAT_MAX_SENTENCES);
+    if (!finalContent) return false;
+
+    allReplies.push({
+      characterId: character.id,
+      characterName: character.name,
+      content: finalContent
+    });
+
+    if (onCharacterEnd) onCharacterEnd(character, idx, finalContent);
+    return true;
+  }
+
+  async function ensureMinimumParticipants() {
+    if (signal?.aborted || participantPlan.minParticipants <= 1) return;
+    const spokenIds = new Set(allReplies.filter(reply => !reply.isNarration).map(reply => reply.characterId));
+    if (spokenIds.size >= participantPlan.minParticipants) return;
+
+    let candidateIndices = [];
+    try {
+      candidateIndices = await routeMessageByLLM(userMessage, characters, history, signal, null, llmTimeoutOptions);
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      throw e;
+    }
+
+    const orderedCandidates = candidateIndices
+      .map(idx => characters[idx])
+      .filter(Boolean);
+    const mentionedCandidates = characters.filter(char => participantPlan.mentionedCharacterIds.includes(char.id));
+    const followUpCandidates = [];
+    const fallbackCandidates = characters.filter(char => char && !spokenIds.has(char.id));
+    const latestReplies = allReplies.filter(reply => !reply.isNarration).slice(-2);
+
+    for (const character of characters) {
+      if (!character || spokenIds.has(character.id)) continue;
+      const speakCount = allReplies.filter(reply => reply.characterId === character.id).length;
+      if (speakCount >= GROUPCHAT_MAX_SPEAKS_PER_CHARACTER) continue;
+      try {
+        const needFollow = latestReplies.length > 0
+          ? await shouldFollowUp(latestReplies, character, userMessage, speakCount, signal, llmTimeoutOptions)
+          : false;
+        if (needFollow) followUpCandidates.push(character);
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        throw e;
+      }
+    }
+
+    const candidatePools = [orderedCandidates, mentionedCandidates, followUpCandidates, fallbackCandidates];
+    const attemptedIds = new Set();
+
+    for (const pool of candidatePools) {
+      for (const candidate of pool) {
+        if (spokenIds.size >= participantPlan.minParticipants) break;
+        if (!candidate || spokenIds.has(candidate.id) || attemptedIds.has(candidate.id)) continue;
+        attemptedIds.add(candidate.id);
+        const speakCount = allReplies.filter(reply => reply.characterId === candidate.id).length;
+        if (speakCount >= GROUPCHAT_MAX_SPEAKS_PER_CHARACTER) continue;
+
+        const appended = await emitSupplementReply(candidate);
+        if (appended) spokenIds.add(candidate.id);
+      }
+      if (spokenIds.size >= participantPlan.minParticipants) break;
+    }
+  }
+
   try {
     const result = await callLLMAgent({
       messages,
-      tools: GROUPCHAT_TOOLS_FULL,
+      tools: GROUPCHAT_TOOLS_STABLE,
       toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
       maxRounds: GROUPCHAT_MAX_ROUNDS,
       toolChoice: 'required',
@@ -519,6 +652,8 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       allReplies.length = 0;
       return await orchestrateGroupChat(userMessage, characters, history, options);
     }
+
+    await ensureMinimumParticipants();
 
   } catch (e) {
     if (e.name === 'AbortError') return allReplies;

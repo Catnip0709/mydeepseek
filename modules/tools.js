@@ -175,14 +175,12 @@ export const TOOL_GET_ALL_CHARACTERS = {
 };
 
 /**
- * 群聊可用的全部工具（含增强工具）
+ * 群聊稳妥版工具集：
+ * 保留发言能力和必要的长程检索，移除容易抢轮次的冗余查询工具。
  */
-export const GROUPCHAT_TOOLS_FULL = [
+export const GROUPCHAT_TOOLS_STABLE = [
   TOOL_CHARACTER_REPLY,
   TOOL_NARRATE,
   TOOL_SEARCH_CONVERSATION,
-  TOOL_GET_ALL_CHARACTERS,
-  TOOL_QUERY_ARCHIVE,
-  TOOL_GET_CHARACTER_INFO,
-  TOOL_GET_SUMMARY
+  TOOL_QUERY_ARCHIVE
 ];
