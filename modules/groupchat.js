@@ -20,7 +20,7 @@ import { isHtmlRelatedMessage } from './utils.js';
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
 const GROUPCHAT_MAX_ROUNDS = 30;
 const GROUPCHAT_MAX_SENTENCES = 6;
-const GROUPCHAT_AGENT_MAX_TOKENS = 3072;
+const GROUPCHAT_AGENT_MAX_TOKENS = 4096;
 
 function escapeRegex(str = '') {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -445,7 +445,8 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 19. 如果没有动作，就让 action 为空；不要为了省事把动作写进 dialogue。
 20. 最终显示格式应尽量接近：
    - （眸光微凝，指尖收紧了几分）
-   - 这封印确实古怪。`;
+   - 这封印确实古怪。
+21. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },

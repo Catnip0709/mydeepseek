@@ -499,6 +499,14 @@ export async function callLLMAgent({
 
     // 模型没有请求工具调用 → 返回最终文字
     if (!toolCalls || toolCalls.length === 0) {
+      // toolChoice='required' 时，模型不应返回空 tool_calls。
+      // 如果还有剩余轮次，把模型的文字作为 assistant 消息追加后重试，
+      // 避免因模型"偷懒"输出文字而非 tool_call 导致 Agent 循环过早终止。
+      if (toolChoice === 'required' && rounds < maxRounds - 1 && content) {
+        msgs.push({ role: 'assistant', content });
+        rounds++;
+        continue;
+      }
       return { content, reasoningContent, toolCallLog };
     }
 
