@@ -45,13 +45,25 @@ export function groupchatToolExecutor(name, args, context = {}) {
 
       replyTracker[character.id] = speakCount + 1;
 
+      // 构建当前编排状态摘要，帮助模型决策后续角色是否需要发言
+      const spokenChars = characters.filter(c => (replyTracker[c.id] || 0) > 0);
+      const silentChars = characters.filter(c => !(replyTracker[c.id] || 0));
+      const statusSummary = spokenChars.map(c => `${c.name}(${replyTracker[c.id]}次)`).join('、');
+      const silentHint = silentChars.length > 0
+        ? `\n尚未发言的角色：${silentChars.map(c => c.name).join('、')}`
+        : '\n所有角色均已发言。';
+
       return JSON.stringify({
         success: true,
         character_id: character.id,
         character_name: character.name,
         dialogue,
         action: String(args.action || '').trim(),
-        emotion: String(args.emotion || '').trim()
+        emotion: String(args.emotion || '').trim(),
+        orchestration_status: {
+          spoken: statusSummary,
+          silent: silentHint
+        }
       });
     }
 

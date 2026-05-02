@@ -44,12 +44,12 @@ function inferAgentParticipantPlan(userMessage, characters) {
   const publicScenePattern = /(大家|你们|所有人|众人|全员|一起|都在场|围观|起哄|争执|吵|对峙|会议|讨论|商量|任务|审判|七嘴八舌|同时看向|纷纷)/i;
   const clearlySingle = singleScenePattern.test(text);
   const allowExpansion = !clearlySingle && (publicScenePattern.test(text) || mentionedCount >= 3 || characters.length >= 4);
-  const minParticipants = clearlySingle ? 1 : Math.min(2, characters.length);
+  const minParticipants = clearlySingle ? 1 : Math.min(3, characters.length);
   const softTargetParticipants = clearlySingle
     ? 1
     : allowExpansion
       ? Math.min(Math.max(3, mentionedCount || 3), Math.min(4, characters.length))
-      : Math.min(2, characters.length);
+      : Math.min(3, characters.length);
 
   return {
     minParticipants,
@@ -219,13 +219,14 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
       content: `你判断群聊中一个角色是否需要对其他角色的发言做出回应。
 只回答"是"或"否"，不要输出其他内容。
 判断标准：
-- 默认先看“你是否会自然接话”，不要过度保守
+- 默认倾向于接话，除非有明确理由不接
 - 如果用户消息暗示了某些角色不在场（如"只有我和XX"、"私下对话"、"回到房间"等），不在场的角色必须回答"否"
 - 如果对方的话直接点名你、质疑你、提到你、或者与你产生明显互动，优先回答"是"
 - 如果当前话题与你强相关、你会自然插嘴、补充信息能推进气氛或剧情，也可以回答"是"
-- 如果对方的话只是普通闲聊、你已经表达过类似观点、或者话题与你关系很弱，回答"否"
+- 如果话题与你完全无关，或者你已经在本轮表达过类似观点，可以回答"否"
 - 如果场景是私密的或你不在场，即使话题与你相关也回答"否"
-- 避免无意义附和，但允许自然的短接话、吐槽、追问、补充`
+- 允许自然的短接话、吐槽、追问、补充，不要过于保守
+- 你是群聊中的活跃成员，倾向于参与讨论而不是保持沉默`
     },
     {
       role: "user",
@@ -237,7 +238,7 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
     }
   ];
 
-  const result = await callLLM({ model: state.selectedModel, messages, temperature: 0.3, maxTokens: 10, signal, ...llmTimeoutOptions });
+  const result = await callLLM({ model: state.selectedModel, messages, temperature: 0.5, maxTokens: 10, signal, ...llmTimeoutOptions });
   const resultText = typeof result === 'string' ? result : (result?.content || '');
   return resultText.trim().includes('是');
 }
@@ -446,7 +447,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 20. 最终显示格式应尽量接近：
    - （眸光微凝，指尖收紧了几分）
    - 这封印确实古怪。
-21. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。`;
+21. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。
+22. 每次 character_reply 返回结果中会包含 orchestration_status 字段，告诉你哪些角色已发言、哪些尚未发言。你必须根据这个状态判断是否需要继续让其他角色说话。只要还有未发言的角色且场景允许，就应该继续调用 character_reply，绝对不要在只有一个角色发言后就停止编排。
+23. 编排结束的唯一条件是：所有应该发言的角色都已经说过话，或者达到了最低参与人数且没有明显的自然接话者。不要自行"总结"或"宣布结束"——直接停止调用工具即可，系统会自动结束编排。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -543,38 +546,12 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     const spokenIds = new Set(allReplies.filter(reply => !reply.isNarration).map(reply => reply.characterId));
     if (spokenIds.size >= participantPlan.minParticipants) return;
 
-    let candidateIndices = [];
-    try {
-      candidateIndices = await routeMessageByLLM(userMessage, characters, history, signal, null, llmTimeoutOptions);
-    } catch (e) {
-      if (e.name === 'AbortError') return;
-      throw e;
-    }
+    // 优先让所有未发言的角色都有机会补充
+    const silentChars = characters.filter(char => !spokenIds.has(char.id));
+    const mentionedChars = characters.filter(char => participantPlan.mentionedCharacterIds.includes(char.id) && !spokenIds.has(char.id));
 
-    const orderedCandidates = candidateIndices
-      .map(idx => characters[idx])
-      .filter(Boolean);
-    const mentionedCandidates = characters.filter(char => participantPlan.mentionedCharacterIds.includes(char.id));
-    const followUpCandidates = [];
-    const fallbackCandidates = characters.filter(char => char && !spokenIds.has(char.id));
-    const latestReplies = allReplies.filter(reply => !reply.isNarration).slice(-2);
-
-    for (const character of characters) {
-      if (!character || spokenIds.has(character.id)) continue;
-      const speakCount = allReplies.filter(reply => reply.characterId === character.id).length;
-      if (speakCount >= GROUPCHAT_MAX_SPEAKS_PER_CHARACTER) continue;
-      try {
-        const needFollow = latestReplies.length > 0
-          ? await shouldFollowUp(latestReplies, character, userMessage, speakCount, signal, llmTimeoutOptions)
-          : false;
-        if (needFollow) followUpCandidates.push(character);
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        throw e;
-      }
-    }
-
-    const candidatePools = [orderedCandidates, mentionedCandidates, followUpCandidates, fallbackCandidates];
+    // 按优先级排序：被提到的 > 可能接话的 > 所有未发言的
+    const candidatePools = [mentionedChars, silentChars];
     const attemptedIds = new Set();
 
     for (const pool of candidatePools) {
