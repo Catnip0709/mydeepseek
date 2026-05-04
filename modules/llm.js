@@ -102,6 +102,13 @@ export async function callLLM({
   let res;
   const allowReasoning = thinkingType === 'enabled';
 
+  const isDeepSeekV4 = model.startsWith('deepseek-v4');
+  const isDeepSeekReasoner = model === 'deepseek-reasoner';
+  const needsThinkingDisable = (isDeepSeekV4 || isDeepSeekReasoner) && tools;
+
+  const effectiveThinkingType = needsThinkingDisable ? 'disabled' : thinkingType;
+  const effectiveReasoningEffort = needsThinkingDisable ? null : reasoningEffort;
+
   try {
     const bodyPayload = {
       model,
@@ -110,8 +117,8 @@ export async function callLLM({
       temperature,
       max_tokens: maxTokens,
       ...(tools ? { tools, tool_choice: toolChoice } : {}),
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-      ...(thinkingType ? { thinking: { type: thinkingType } } : {})
+      ...(effectiveReasoningEffort ? { reasoning_effort: effectiveReasoningEffort } : {}),
+      ...(effectiveThinkingType ? { thinking: { type: effectiveThinkingType } } : {})
     };
     res = await fetch("https://api.deepseek.com/v1/chat/completions", {
       method: "POST",

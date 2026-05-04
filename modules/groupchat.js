@@ -103,10 +103,10 @@ async function routeMessageByLLM(userMessage, characters, history, signal, reply
   ];
 
   const result = await callLLMJSON({ model: state.selectedModel, messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
-  if (!result || !Array.isArray(result)) return [0];
+  if (!result || !Array.isArray(result)) return characters.map((_, i) => i);
 
   const indices = result.map(n => parseInt(n) - 1).filter(n => n >= 0 && n < characters.length);
-  return indices.length > 0 ? indices : [0];
+  return indices.length > 0 ? indices : characters.map((_, i) => i);
 }
 
 // ========== Step 2: 角色回答生成 ==========
@@ -577,8 +577,6 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       maxRounds: GROUPCHAT_MAX_ROUNDS,
       toolChoice: 'required',
       model: model || state.selectedModel,
-      reasoningEffort,
-      thinkingType,
       temperature: 0.8,
       // 导演只需要产出 tool_calls（而不是长篇文字），maxTokens 太大会让模型“想很久/写很长”才出手。
       // 下调上限可以明显降低首条输出延迟与 token 消耗。
