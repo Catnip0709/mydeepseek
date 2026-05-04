@@ -48,7 +48,7 @@ export const TOOL_NARRATE = {
   type: 'function',
   function: {
     name: 'narrate',
-    description: '以旁白/叙述者身份描写场景、环境变化、动作细节。适合用于场景切换、人物动作衔接、多人沉默对视或气氛变化时串联剧情，保持简短，不要滥用。',
+    description: '以旁白/叙述者身份描写场景、环境变化、NPC动作细节。适合用于场景切换、人物动作衔接、多人沉默对视或气氛变化时串联剧情，保持简短，不要滥用。绝对不能替用户说话、描述用户的动作、心理或反应——用户是真人，由自己决定说什么做什么，旁白无权替用户行动。',
     parameters: {
       type: 'object',
       properties: {
