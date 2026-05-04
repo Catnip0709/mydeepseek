@@ -21,7 +21,7 @@ import { call as coreCall } from './core.js';
  * @returns {string} 工具执行结果
  */
 export function groupchatToolExecutor(name, args, context = {}) {
-  const { characters = [], replyTracker = {}, messages = [], tabId } = context;
+  const { characters = [], replyTracker = {}, narrateCount = { value: 0 }, messages = [], tabId } = context;
 
   switch (name) {
     case 'character_reply': {
@@ -72,6 +72,12 @@ export function groupchatToolExecutor(name, args, context = {}) {
       if (!content) {
         return JSON.stringify({ success: false, error: '缺少 content' });
       }
+
+      if (narrateCount.value >= 2) {
+        return JSON.stringify({ success: false, error: '旁白次数已达上限（每次编排最多2条旁白），请改用 character_reply 让角色发言' });
+      }
+
+      narrateCount.value++;
 
       return JSON.stringify({
         success: true,

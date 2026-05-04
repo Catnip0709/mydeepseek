@@ -462,7 +462,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
   ];
 
   // 执行上下文：传给 toolExecutor
-  const executorContext = { characters, replyTracker, messages: history, tabId, replyInfo };
+  const executorContext = { characters, replyTracker, narrateCount: { value: 0 }, messages: history, tabId, replyInfo };
 
   function emitToolReply(name, parsed) {
     let character;
