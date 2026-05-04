@@ -538,21 +538,15 @@ export async function callLLMAgent({
       });
     }
 
+    const hasFinishCall = toolCalls.some(tc => tc.function?.name === 'finish');
+    if (hasFinishCall) {
+      return { content: '', reasoningContent: '', toolCallLog };
+    }
+
     rounds++;
   }
 
-  // 超过最大轮数，最后调一次让模型总结（不传 tools，强制文字输出）
-  const final = await callLLM({
-    ...callLLMOptions,
-    messages: msgs,
-    tools: null
-  });
-
-  return {
-    content: typeof final === 'string' ? final : (final?.content || ''),
-    reasoningContent: final?.reasoningContent || '',
-    toolCallLog
-  };
+  return { content: '', reasoningContent: '', toolCallLog };
 }
 
 // ========== HTML 自动续写 ==========

@@ -185,6 +185,11 @@ export function groupchatToolExecutor(name, args, context = {}) {
       return JSON.stringify({ success: true, summary });
     }
 
+    case 'finish': {
+      if (context.finishRequested) context.finishRequested.value = true;
+      return JSON.stringify({ success: true, message: '编排已结束' });
+    }
+
     default:
       return JSON.stringify({ success: false, error: `未知工具: ${name}` });
   }

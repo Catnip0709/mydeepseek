@@ -174,6 +174,19 @@ export const TOOL_GET_ALL_CHARACTERS = {
   }
 };
 
+export const TOOL_FINISH = {
+  type: 'function',
+  function: {
+    name: 'finish',
+    description: '编排结束信号。当你认为所有应该发言的角色都已经说过话、场景已经自然收束时，调用此工具来结束编排。这是唯一正确的退出方式，不要试图通过不调用工具来结束编排。',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  }
+};
+
 /**
  * 群聊稳妥版工具集：
  * 保留发言能力和必要的长程检索，移除容易抢轮次的冗余查询工具。
@@ -182,5 +195,6 @@ export const GROUPCHAT_TOOLS_STABLE = [
   TOOL_CHARACTER_REPLY,
   TOOL_NARRATE,
   TOOL_SEARCH_CONVERSATION,
-  TOOL_QUERY_ARCHIVE
+  TOOL_QUERY_ARCHIVE,
+  TOOL_FINISH
 ];

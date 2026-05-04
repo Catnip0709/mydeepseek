@@ -450,7 +450,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
    - 这封印确实古怪。
 22. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。
 23. 每次 character_reply 返回结果中会包含 orchestration_status 字段，告诉你哪些角色已发言、哪些尚未发言。你必须根据这个状态判断是否需要继续让其他角色说话。只要还有未发言的角色且场景允许，就应该继续调用 character_reply，绝对不要在只有一个角色发言后就停止编排。
-24. 编排结束的唯一条件是：所有应该发言的角色都已经说过话，或者达到了最低参与人数且没有明显的自然接话者。不要自行"总结"或"宣布结束"——直接停止调用工具即可，系统会自动结束编排。`;
+24. 当所有应该发言的角色都已经说过话、场景已经自然收束时，你必须调用 finish 工具来结束编排。finish 是唯一正确的退出方式，不要试图通过不调用工具来结束——因为系统要求每轮必须调用工具，不调用工具会导致循环无法终止。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
