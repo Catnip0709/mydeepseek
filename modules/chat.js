@@ -14,7 +14,7 @@ import {
   isTokenLimitReached, isStorageFull
 } from './storage.js';
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
-import { callLLM, createChunkInactivityGuard, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
+import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { renderMarkdown } from './markdown.js';
 import { enhanceHtmlCodeBlocks } from './html-preview.js';
 import {
@@ -1314,6 +1314,31 @@ export async function fetchAndStreamResponse(opts = {}) {
     lockedTab.messages = currentMsgs;
     saveTabs();
     coreCall('markStoryArchiveStale', lockedTabId);
+
+    // 外语角色：异步翻译并更新消息内容
+    if (lockedTab.type === 'single-character' && lockedTab.characterId && fState === 'complete') {
+      const char = coreCall('getCharacterById', lockedTab.characterId);
+      const charLang = char?.replyLanguage || 'zh-CN';
+      if (charLang !== 'zh-CN' && fullContent) {
+        const targetMsgId = currentMsgs[isRegen ? targetIndex : currentMsgs.length - 1]?.id;
+        const rawContent = fullContent;
+        translateText(rawContent, charLang, { characterName: char.name, characterStyle: char.speakingStyle })
+          .then(translated => {
+            if (!translated) return;
+            const currentTab = state.tabData.list[lockedTabId];
+            if (!currentTab) return;
+            const msgIdx = currentMsgs.findIndex(m => m.id === targetMsgId);
+            if (msgIdx < 0) return;
+            const bilingualContent = `${translated}\n----------------\n${rawContent}`;
+            currentMsgs[msgIdx].content = bilingualContent;
+            currentMsgs[msgIdx].history[currentMsgs[msgIdx].historyIndex].content = bilingualContent;
+            saveTabs();
+            if (state.tabData.active === lockedTabId) renderChat();
+          })
+          .catch(e => { console.warn('[单聊翻译失败]', e.message); });
+      }
+    }
+
     // 仅当结果仍属于当前 active tab 时才刷 DOM，避免切走后污染其他 tab 的渲染
     if (state.tabData.active === lockedTabId) {
       renderChat();

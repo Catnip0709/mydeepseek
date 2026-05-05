@@ -7,7 +7,7 @@
 
 import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
 import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId, formatRoleplayReply } from './utils.js';
-import { callLLM, callLLMJSON, callLLMAgent, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
+import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
 import { renderMarkdown } from './markdown.js';
@@ -21,6 +21,18 @@ const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
 const GROUPCHAT_MAX_ROUNDS = 30;
 const GROUPCHAT_MAX_SENTENCES = 6;
 const GROUPCHAT_AGENT_MAX_TOKENS = 4096;
+
+// 双语内容限制句数：只对中文部分限制，外语部分跟随
+function limitBilingualContent(text, max) {
+  if (!text) return text;
+  if (!text.includes('----------------')) return limitSentences(text, max);
+  const [foreign, ...cnParts] = text.split('\n----------------\n');
+  const cn = cnParts.join('\n----------------\n');
+  const limitedCn = limitSentences(cn, max);
+  if (limitedCn === cn) return text;
+  const limitedForeign = limitSentences(foreign, max);
+  return `${limitedForeign}\n----------------\n${limitedCn}`;
+}
 
 function escapeRegex(str = '') {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -164,10 +176,11 @@ export async function generateCharacterReply(character, userMessage, history, al
 2. 保持角色一致性，不要出戏
 3. 回复自然口语化，像真人聊天，不要像背台词
 4. 最多说6句话，宁可多给一点有信息量的回应，也不要只敷衍一句
-5. 如果有动作、神态、视线、停顿等描写，请单独放在前一行，并使用全角括号包裹，例如：` + '\n（抬眸看了她一眼）' + `\n下一行再写真正说出口的台词
+5. 如果有动作、神态、视线、停顿等描写，请单独放在前一行，使用全角括号包裹，例如：\n（抬眸看了她一眼）\n下一行再写真正说出口的台词
 6. 不要重复其他角色已经说过的话，要给出新的回应
 7. 口头禅偶尔使用即可，不要每句话都带，更不要生硬插入
-8. 注意场景设定：如果用户描述了某些角色不在场，你不在场时不要发言`
+8. 注意场景设定：如果用户描述了某些角色不在场，你不在场时不要发言
+9. 统一使用简体中文输出，不要使用任何外语`
     },
     {
       role: "user",
@@ -282,8 +295,20 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
       throw e;
     }
 
-    const content = typeof reply === 'string' ? reply : reply.content;
-    allReplies.push({ characterId: character.id, characterName: character.name, content: limitSentences(content || '', GROUPCHAT_MAX_SENTENCES) });
+    let content = typeof reply === 'string' ? reply : reply.content;
+    // 外语角色：翻译后拼接双语格式
+    const charLang = character.replyLanguage || 'zh-CN';
+    if (charLang !== 'zh-CN' && content) {
+      try {
+        const translated = await translateText(content, charLang, { signal, characterName: character.name, characterStyle: character.speakingStyle });
+        if (translated) {
+          content = `${translated}\n----------------\n${content}`;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') break;
+      }
+    }
+    allReplies.push({ characterId: character.id, characterName: character.name, content: limitBilingualContent(content || '', GROUPCHAT_MAX_SENTENCES) });
 
     if (onCharacterEnd) onCharacterEnd(character, idx, content);
   }
@@ -328,8 +353,20 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
             throw e;
           }
 
-          const content = typeof reply === 'string' ? reply : reply.content;
-          allReplies.push({ characterId: otherChar.id, characterName: otherChar.name, content: limitSentences(content || '', GROUPCHAT_MAX_SENTENCES) });
+          let content = typeof reply === 'string' ? reply : reply.content;
+          // 外语角色：翻译后拼接双语格式
+          const otherLang = otherChar.replyLanguage || 'zh-CN';
+          if (otherLang !== 'zh-CN' && content) {
+            try {
+              const translated = await translateText(content, otherLang, { signal, characterName: otherChar.name, characterStyle: otherChar.speakingStyle });
+              if (translated) {
+                content = `${translated}\n----------------\n${content}`;
+              }
+            } catch (e) {
+              if (e.name === 'AbortError') break;
+            }
+          }
+          allReplies.push({ characterId: otherChar.id, characterName: otherChar.name, content: limitBilingualContent(content || '', GROUPCHAT_MAX_SENTENCES) });
 
           if (onCharacterEnd) onCharacterEnd(otherChar, characters.indexOf(otherChar), content);
           anyoneSpoke = true;
@@ -363,11 +400,14 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
   let replyTargetSatisfied = !replyTargetId;
   const bufferedRepliesBeforeTarget = [];
 
-  function formatAction(action) {
+  function formatAction(action, replyLang) {
     const text = String(action || '').trim();
     if (!text) return '';
     if ((text.startsWith('（') && text.endsWith('）')) || (text.startsWith('(') && text.endsWith(')'))) {
       return text;
+    }
+    if (replyLang && replyLang !== 'zh-CN') {
+      return `(${text})`;
     }
     return `（${text}）`;
   }
@@ -384,6 +424,7 @@ export async function orchestrateGroupChatAgent(userMessage, characters, history
     if (c.catchphrases?.length) parts.push(`口头禅：${c.catchphrases.join('、')}`);
     return parts.join('\n');
   }).join('\n\n');
+
 
   // 群聊背景信息
   const userRoleInfo = groupContext?.userRoleName
@@ -420,7 +461,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 规则：
 1. 所有可见输出都必须通过 character_reply 或 narrate 工具产生，不要在 assistant content 里直接输出角色台词、旁白、解释或总结
 2. 每个角色在本次用户输入触发的整次编排中最多发言 3 次
-3. 回复自然口语化，像真人聊天，不要像背台词；dialogue 里不要加引号，动作由 action 字段提供，最终会渲染成全角括号格式
+3. 回复自然口语化，像真人聊天，不要像背台词；dialogue 里不要加引号，动作由 action 字段提供，最终会渲染成括号格式
 4. 口头禅偶尔使用即可，不要刻意堆砌
 5. 如果用户消息暗示了某些角色不在场，不在场的角色不能发言
 6. 如果用户正在回复某个特定角色，该角色必须发言；若你已知被回复角色是谁，则第一条 character_reply 必须来自该角色。注意：这只决定谁先说，不等于整轮只能由一个角色完成回应
@@ -429,7 +470,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 9. 只有在明确私聊/独处/其他角色明显不在场时，才允许只由 1 个角色完成回应；只是点名或引用某个角色，不自动视为单人场景
 10. 达到最低人数后，也不要机械收尾；如果仍有明显自然接话者，就继续让相关角色回应、追问、吐槽或补充
 11. 不要为了凑人数让无关角色硬插话；但也不要让第一个角色说完就停
-12. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 0-1 条简短 narrate 串联气氛
+12. 当场景切换、人物动作衔接、多人沉默/对视、气氛变化明显时，可以穿插 1-2 条简短 narrate 串联气氛，但每次编排最多 2 条 narrate
 13. 不要连续使用 narrate，也不要写成长篇旁白
 14. narrate 绝对不能替用户说话、描述用户的动作、心理或反应——用户是真人，由自己决定说什么做什么，旁白无权替用户行动
 15. search_conversation 和 query_story_archive 仅在当前注入上下文不足、确实需要补查旧信息时才调用，不要先手滥用检索工具抢占轮次
@@ -448,9 +489,10 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 21. 最终显示格式应尽量接近：
    - （眸光微凝，指尖收紧了几分）
    - 这封印确实古怪。
-22. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。
-23. 每次 character_reply 返回结果中会包含 orchestration_status 字段，告诉你哪些角色已发言、哪些尚未发言。你必须根据这个状态判断是否需要继续让其他角色说话。只要还有未发言的角色且场景允许，就应该继续调用 character_reply，绝对不要在只有一个角色发言后就停止编排。
-24. 当所有应该发言的角色都已经说过话、场景已经自然收束时，你必须调用 finish 工具来结束编排。finish 是唯一正确的退出方式，不要试图通过不调用工具来结束——因为系统要求每轮必须调用工具，不调用工具会导致循环无法终止。`;
+22. 所有角色统一使用简体中文输出 dialogue 和 action，不要使用任何外语。系统会在需要时自动将中文翻译为目标语言，你只需专注于中文角色扮演。
+23. 你可以在一次响应中同时调用多个 character_reply（parallel tool calls），让多个角色一起回复，而不是每次只让一个角色说话。例如：如果 3 个角色都应该回应，就在同一轮中发出 3 个 character_reply 调用。这样可以大幅提升群聊的自然感和效率。
+24. 每次 character_reply 返回结果中会包含 orchestration_status 字段，告诉你哪些角色已发言、哪些尚未发言。你必须根据这个状态判断是否需要继续让其他角色说话。只要还有未发言的角色且场景允许，就应该继续调用 character_reply，绝对不要在只有一个角色发言后就停止编排。
+25. 当所有应该发言的角色都已经说过话、场景已经自然收束时，你必须调用 finish 工具来结束编排。finish 是唯一正确的退出方式，不要试图通过不调用工具来结束——因为系统要求每轮必须调用工具，不调用工具会导致循环无法终止。`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -463,9 +505,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
   ];
 
   // 执行上下文：传给 toolExecutor
-  const executorContext = { characters, replyTracker, narrateCount: { value: 0 }, messages: history, tabId, replyInfo };
+  const executorContext = { characters, replyTracker, narrateCount: { value: 0 }, messages: history, tabId };
 
-  function emitToolReply(name, parsed) {
+  async function emitToolReply(name, parsed) {
     let character;
     let idx;
     let fullContent = '';
@@ -474,12 +516,40 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       character = characters.find(c => c.id === parsed.character_id);
       if (!character) return false;
       idx = characters.indexOf(character);
-      const content = parsed.dialogue || '';
-      const action = formatAction(parsed.action);
-      fullContent = formatRoleplayReply([action, content].filter(Boolean).join('\n'));
+      const replyLang = character.replyLanguage || 'zh-CN';
+      const dialogue = parsed.dialogue || '';
+      const action = parsed.action || '';
+
+      if (replyLang !== 'zh-CN') {
+        // 外语角色：中文内容 + 调翻译 API 得到外语 → 拼接双语格式
+        const cnParts = [];
+        if (action) cnParts.push(formatAction(action, 'zh-CN'));
+        if (dialogue) cnParts.push(dialogue);
+
+        try {
+          const [translatedAction, translatedDialogue] = await Promise.all([
+            action ? translateText(action, replyLang, { signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve(''),
+            dialogue ? translateText(dialogue, replyLang, { signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve('')
+          ]);
+
+          const foreignParts = [];
+          if (translatedAction) foreignParts.push(formatAction(translatedAction, replyLang));
+          if (translatedDialogue) foreignParts.push(translatedDialogue);
+
+          const combined = [...foreignParts, '----------------', ...cnParts].join('\n');
+          fullContent = formatRoleplayReply(combined);
+        } catch (e) {
+          if (e.name === 'AbortError') throw e;
+          console.warn('[翻译失败，回退中文]', e.message);
+          fullContent = formatRoleplayReply(cnParts.join('\n'));
+        }
+      } else {
+        // 中文角色：直接渲染
+        const formattedAction = formatAction(action, 'zh-CN');
+        fullContent = formatRoleplayReply([formattedAction, dialogue].filter(Boolean).join('\n'));
+      }
     } else {
-      // narrate 不再吞掉：落成一条“旁白”消息，便于用户感知 Agent 正在做事。
-      // 使用伪角色对象复用现有渲染/存储链路，但打上 isNarration 标记，避免显示“回复”按钮。
+      // narrate
       character = { id: '__narrator__', name: '旁白', isNarration: true };
       idx = -1;
       fullContent = formatRoleplayReply(String(parsed.content || '').trim());
@@ -489,7 +559,6 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
     if (onCharacterStart) onCharacterStart(character, idx);
 
-    // Agent 模式下工具调用是同步返回的（非流式），直接渲染完整内容
     if (onCharacterChunk) {
       onCharacterChunk(character, idx, { content: fullContent, fullContent });
     }
@@ -497,7 +566,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     allReplies.push({
       characterId: character.id,
       characterName: character.name,
-      content: limitSentences(fullContent, GROUPCHAT_MAX_SENTENCES),
+      content: limitBilingualContent(fullContent, GROUPCHAT_MAX_SENTENCES),
       isNarration: !!character.isNarration
     });
 
@@ -528,8 +597,20 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       throw e;
     }
 
-    const content = typeof reply === 'string' ? reply : reply.content;
-    const finalContent = limitSentences(formatRoleplayReply(content || ''), GROUPCHAT_MAX_SENTENCES);
+    let content = typeof reply === 'string' ? reply : reply.content;
+    // 外语角色：翻译后拼接双语格式
+    const charLang = character.replyLanguage || 'zh-CN';
+    if (charLang !== 'zh-CN' && content) {
+      try {
+        const translated = await translateText(content, charLang, { signal, characterName: character.name, characterStyle: character.speakingStyle });
+        if (translated) {
+          content = `${translated}\n----------------\n${content}`;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') return false;
+      }
+    }
+    const finalContent = limitBilingualContent(content || '', GROUPCHAT_MAX_SENTENCES);
     if (!finalContent) return false;
 
     allReplies.push({
@@ -586,7 +667,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       signal,
       chunkTimeoutMs: llmTimeoutOptions.chunkTimeoutMs || 0,
       onTimeout: llmTimeoutOptions.onTimeout || null,
-      onToolCall(name, args, resultStr) {
+      async onToolCall(name, args, resultStr) {
         // 工具调用回调：处理 character_reply / narrate，创建 DOM 并渲染
         if (name !== 'character_reply' && name !== 'narrate') return;
 
@@ -601,15 +682,16 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
             return;
           }
           replyTargetSatisfied = true;
-          emitToolReply(name, parsed);
+          await emitToolReply(name, parsed);
           while (bufferedRepliesBeforeTarget.length > 0) {
+            if (signal?.aborted) break;
             const buffered = bufferedRepliesBeforeTarget.shift();
-            emitToolReply(buffered.name, buffered.parsed);
+            await emitToolReply(buffered.name, buffered.parsed);
           }
           return;
         }
 
-        emitToolReply(name, parsed);
+        await emitToolReply(name, parsed);
       }
     });
 
@@ -617,6 +699,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       if (allReplies.length > 0) {
         return allReplies;
       }
+      console.warn('[Agent] replyTarget 未满足，fallback 到传统编排');
       if (onFallbackReset) onFallbackReset();
       allReplies.length = 0;
       return await orchestrateGroupChat(userMessage, characters, history, options);
@@ -625,6 +708,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     // 如果模型直接输出了文字（没用工具），作为旁白处理
     if (result.content && allReplies.length === 0) {
       // 模型没有调用任何工具，fallback 到传统编排
+      console.warn('[Agent] 模型未调用工具，fallback 到传统编排');
       if (onFallbackReset) onFallbackReset();
       allReplies.length = 0;
       return await orchestrateGroupChat(userMessage, characters, history, options);

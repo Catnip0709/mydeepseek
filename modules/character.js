@@ -33,6 +33,7 @@ export function createCharacter(data) {
     speakingStyle: data.speakingStyle || '',
     catchphrases: data.catchphrases || [],
     talkativeness: data.talkativeness ?? 0.8,
+    replyLanguage: data.replyLanguage || 'zh-CN',
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
@@ -174,6 +175,7 @@ export function showCharacterEditForm(char = null) {
   const characterEditTalkativeness = document.getElementById('characterEditTalkativeness');
   const characterEditTalkativenessVal = document.getElementById('characterEditTalkativenessVal');
   const characterEditBrief = document.getElementById('characterEditBrief');
+  const characterEditReplyLanguage = document.getElementById('characterEditReplyLanguage');
 
   characterEditPanel.classList.remove('hidden');
   if (char) {
@@ -189,6 +191,7 @@ export function showCharacterEditForm(char = null) {
     characterEditTalkativeness.value = talkVal;
     characterEditTalkativenessVal.textContent = talkVal.toFixed(1);
     characterEditBrief.value = '';
+    characterEditReplyLanguage.value = char.replyLanguage || 'zh-CN';
   } else {
     state.editingCharacterId = null;
     characterEditName.value = '';
@@ -201,6 +204,7 @@ export function showCharacterEditForm(char = null) {
     characterEditTalkativeness.value = 0.8;
     characterEditTalkativenessVal.textContent = '0.8';
     characterEditBrief.value = '';
+    characterEditReplyLanguage.value = 'zh-CN';
   }
   setTimeout(() => characterEditName.focus(), 50);
 }
@@ -264,6 +268,7 @@ export function saveCharacterForm() {
   const characterEditSpeakingStyle = document.getElementById('characterEditSpeakingStyle');
   const characterEditCatchphrases = document.getElementById('characterEditCatchphrases');
   const characterEditTalkativeness = document.getElementById('characterEditTalkativeness');
+  const characterEditReplyLanguage = document.getElementById('characterEditReplyLanguage');
 
   const name = characterEditName.value.trim();
   if (!name) { alert('请输入角色名字'); characterEditName.focus(); return; }
@@ -277,7 +282,8 @@ export function saveCharacterForm() {
     appearance: characterEditAppearance.value.trim(),
     speakingStyle: characterEditSpeakingStyle.value.trim(),
     catchphrases,
-    talkativeness: parseFloat(characterEditTalkativeness.value) ?? 0.8
+    talkativeness: parseFloat(characterEditTalkativeness.value) ?? 0.8,
+    replyLanguage: characterEditReplyLanguage.value || 'zh-CN'
   };
 
   if (state.editingCharacterId) {

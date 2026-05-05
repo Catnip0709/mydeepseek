@@ -264,6 +264,46 @@ export async function callLLM({
   }
 }
 
+// ========== 翻译函数 ==========
+
+const LANGUAGE_NAMES = { 'zh-CN': '简体中文', en: 'English', ja: '日本語', ko: '한국어', fr: 'Français', de: 'Deutsch', es: 'Español', ru: 'Русский' };
+
+/**
+ * 将中文文本翻译为目标语言。用于角色回复的外语翻译。
+ * @param {string} text - 要翻译的中文文本
+ * @param {string} targetLang - 目标语言代码（如 'en', 'ja'）
+ * @param {object} options - { signal, characterName, characterStyle }
+ * @returns {Promise<string>} 翻译后的文本
+ */
+export async function translateText(text, targetLang, options = {}) {
+  if (!text || targetLang === 'zh-CN') return text;
+  const { signal, characterName, characterStyle } = options;
+  const langName = LANGUAGE_NAMES[targetLang] || targetLang;
+  const styleHint = characterName
+    ? `\nThis is a line spoken by a character named "${characterName}"${characterStyle ? ` who speaks in a ${characterStyle} style` : ''}. Preserve their tone and personality in the translation.`
+    : '';
+
+  const messages = [
+    {
+      role: 'system',
+      content: `You are a translator. Translate the following Chinese text into ${langName}. Output ONLY the translation, nothing else. Do not add quotes, explanations, or formatting.${styleHint}`
+    },
+    { role: 'user', content: text }
+  ];
+
+  const result = await callLLM({
+    model: state.selectedModel || 'deepseek-chat',
+    messages,
+    stream: false,
+    temperature: 0.3,
+    maxTokens: 1024,
+    chunkTimeoutMs: 30000,
+    signal
+  });
+  const translated = (result?.content || '').trim();
+  return translated || text;
+}
+
 // ========== LLM JSON 调用封装 ==========
 
 export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
@@ -474,7 +514,7 @@ export async function callLLMAgent({
         toolCallLog.push({ toolCallId, name: funcName, args: funcArgs, result: resultStr });
         if (onToolCall) {
           try {
-            onToolCall(funcName, funcArgs, resultStr);
+            await onToolCall(funcName, funcArgs, resultStr);
           } catch (e) {
             console.warn('[Agent] onToolCall 回调执行失败:', e);
           }

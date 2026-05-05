@@ -11,6 +11,15 @@ import { escapeRegExp } from './utils.js';
 
 const _mdCache = new Map();
 const _MD_CACHE_MAX = 500;
+const _LANG_SEP_MARKER = '%%LANGSEP%%';
+
+function preprocessLangSeparator(text) {
+  return text.replace(/^-{3,}$/gm, _LANG_SEP_MARKER);
+}
+
+function postprocessLangSeparator(html) {
+  return html.replace(new RegExp(escapeRegExp(_LANG_SEP_MARKER), 'g'), '<span class="lang-sep"></span>');
+}
 
 // ========== Markdown 渲染 ==========
 
@@ -27,16 +36,20 @@ export function renderMarkdown(el, text, msgIndex, type) {
   // 搜索模式下不做缓存（高亮结果与 msgIndex/type 相关）
   let safeHtml;
   if (state.searchQuery) {
-    const textWithLineBreaks = text.replace(/\n/g, '  \n');
+    const preprocessed = preprocessLangSeparator(text);
+    const textWithLineBreaks = preprocessed.replace(/\n/g, '  \n');
     const rawHtml = marked.parse(textWithLineBreaks);
     safeHtml = DOMPurify.sanitize(rawHtml);
+    safeHtml = postprocessLangSeparator(safeHtml);
     safeHtml = addSearchHighlightToHtml(safeHtml, msgIndex, type);
   } else {
     let cached = _mdCache.get(text);
     if (!cached) {
-      const textWithLineBreaks = text.replace(/\n/g, '  \n');
+      const preprocessed = preprocessLangSeparator(text);
+      const textWithLineBreaks = preprocessed.replace(/\n/g, '  \n');
       const rawHtml = marked.parse(textWithLineBreaks);
       cached = DOMPurify.sanitize(rawHtml);
+      cached = postprocessLangSeparator(cached);
       _mdCache.set(text, cached);
       if (_mdCache.size > _MD_CACHE_MAX) {
         const firstKey = _mdCache.keys().next().value;

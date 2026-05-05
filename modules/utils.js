@@ -116,10 +116,11 @@ function isWrappedActionLine(line) {
   return /^（[\s\S]*）$/.test(line) || /^\([\s\S]*\)$/.test(line);
 }
 
-function normalizeActionLine(line) {
+function normalizeActionLine(line, keepHalfWidthParens) {
   const text = String(line || '').trim();
   if (!text) return '';
   if (/^\([\s\S]*\)$/.test(text)) {
+    if (keepHalfWidthParens) return text;
     return `（${text.slice(1, -1).trim()}）`;
   }
   return text;
@@ -139,7 +140,20 @@ export function formatRoleplayReply(text) {
   const rawLines = String(text).split(/\n+/).map(line => line.trim()).filter(Boolean);
   if (rawLines.length === 0) return '';
 
-  const lines = rawLines.map(normalizeActionLine);
+  const sepIdx = rawLines.findIndex(line => /^-{3,}$/.test(line));
+  if (sepIdx >= 0) {
+    const beforeSep = rawLines.slice(0, sepIdx).map(l => normalizeActionLine(l, true));
+    const afterSep = rawLines.slice(sepIdx + 1).map(l => normalizeActionLine(l, false));
+    if (beforeSep.length >= 1 && !isWrappedActionLine(beforeSep[0]) && looksLikeActionLine(beforeSep[0])) {
+      beforeSep[0] = `(${beforeSep[0]})`;
+    }
+    if (afterSep.length >= 1 && !isWrappedActionLine(afterSep[0]) && looksLikeActionLine(afterSep[0])) {
+      afterSep[0] = `（${afterSep[0]}）`;
+    }
+    return [...beforeSep, '----------------', ...afterSep].join('\n');
+  }
+
+  const lines = rawLines.map(l => normalizeActionLine(l, false));
   if (lines.length >= 2 && !isWrappedActionLine(lines[0]) && looksLikeActionLine(lines[0])) {
     lines[0] = `（${lines[0]}）`;
   }

@@ -771,6 +771,21 @@ body.search-active #emptyChatHint {
     .prose p:first-child { margin-top: 0; }
     .prose p:last-child { margin-bottom: 0; }
 
+    .lang-sep {
+      display: block;
+      text-align: center;
+      margin: 6px 0;
+      user-select: none;
+      opacity: 0.3;
+      letter-spacing: 2px;
+    }
+    .lang-sep::before {
+      content: '————';
+    }
+    body.day-mode .lang-sep {
+      opacity: 0.25;
+    }
+
     .panel-modal {
       position: fixed;
       inset: 0;
