@@ -7,6 +7,7 @@
 
 import { state } from './state.js';
 import { call as coreCall } from './core.js';
+import { containsForeignText } from './utils.js';
 
 /**
  * 群聊 toolExecutor：处理 character_reply、narrate、search_conversation、get_all_characters。
@@ -21,7 +22,7 @@ import { call as coreCall } from './core.js';
  * @returns {string} 工具执行结果
  */
 export function groupchatToolExecutor(name, args, context = {}) {
-  const { characters = [], replyTracker = {}, narrateCount = { value: 0 }, messages = [], tabId } = context;
+  const { characters = [], replyTracker = {}, narrateCount = { value: 0 }, messages = [], tabId, chineseRetryCount = {} } = context;
 
   switch (name) {
     case 'character_reply': {
@@ -35,6 +36,19 @@ export function groupchatToolExecutor(name, args, context = {}) {
       const character = characters.find(c => c.name === charName);
       if (!character) {
         return JSON.stringify({ success: false, error: `角色"${charName}"不在群聊中` });
+      }
+
+      // 中文强制检测：非中文内容拦截，最多重试 2 次
+      if (containsForeignText(dialogue) || containsForeignText(String(args.action || ''))) {
+        const retryKey = character.id;
+        chineseRetryCount[retryKey] = (chineseRetryCount[retryKey] || 0) + 1;
+        if (chineseRetryCount[retryKey] <= 2) {
+          return JSON.stringify({
+            success: false,
+            error: `违规：必须使用简体中文输出。你的回复中检测到非中文内容（第${chineseRetryCount[retryKey]}次）。请重新用中文填写 dialogue 和 action 字段，不要使用任何外语。`
+          });
+        }
+        // 第 3 次仍失败 → 放行，交给翻译兜底
       }
 
       // 检查发言次数限制（每角色在本次编排中最多 3 次）

@@ -110,6 +110,18 @@ export function limitSentences(text, maxSentences = 5) {
   return sentences.slice(0, maxSentences).join('');
 }
 
+// ========== 中文内容检测 ==========
+
+const PUNCT_AND_DIGIT_RE = /[\s\p{P}0-9（）()【】「」『』""''。，！？；：、·—～…]/gu;
+
+export function containsForeignText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const cleaned = text.replace(PUNCT_AND_DIGIT_RE, '');
+  if (cleaned.length < 5) return false;
+  const nonCjk = (cleaned.match(/[^\u4e00-\u9fff\u3400-\u4dbf]/g) || []);
+  return nonCjk.length / cleaned.length > 0.25;
+}
+
 // ========== 角色扮演动作格式化 ==========
 
 function isWrappedActionLine(line) {
