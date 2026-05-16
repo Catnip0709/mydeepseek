@@ -7,7 +7,8 @@
 import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, isV4Model } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
-  replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId, formatRoleplayReply
+  replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
+  formatRoleplayReply, getFriendlyApiErrorMessage
 } from './utils.js';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
@@ -1254,15 +1255,16 @@ export async function fetchAndStreamResponse(opts = {}) {
       markInterrupted();
       finalizeMessage(finalizeState);
     } else {
+      const friendlyMessage = getFriendlyApiErrorMessage(e);
       if (canLiveRender) {
         const contentDiv = aiMsgDiv.querySelector('.msg-content');
         if (contentDiv) {
-          contentDiv.innerHTML = `<span class="text-red-400">❌ 错误：${e.message}</span>`;
+          contentDiv.innerHTML = `<span class="text-red-400">❌ ${escapeHtml(friendlyMessage)}</span>`;
         }
       }
       console.error("发送消息错误：", e);
 
-      if (e.message.includes("API请求失败") || e.message.includes("Key")) {
+      if (friendlyMessage.includes("API Key")) {
         setTimeout(() => {
           if (confirm("检测到API Key可能无效，是否立即修改？")) {
             openSettingsPanel();

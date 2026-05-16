@@ -122,6 +122,62 @@ export function containsForeignText(text) {
   return nonCjk.length / cleaned.length > 0.25;
 }
 
+// ========== API 错误友好化 ==========
+
+export function getFriendlyApiErrorMessage(error) {
+  const rawMessage = String(error?.message || error || '').trim();
+  const msg = rawMessage.toLowerCase();
+
+  if (!rawMessage) return '请求失败，请稍后重试';
+  if (error?.name === 'AbortError') return '请求已取消';
+
+  if (/(api key|apikey|unauthorized|invalid.*key|authentication|401)/i.test(rawMessage)) {
+    return 'API Key 无效，请检查设置里的 DeepSeek API Key';
+  }
+
+  if (/(insufficient.*balance|balance.*insufficient|quota|余额|额度|payment|billing)/i.test(rawMessage)) {
+    return '账号余额不足或额度已用完，请前往 DeepSeek 控制台检查';
+  }
+
+  if (/(rate limit|too many requests|429|请求.*频繁)/i.test(rawMessage)) {
+    return '请求太频繁了，请稍等几秒再试';
+  }
+
+  if (/(context length|maximum context|token.*limit|tokens.*exceed|上下文|超出.*长度)/i.test(rawMessage)) {
+    return '这段对话太长了，请开启或刷新摘要，或新建对话再试';
+  }
+
+  if (/(model.*not found|model.*invalid|unsupported model|模型.*不可用|404)/i.test(rawMessage)) {
+    return '当前模型不可用，请在设置中切换模型';
+  }
+
+  if (/(tool_choice|tool call|function call|deepseek-reasoner.*support|does not support)/i.test(rawMessage)) {
+    return '当前模型暂不支持这个功能，请切换模型或稍后重试';
+  }
+
+  if (/(failed to fetch|networkerror|network error|load failed|连接失败|网络)/i.test(rawMessage)) {
+    return '网络连接失败，请检查网络或代理设置';
+  }
+
+  if (/(timeout|timed out|超时)/i.test(rawMessage)) {
+    return '请求超时，请稍后重试，或切换到快速模式';
+  }
+
+  if (/(500|502|503|504|server error|service unavailable|bad gateway|gateway timeout|overloaded)/i.test(rawMessage)) {
+    return '服务暂时不可用，请稍后重试';
+  }
+
+  if (/(invalid request|bad request|400|parameter|参数)/i.test(rawMessage)) {
+    return '请求参数异常，请刷新页面后重试';
+  }
+
+  if (msg.includes('api请求失败')) {
+    return '请求失败，请检查 API Key、账号余额或网络连接';
+  }
+
+  return '请求失败，请稍后重试；如持续出现，请检查 API Key、余额和网络';
+}
+
 // ========== 角色扮演动作格式化 ==========
 
 function isWrappedActionLine(line) {

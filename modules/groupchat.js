@@ -6,7 +6,10 @@
  */
 
 import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
-import { escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId, formatRoleplayReply } from './utils.js';
+import {
+  escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId,
+  formatRoleplayReply, getFriendlyApiErrorMessage
+} from './utils.js';
 import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
 import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
 import { showToast, closeSidebar, hideReplyBar } from './panels.js';
@@ -950,7 +953,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
         commitPendingReplies();
       }
       console.error('群聊发送错误:', e);
-      showToast('群聊发送失败：' + e.message);
+      showToast('群聊发送失败：' + getFriendlyApiErrorMessage(e));
     }
   } finally {
     removeTypingIndicator();
