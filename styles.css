@@ -71,19 +71,19 @@ body.search-active #emptyChatHint {
       justify-content: center;
     }
     .font-size-option[data-size="small"] {
-      font-size: 0.75rem;
+      font-size: 16px;
     }
     .font-size-option[data-size="smaller"] {
-      font-size: 0.875rem;
+      font-size: 17px;
     }
     .font-size-option[data-size="default"] {
-      font-size: 1rem;
+      font-size: 18px;
     }
     .font-size-option[data-size="larger"] {
-      font-size: 1.125rem;
+      font-size: 19px;
     }
     .font-size-option[data-size="large"] {
-      font-size: 1.25rem;
+      font-size: 20px;
     }
     .font-size-option:hover:not(.active) {
       border-color: #6b7280;
@@ -182,23 +182,23 @@ body.search-active #emptyChatHint {
     }
     body.font-size-small .msg-content,
     body.font-size-small .reasoning-content {
-      font-size: 0.875rem !important;
+      font-size: 16px !important;
     }
     body.font-size-smaller .msg-content,
     body.font-size-smaller .reasoning-content {
-      font-size: 0.9375rem !important;
+      font-size: 17px !important;
     }
     body.font-size-default .msg-content,
     body.font-size-default .reasoning-content {
-      font-size: 1rem !important;
+      font-size: 18px !important;
     }
     body.font-size-larger .msg-content,
     body.font-size-larger .reasoning-content {
-      font-size: 1.0625rem !important;
+      font-size: 19px !important;
     }
     body.font-size-large .msg-content,
     body.font-size-large .reasoning-content {
-      font-size: 1.125rem !important;
+      font-size: 20px !important;
     }
 
     #input {
