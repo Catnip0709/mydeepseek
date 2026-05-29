@@ -106,7 +106,8 @@ export function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
     txtContent += `--------------------------------------------------\n\n`;
   });
 
-  const blob = new Blob([txtContent], { type: "text/plain;charset=utf-8" });
+  // 添加 UTF-8 BOM，避免在中文 Windows 记事本等以 GBK/ANSI 默认编码打开时出现"锟斤拷"乱码
+  const blob = new Blob(["\uFEFF" + txtContent], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const modeSuffix = mode === 'ai_only' ? '_AI回复' : '';
   const reasoningSuffix = includeReasoning ? '' : '_不含思考';
