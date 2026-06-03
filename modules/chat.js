@@ -28,12 +28,25 @@ import { call as coreCall } from './core.js';
 // ========== 聊天区域事件绑定（事件委托） ==========
 
 let _chatEventsBound = false;
+let _streamAutoScrollLocked = false;
 const TEXT_ATTACHMENT_FULL_CHAR_LIMIT = 5000;
 const TEXT_ATTACHMENT_MAX_CHAR_LIMIT = 25000;
 
 function isChatNearBottom(chat, threshold = 80) {
   if (!chat) return false;
   return chat.scrollTop + chat.clientHeight >= chat.scrollHeight - threshold;
+}
+
+function resetStreamAutoScrollLock() {
+  _streamAutoScrollLocked = false;
+}
+
+function lockStreamAutoScrollByUser() {
+  if (state.isSending) _streamAutoScrollLocked = true;
+}
+
+function shouldAutoScrollDuringStream(chat) {
+  return !_streamAutoScrollLocked && isChatNearBottom(chat, 80);
 }
 
 function getChatScrollSnapshot(chat) {
@@ -1033,6 +1046,7 @@ export async function fetchAndStreamResponse(opts = {}) {
     abortReason: null,
     abortController: new AbortController()
   });
+  resetStreamAutoScrollLock();
   updateComposerPrimaryButtonState();
 
   const chunkGuard = createChunkInactivityGuard({
@@ -1235,7 +1249,7 @@ export async function fetchAndStreamResponse(opts = {}) {
             }
             fullReasoningContent += delta.reasoning_content;
             if (canLiveRender && reasoningContentDiv) {
-              const autoScroll = isChatNearBottom(chat, 80);
+              const autoScroll = shouldAutoScrollDuringStream(chat);
               renderMarkdown(reasoningContentDiv, fullReasoningContent);
               if (autoScroll) chat.scrollTop = chat.scrollHeight;
             }
@@ -1246,7 +1260,7 @@ export async function fetchAndStreamResponse(opts = {}) {
             if (canLiveRender) {
               const contentDiv = aiMsgDiv.querySelector('.msg-content');
               if (contentDiv) {
-                const autoScroll = isChatNearBottom(chat, 80);
+                const autoScroll = shouldAutoScrollDuringStream(chat);
                 renderMarkdown(contentDiv, fullContent);
                 if (autoScroll) chat.scrollTop = chat.scrollHeight;
               }
@@ -1526,6 +1540,7 @@ export function updateInputCounter() {
 export function scrollToBottom() {
   const chat = document.getElementById("chat");
   if (!chat) return;
+  resetStreamAutoScrollLock();
   chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
 }
 
@@ -1534,6 +1549,9 @@ export function checkScrollButton() {
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
   if (!chat || !scrollToBottomBtn) return;
   const distanceFromBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+  if (_streamAutoScrollLocked && distanceFromBottom <= 8) {
+    resetStreamAutoScrollLock();
+  }
   if (distanceFromBottom > 200) {
     scrollToBottomBtn.classList.add('visible');
   } else {
@@ -1678,7 +1696,11 @@ export function bindChatEvents() {
   if (editPanel) editPanel.addEventListener("click", function(e) { if (e.target === editPanel) cancelEdit(); });
 
   if (scrollToBottomBtn) scrollToBottomBtn.addEventListener("click", scrollToBottom);
-  if (chat) chat.addEventListener("scroll", checkScrollButton);
+  if (chat) {
+    chat.addEventListener("scroll", checkScrollButton);
+    chat.addEventListener("touchstart", lockStreamAutoScrollByUser, { passive: true });
+    chat.addEventListener("wheel", lockStreamAutoScrollByUser, { passive: true });
+  }
 
   if (typeof ResizeObserver !== 'undefined' && !_composerResizeObserver) {
     _composerResizeObserver = new ResizeObserver(() => {
