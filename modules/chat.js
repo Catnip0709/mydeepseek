@@ -31,6 +31,31 @@ let _chatEventsBound = false;
 const TEXT_ATTACHMENT_FULL_CHAR_LIMIT = 5000;
 const TEXT_ATTACHMENT_MAX_CHAR_LIMIT = 25000;
 
+function isChatNearBottom(chat, threshold = 80) {
+  if (!chat) return false;
+  return chat.scrollTop + chat.clientHeight >= chat.scrollHeight - threshold;
+}
+
+function getChatScrollSnapshot(chat) {
+  if (!chat) return null;
+  return {
+    scrollTop: chat.scrollTop,
+    scrollHeight: chat.scrollHeight,
+    clientHeight: chat.clientHeight,
+    wasNearBottom: isChatNearBottom(chat, 80)
+  };
+}
+
+function restoreChatScrollAfterRender(chat, snapshot) {
+  if (!chat || !snapshot) return;
+  if (snapshot.wasNearBottom) {
+    chat.scrollTop = chat.scrollHeight;
+    return;
+  }
+  const maxScrollTop = Math.max(0, chat.scrollHeight - chat.clientHeight);
+  chat.scrollTop = Math.min(snapshot.scrollTop, maxScrollTop);
+}
+
 function getTextAttachmentMode(charCount) {
   if (charCount <= 0) return 'empty';
   if (charCount <= TEXT_ATTACHMENT_FULL_CHAR_LIMIT) return 'full';
@@ -585,7 +610,11 @@ export function rebindChatButtons() {
 
 export function renderChat() {
   const chat = document.getElementById("chat");
+  if (!chat) return;
   const currentTab = state.tabData.list[state.tabData.active];
+  if (!currentTab) return;
+  const shouldPreserveScroll = chat.dataset.renderTabId === String(state.tabData.active);
+  const scrollSnapshot = shouldPreserveScroll ? getChatScrollSnapshot(chat) : null;
   const currentMsgs = currentTab.messages || [];
   const lastUserMsgIndex = getLastUserMessageIndex();
   const isGroupChat = currentTab.type === 'group';
@@ -595,6 +624,7 @@ export function renderChat() {
   coreCall('invalidateTabCache', state.tabData.active);
 
   chat.innerHTML = "";
+  chat.dataset.renderTabId = String(state.tabData.active);
 
   // 群聊头部：显示参与角色
   if (isGroupChat && currentTab.characterIds) {
@@ -844,10 +874,8 @@ export function renderChat() {
   rebindChatButtons();
   enhanceHtmlCodeBlocks();
 
-  // 仅在用户原本就在底部时才自动滚到底
-  if (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60) {
-    chat.scrollTop = chat.scrollHeight;
-  }
+  // 全量重绘会清空 #chat；同一 tab 内重绘时恢复用户上划后的视口，避免流式结束时跳动/空白。
+  restoreChatScrollAfterRender(chat, scrollSnapshot);
   setTimeout(checkScrollButton, 50);
 
   if (currentMsgs.length === 0) {
@@ -1207,7 +1235,9 @@ export async function fetchAndStreamResponse(opts = {}) {
             }
             fullReasoningContent += delta.reasoning_content;
             if (canLiveRender && reasoningContentDiv) {
+              const autoScroll = isChatNearBottom(chat, 80);
               renderMarkdown(reasoningContentDiv, fullReasoningContent);
+              if (autoScroll) chat.scrollTop = chat.scrollHeight;
             }
           }
 
@@ -1216,18 +1246,14 @@ export async function fetchAndStreamResponse(opts = {}) {
             if (canLiveRender) {
               const contentDiv = aiMsgDiv.querySelector('.msg-content');
               if (contentDiv) {
+                const autoScroll = isChatNearBottom(chat, 80);
                 renderMarkdown(contentDiv, fullContent);
+                if (autoScroll) chat.scrollTop = chat.scrollHeight;
               }
             }
           }
         } catch (e) {
           continue;
-        }
-
-        // 每处理完一个 chunk 后检查是否需要自动滚动（仅当 live render 仍有效时）
-        if (!liveRenderBroken) {
-          const currentIsAtBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 60;
-          if (currentIsAtBottom) chat.scrollTo({ top: chat.scrollHeight, behavior: 'instant' });
         }
       }
     }
@@ -1499,12 +1525,14 @@ export function updateInputCounter() {
 
 export function scrollToBottom() {
   const chat = document.getElementById("chat");
+  if (!chat) return;
   chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
 }
 
 export function checkScrollButton() {
   const chat = document.getElementById("chat");
   const scrollToBottomBtn = document.getElementById("scrollToBottomBtn");
+  if (!chat || !scrollToBottomBtn) return;
   const distanceFromBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
   if (distanceFromBottom > 200) {
     scrollToBottomBtn.classList.add('visible');

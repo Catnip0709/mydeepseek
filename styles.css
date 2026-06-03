@@ -49,6 +49,8 @@ body.search-active #emptyChatHint {
     * { -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
     #chat {
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+      overflow-anchor: none;
       scroll-behavior: smooth;
       transition: padding-bottom 0.22s cubic-bezier(0.22, 1, 0.36, 1);
     }
