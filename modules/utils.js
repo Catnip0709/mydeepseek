@@ -257,6 +257,9 @@ export const replyIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" 
 
 export const favoriteIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.75l2.86 5.79 6.39.93-4.62 4.5 1.09 6.36L12 17.32 6.28 20.33l1.09-6.36-4.62-4.5 6.39-.93L12 2.75z"></path></svg>`;
 
+// 扫帚图标：用于"释放历史版本"按钮
+export const cleanupIconSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M19.36 2.72l1.42 1.42-5.72 5.72-1.42-1.42z"></path><path d="M14.36 9.64l-2.83 2.83a2 2 0 0 0 0 2.83l1.41 1.41-4.24 4.24-2.83-2.83 4.24-4.24 1.41 1.41a2 2 0 0 0 2.83 0l2.83-2.83"></path><path d="M3 21l3-3"></path></svg>`;
+
 export function isHtmlRelatedMessage(m) {
   if (!m) return false;
   if (m.role === 'user' && m.htmlModeRequest === true) return true;

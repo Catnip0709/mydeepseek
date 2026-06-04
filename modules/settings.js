@@ -319,7 +319,13 @@ export function bindSettingsEvents() {
   // 存储警告
   if (storageWarningIcon) {
     storageWarningIcon.addEventListener('click', function() {
-      alert('当前聊天内容接近本地存储上限，请及时导出并清理过期会话。');
+      alert(
+        '当前聊天内容接近本地存储上限（5MB）。可以尝试以下方式释放空间：\n\n' +
+        '1. 在侧边栏点击会话右侧的「🧹」按钮，释放该会话中重新生成的旧版本（不删除当前回复，最轻量）；\n' +
+        '2. 导出重要会话后，删除不再需要的过期会话；\n' +
+        '3. 如果上传过较大的文本附件，可考虑删除带附件的旧消息。\n\n' +
+        '建议优先尝试第 1 项，通常能释放较多空间。'
+      );
     });
   }
 

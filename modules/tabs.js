@@ -4,9 +4,9 @@
  * 负责 Tab 的渲染、创建、切换、缓存和删除。
  */
 
-import { state, abortTabSending, clearTabSending } from './state.js';
-import { escapeHtml, editIconSvg, downloadIconSvg } from './utils.js';
-import { saveTabs, generateNewTabId, getTabDisplayName } from './storage.js';
+import { state, abortTabSending, clearTabSending, isTabSending } from './state.js';
+import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js';
+import { saveTabs, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js';
 import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint } from './panels.js';
 import { removeFavoritesForTab } from './favorites.js';
 import { call as coreCall } from './core.js';
@@ -66,12 +66,13 @@ export function renderTabs() {
       <span class="tab-title" title="${escapeHtml(getTabDisplayName(id))}">${escapeHtml(getTabDisplayName(id))}</span>
       <div class="tab-actions">
         <span class="tab-btn tab-rename" data-id="${id}" title="修改会话名称">${editIconSvg}</span>
+        <span class="tab-btn tab-cleanup" data-id="${id}" title="释放历史版本">${cleanupIconSvg}</span>
         <span class="tab-btn tab-export" data-id="${id}" title="导出对话">${downloadIconSvg}</span>
         <span class="tab-btn tab-del" data-id="${id}" title="删除对话">×</span>
       </div>
     `;
     tabDiv.addEventListener("click", (e) => {
-      if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename')) return;
+      if (e.target.closest('.tab-del') || e.target.closest('.tab-export') || e.target.closest('.tab-rename') || e.target.closest('.tab-cleanup')) return;
       // 缓存当前 tab 的 DOM
       setCachedTabHtml(state.tabData.active, chat.innerHTML);
       coreCall('clearPendingTextAttachment');
@@ -122,6 +123,15 @@ export function renderTabs() {
     });
   });
 
+  // 释放历史版本按钮
+  document.querySelectorAll(".tab-cleanup").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const cleanupId = btn.dataset.id;
+      handleCleanupTabHistoryVersions(cleanupId);
+    });
+  });
+
   // 删除按钮
   document.querySelectorAll(".tab-del").forEach(btn => {
     btn.addEventListener("click", (e) => {
@@ -154,6 +164,106 @@ export function renderTabs() {
       }
     });
   });
+}
+
+// ========== 释放历史版本 ==========
+
+// 扫描某个 tab：统计可释放的旧版本数量与字节数；不修改数据。
+function scanCleanupTabHistoryVersions(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab || !Array.isArray(tab.messages)) return { released: 0, bytesSaved: 0 };
+  let released = 0;
+  let bytesSaved = 0;
+  tab.messages.forEach(msg => {
+    if (!msg || msg.role !== 'assistant') return;
+    if (!Array.isArray(msg.history) || msg.history.length <= 1) return;
+    const idx = Number.isInteger(msg.historyIndex) ? msg.historyIndex : 0;
+    msg.history.forEach((v, i) => {
+      if (i === idx) return;
+      const c = (v && v.content) || '';
+      const r = (v && v.reasoningContent) || '';
+      bytesSaved += (c.length + r.length) * 2; // UTF-16
+      released += 1;
+    });
+  });
+  return { released, bytesSaved };
+}
+
+// 实际执行清理：保留每条 assistant 消息当前选中的版本，丢弃其它版本。
+function applyCleanupTabHistoryVersions(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab || !Array.isArray(tab.messages)) return { released: 0, bytesSaved: 0 };
+  let released = 0;
+  let bytesSaved = 0;
+  tab.messages.forEach(msg => {
+    if (!msg || msg.role !== 'assistant') return;
+    if (!Array.isArray(msg.history) || msg.history.length <= 1) return;
+    const idx = Number.isInteger(msg.historyIndex) ? msg.historyIndex : 0;
+    const safeIdx = Math.min(Math.max(idx, 0), msg.history.length - 1);
+    const keep = msg.history[safeIdx] || {
+      content: msg.content,
+      reasoningContent: msg.reasoningContent || '',
+      state: msg.generationState || 'complete'
+    };
+    msg.history.forEach((v, i) => {
+      if (i === safeIdx) return;
+      const c = (v && v.content) || '';
+      const r = (v && v.reasoningContent) || '';
+      bytesSaved += (c.length + r.length) * 2;
+      released += 1;
+    });
+    msg.history = [{
+      content: keep.content || '',
+      reasoningContent: keep.reasoningContent || '',
+      state: keep.state || 'complete'
+    }];
+    msg.historyIndex = 0;
+    msg.content = keep.content || '';
+    msg.reasoningContent = keep.reasoningContent || '';
+    msg.generationState = keep.state || 'complete';
+  });
+  return { released, bytesSaved };
+}
+
+function handleCleanupTabHistoryVersions(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab) return;
+
+  // 流式中：禁止清理（避免与 history.push({state:'generating'}) 竞态）
+  if (isTabSending(tabId)) {
+    showToast('该对话正在生成中，请稍后再释放历史版本');
+    return;
+  }
+
+  const { released, bytesSaved } = scanCleanupTabHistoryVersions(tabId);
+  if (released === 0) {
+    showToast('该对话没有可释放的历史版本');
+    return;
+  }
+
+  const name = getTabDisplayName(tabId);
+  const ok = confirm(
+    `对话「${name}」共有 ${released} 个旧版本可释放，预计可节省 约 ${formatBytes(bytesSaved)} 空间。\n` +
+    `释放后未选中的版本将永久删除，无法恢复。\n是否继续？`
+  );
+  if (!ok) return;
+
+  const result = applyCleanupTabHistoryVersions(tabId);
+  saveTabs();
+  // 立即落盘：避免防抖窗口内（300ms）用户刷新或关闭页面导致清理结果丢失
+  flushPendingSaveImmediately();
+  updateStorageUsage();
+
+  // 当前正在查看这个对话：刷新渲染（移除版本切换控件）
+  if (state.tabData.active === tabId) {
+    invalidateTabCache(tabId);
+    coreCall('renderChat');
+  } else {
+    // 非当前 tab：仅清掉它的缓存，下次切回时会重新渲染
+    invalidateTabCache(tabId);
+  }
+
+  showToast(`已释放 ${result.released} 个版本，节省 约 ${formatBytes(result.bytesSaved)}`);
 }
 
 // ========== Tab 事件绑定 ==========
