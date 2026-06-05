@@ -14,8 +14,85 @@
 
   
   <link rel="stylesheet" href="./styles.css">
-  <script src="./prompts.js"></script>
-  <script type="module" src="./modules/init.js?v=3"></script>
+  <script>
+  (function () {
+    function fail(reason) {
+      var target = './unsupported.html?reason=' + encodeURIComponent(reason || 'unknown');
+      if (window.location.replace) {
+        window.location.replace(target);
+      } else {
+        window.location.href = target;
+      }
+    }
+
+    function supportsSyntax(code) {
+      try {
+        new Function(code);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function supportsLocalStorage() {
+      try {
+        var key = '__mydeepseek_compat_test__';
+        window.localStorage.setItem(key, '1');
+        window.localStorage.removeItem(key);
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function loadScript(src, type, onload, onerrorReason) {
+      var script = document.createElement('script');
+      if (type) script.type = type;
+      script.src = src;
+      script.onload = onload || null;
+      script.onerror = function () {
+        fail(onerrorReason || 'script_load_failed');
+      };
+      document.head.appendChild(script);
+    }
+
+    function loadApp() {
+      loadScript('./prompts.js', '', function () {
+        loadScript('./modules/init.js?v=3', 'module', null, 'app_module_load_failed');
+      }, 'prompts_load_failed');
+    }
+
+    var checks = [
+      ['missing_addEventListener', !!window.addEventListener],
+      ['missing_querySelector', !!document.querySelector],
+      ['missing_classList', !!document.documentElement.classList],
+      ['missing_promise', !!window.Promise],
+      ['missing_fetch', !!window.fetch],
+      ['missing_url', !!window.URL],
+      ['missing_textdecoder', !!window.TextDecoder],
+      ['missing_abortcontroller', !!window.AbortController],
+      ['missing_readablestream', !!window.ReadableStream],
+      ['missing_stream_reader', !!(window.ReadableStream && ReadableStream.prototype && ReadableStream.prototype.getReader)],
+      ['localstorage_unavailable', supportsLocalStorage()],
+      ['unsupported_const_let', supportsSyntax('const a = 1; let b = 2; return a + b;')],
+      ['unsupported_optional_chaining', supportsSyntax('var a = {}; return a?.b;')],
+      ['unsupported_nullish_coalescing', supportsSyntax('var a = null; return a ?? 1;')],
+      ['unsupported_async_await', supportsSyntax('async function f(){ await Promise.resolve(1); }')],
+      ['unsupported_dynamic_import', supportsSyntax('return import("./modules/init.js");')],
+      ['unsupported_regex_lookbehind', supportsSyntax('return /(?<=a)b/.test("ab");')],
+      ['unsupported_unicode_property_escape', supportsSyntax('return /\\p{L}/u.test("a");')]
+    ];
+
+    for (var i = 0; i < checks.length; i++) {
+      if (!checks[i][1]) {
+        fail(checks[i][0]);
+        return;
+      }
+    }
+
+    loadApp();
+  })();
+  </script>
   </head>
 <body class="max-w-full mx-0 safe-area-bottom">
 

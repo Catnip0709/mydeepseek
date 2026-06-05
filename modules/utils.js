@@ -105,14 +105,14 @@ export function fallbackCopyText(text) {
 
 export function limitSentences(text, maxSentences = 5) {
   if (!text) return text;
-  const sentences = text.split(/(?<=[。！？.!?])/);
+  const sentences = text.match(/[^。！？.!?]+[。！？.!?]?/g) || [];
   if (sentences.length <= maxSentences) return text;
   return sentences.slice(0, maxSentences).join('');
 }
 
 // ========== 中文内容检测 ==========
 
-const PUNCT_AND_DIGIT_RE = /[\s\p{P}0-9（）()【】「」『』""''。，！？；：、·—～…]/gu;
+const PUNCT_AND_DIGIT_RE = /[\s0-9!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~（）【】「」『』""''。，！？；：、·—～…]/g;
 
 export function containsForeignText(text) {
   if (!text || typeof text !== 'string') return false;

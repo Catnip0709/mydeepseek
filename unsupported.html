@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="format-detection" content="telephone=no">
+  <title>浏览器不兼容 - My DeepSeek</title>
+  <style>
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #050505;
+      color: #f5f5f7;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 430px;
+      padding: 28px 22px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 22px;
+      background: #111;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      text-align: left;
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      font-size: 22px;
+      line-height: 1.35;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: #b8b8c0;
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .reason {
+      margin: 16px 0;
+      padding: 12px;
+      border-radius: 12px;
+      background: #1f2937;
+      color: #d1d5db;
+      font-size: 13px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .actions {
+      margin-top: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    a,
+    button {
+      appearance: none;
+      -webkit-appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 11px 14px;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .secondary {
+      background: #2a2a2a;
+      color: #e5e7eb;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>当前浏览器暂不支持 My DeepSeek</h1>
+
+    <p>
+      你的浏览器版本可能较旧，或当前处于无痕/隐私模式，导致页面需要的功能无法正常运行。
+    </p>
+
+    <p>
+      建议升级 iOS 系统，或使用最新版 Safari / Chrome 重新访问。如果你正在使用 UC 浏览器，可以尝试切换到系统 Safari 普通模式。
+    </p>
+
+    <div class="reason">
+      检测结果：<span id="reasonText">unknown</span>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="retryBtn">重新检测</button>
+      <a class="secondary" href="./index.html">返回首页</a>
+    </div>
+  </main>
+
+  <script>
+  (function () {
+    function getReason() {
+      var query = window.location.search || '';
+      var match = query.match(/[?&]reason=([^&]+)/);
+      if (!match) return 'unknown';
+
+      try {
+        return decodeURIComponent(match[1]);
+      } catch (e) {
+        return match[1];
+      }
+    }
+
+    var reasonMap = {
+      missing_addEventListener: '浏览器缺少基础事件能力',
+      missing_querySelector: '浏览器缺少 querySelector 支持',
+      missing_classList: '浏览器缺少 classList 支持',
+      missing_promise: '浏览器缺少 Promise 支持',
+      missing_fetch: '浏览器缺少 fetch 支持',
+      missing_url: '浏览器缺少 URL 支持',
+      missing_textdecoder: '浏览器缺少 TextDecoder 支持',
+      missing_abortcontroller: '浏览器缺少 AbortController 支持',
+      missing_readablestream: '浏览器缺少 ReadableStream 支持',
+      missing_stream_reader: '浏览器不支持流式响应读取',
+      localstorage_unavailable: '浏览器本地存储不可用，可能处于隐私/无痕模式',
+      unsupported_const_let: '浏览器不支持现代变量声明语法',
+      unsupported_optional_chaining: '浏览器不支持可选链语法',
+      unsupported_nullish_coalescing: '浏览器不支持空值合并语法',
+      unsupported_async_await: '浏览器不支持 async/await',
+      unsupported_dynamic_import: '浏览器不支持动态模块加载',
+      unsupported_regex_lookbehind: '浏览器不支持正则后行断言',
+      unsupported_unicode_property_escape: '浏览器不支持 Unicode 正则属性转义',
+      prompts_load_failed: '指令数据加载失败',
+      app_module_load_failed: '应用主模块加载失败',
+      script_load_failed: '页面脚本加载失败'
+    };
+
+    var reason = getReason();
+    var text = reasonMap[reason] || reason;
+    var reasonText = document.getElementById('reasonText');
+    var retryBtn = document.getElementById('retryBtn');
+
+    if (reasonText) {
+      reasonText.innerHTML = text + '（' + reason + '）';
+    }
+
+    if (retryBtn) {
+      retryBtn.onclick = function () {
+        window.location.href = './index.html';
+      };
+    }
+  })();
+  </script>
+</body>
+</html>
