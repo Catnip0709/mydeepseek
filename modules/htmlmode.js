@@ -225,7 +225,7 @@ async function ensureHtmlContextSummary(tab, onStatus, signal) {
       messages: [{ role: 'user', content: summaryPrompt }],
       stream: false,
       temperature: 0.3,
-      signal // R1 修复：传入 AbortSignal，支持中断
+      signal // 传入 AbortSignal，支持中断
     });
     
     const summary = typeof result === 'string' ? result : (result?.content || '');

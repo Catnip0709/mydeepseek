@@ -67,7 +67,7 @@ function readMemoryStrategy() {
 }
 
 // 模型选择
-const VALID_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat'];
+const VALID_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 function readSelectedModel() {
   const stored = localStorage.getItem('dsSelectedModel');
   return VALID_MODELS.includes(stored) ? stored : 'deepseek-v4-flash';
@@ -330,39 +330,27 @@ Object.defineProperty(state, 'isPreparingTextAttachment', {
 // 常量
 export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c'];
 
-export const MAX_CONTEXT_TOKENS_V3 = 131072;   // V3.2: 128K
 export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // V4: 1M
 
 /**
  * 获取当前生效的模型 ID 和额外参数。
- * - V3.2 + 深度思考 → model: 'deepseek-chat', thinkingType: 'enabled'
- * - V3.2 + 非深度思考 → model: 'deepseek-chat', thinkingType: null
  * - V4 + 深度思考 → model: 选中的 V4, thinkingType: 'enabled', reasoningEffort: 'max'
  * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: null
  */
 export function getEffectiveModel() {
-  const model = state.selectedModel;
-  const isV4 = model.startsWith('deepseek-v4');
   return {
-    model,
+    model: state.selectedModel,
     thinkingType: state.deepThink ? 'enabled' : null,
-    reasoningEffort: state.deepThink && isV4 ? 'max' : null
+    reasoningEffort: state.deepThink ? 'max' : null
   };
 }
 
 /**
- * 判断当前是否为 V4 模型
- */
-export function isV4Model() {
-  return state.selectedModel.startsWith('deepseek-v4');
-}
-
-/**
  * 根据当前选择的模型返回对应的上下文 token 上限。
- * V4 系列（Flash / Pro）→ 1M，V3.2 → 128K。
+ * V4 系列（Flash / Pro）→ 1M。
  */
 export function getMaxContextTokens() {
-  return isV4Model() ? MAX_CONTEXT_TOKENS_V4 : MAX_CONTEXT_TOKENS_V3;
+  return MAX_CONTEXT_TOKENS_V4;
 }
 
 export const CHARACTER_STORAGE_KEY = 'dsCharacters';

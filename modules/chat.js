@@ -4,7 +4,7 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, isV4Model } from './state.js';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
@@ -858,7 +858,7 @@ export function renderChat() {
 
   // Token 限制警告
   if (currentMsgs.length > 0 && !isGroupChat && isTokenLimitReached()) {
-    const maxLabel = isV4Model() ? '100万' : '12.8万';
+    const maxLabel = '100万';
     const warningDiv = document.createElement("div");
     warningDiv.className = "text-xs text-gray-500 text-center mt-6 mb-4 px-2";
     warningDiv.innerHTML = `

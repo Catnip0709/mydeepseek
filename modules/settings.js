@@ -157,7 +157,6 @@ export function bindSettingsEvents() {
   const apiKeyInput = document.getElementById('apiKeyInput');
   const saveKey = document.getElementById('saveKey');
   const replyBarCancel = document.getElementById('replyBarCancel');
-  const modelSelect = document.getElementById('modelSelect');
   const deepThinkToggle = document.getElementById('deepThinkToggle');
   const deepThinkChip = deepThinkToggle ? deepThinkToggle.closest('.deepthink-chip') : null;
 
@@ -414,10 +413,5 @@ export function bindSettingsEvents() {
       }
       applyDeepThinkState(e.target.checked, 'native-change');
     });
-  }
-
-  // 旧的 modelSelect 同步（保持兼容，隐藏的 select 也同步状态）
-  if (modelSelect) {
-    modelSelect.value = "deepseek-chat";
   }
 }

@@ -151,7 +151,7 @@ export function getFriendlyApiErrorMessage(error) {
     return '当前模型不可用，请在设置中切换模型';
   }
 
-  if (/(tool_choice|tool call|function call|deepseek-reasoner.*support|does not support)/i.test(rawMessage)) {
+  if (/(tool_choice|tool call|function call|does not support)/i.test(rawMessage)) {
     return '当前模型暂不支持这个功能，请切换模型或稍后重试';
   }
 

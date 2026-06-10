@@ -107,18 +107,18 @@
 
 **六B、模型选择**
 
-- 设置页中显示模型选择区域，包含 V4-Flash（推荐）、V4-Pro、V3.2 三个 radio 选项
+- 设置页中显示模型选择区域，包含 V4-Flash（推荐）、V4-Pro 两个 radio 选项
 - 默认选中 V4-Flash
 - 切换模型后，`state.selectedModel` 立即更新并持久化到 `dsSelectedModel`
 - 刷新页面后，模型选择恢复为上次选中的模型
 - 模型选择区域右侧有 ℹ️ 信息按钮，点击可打开模型信息面板
-- 模型信息面板显示三个模型的价格表（输入/输出、缓存命中/未命中）
+- 模型信息面板显示两个模型的价格表（输入/输出、缓存命中/未命中）
 - 模型信息面板可通过"知道了"按钮关闭
 - 模型选择 radio 在日间模式下样式正确（背景、边框、文字、hover 效果）
 - 模型信息按钮在日间模式下 hover 时文字清晰可见
 - 模型信息面板在日间模式下样式正确（标题、价格文字、说明文字、按钮）
-- 非法 localStorage 中的 `dsSelectedModel` 值（如空字符串、不存在的模型名）会回退到默认值 V4-Flash
-- 切换模型后，深度思考 badge 文案应同步更新（V4 模型显示"V4"，V3.2 显示"R1"）
+- 非法 localStorage 中的 `dsSelectedModel` 值（如空字符串、不存在的模型名、历史遗留的 deepseek-chat）会回退到默认值 V4-Flash
+- 切换模型后，深度思考 badge 文案保持一致（V4 模型显示"V4"）
 
 **六C、深度思考**
 
@@ -126,14 +126,13 @@
 - 点击深度思考 chip 可切换开关状态
 - 开启深度思考后，发送消息时请求体中包含 `thinking: { type: "enabled" }`
 - V4 模型 + 深度思考时，请求体中额外包含 `reasoning_effort: "max"`
-- V3.2 模型 + 深度思考时，请求体中不包含 `reasoning_effort`
 - 关闭深度思考后，发送消息时请求体中包含 `thinking: { type: "disabled" }`
 - 深度思考状态持久化到 `dsDeepThink`，刷新页面后恢复
-- 深度思考 chip 的 badge 根据当前模型显示"V4"或"R1"
-- 切换模型时，badge 文案自动更新
+- 深度思考 chip 的 badge 显示"V4"
+- 切换模型时，badge 文案保持一致
 - 快速连续点击深度思考 chip 不会导致状态错乱
 - 深度思考 chip 在日间模式下样式正确
-- 深度思考关闭时走普通模型（不使用 deepseek-reasoner）
+- 深度思考关闭时按 V4 模型的非思考模式发送
 - 深度思考打开时，AI 回复的思考过程（reasoning_content）正常显示
 
 **七、会话管理**
@@ -163,7 +162,7 @@
 - 空输入时点击发送不会报错
 - 发送期间按钮会切换为"停止"
 - DeepSeek 回复可正常流式展示
-- 发送消息时使用 `state.selectedModel` 指定的模型（而非硬编码的 deepseek-chat）
+- 发送消息时使用 `state.selectedModel` 指定的模型（而非硬编码的 deepseek-v4-flash）
 - 输入区实时计数显示"字数 / 约 tokens"
 - 清空输入框后，计数恢复为 `0 字`
 - 输入框根据内容自动调整高度，最小 44px，最大 88px（桌面端 104px），超出后出现滚动条
@@ -560,11 +559,9 @@
 
 - 使用真实 Key 发起最小 `stream: false` 请求，验证返回内容和 `usage`
 - 使用真实 Key 发起最小 `stream: true` 请求，验证 SSE 分块可收到
-- `deepseek-chat`（V3.2）普通请求可用
 - `deepseek-v4-flash` 普通请求可用
 - `deepseek-v4-pro` 普通请求可用
 - V4 模型 + 深度思考请求可用，`reasoning_content` 和 `content` 字段正确分离
-- V3.2 + 深度思考请求可用，`reasoning_content` 和 `content` 字段正确分离
 - 使用最短输入和较小 `max_tokens`，避免额外消耗过多额度
 
 **二十九、角色卡管理**

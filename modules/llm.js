@@ -83,7 +83,7 @@ export function createChunkInactivityGuard({
 }
 
 export async function callLLM({
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-flash',
   messages = [],
   stream = false,
   temperature = 0.7,
@@ -102,9 +102,7 @@ export async function callLLM({
   let res;
   const allowReasoning = thinkingType === 'enabled';
 
-  const isDeepSeekV4 = model.startsWith('deepseek-v4');
-  const isDeepSeekReasoner = model === 'deepseek-reasoner';
-  const needsThinkingDisable = (isDeepSeekV4 || isDeepSeekReasoner) && tools;
+  const needsThinkingDisable = !!tools;
 
   const effectiveThinkingType = needsThinkingDisable ? 'disabled' : thinkingType;
   const effectiveReasoningEffort = needsThinkingDisable ? null : reasoningEffort;
@@ -292,7 +290,7 @@ export async function translateText(text, targetLang, options = {}) {
   ];
 
   const result = await callLLM({
-    model: state.selectedModel || 'deepseek-chat',
+    model: state.selectedModel || 'deepseek-v4-flash',
     messages,
     stream: false,
     temperature: 0.3,
@@ -306,7 +304,7 @@ export async function translateText(text, targetLang, options = {}) {
 
 // ========== LLM JSON 调用封装 ==========
 
-export async function callLLMJSON({ model = 'deepseek-chat', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
+export async function callLLMJSON({ model = 'deepseek-v4-flash', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
   const result = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
   const text = typeof result === 'string' ? result : (result?.content || '');
   const cleanedText = text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
@@ -624,7 +622,7 @@ function stripTrailingFence(text) {
  * @returns {Promise<{content:string, finishReason:string|null, rounds:number, truncated:boolean}>}
  */
 export async function callLLMWithAutoContinue({
-  model = 'deepseek-chat',
+  model = 'deepseek-v4-flash',
   messages = [],
   maxRounds = 6,
   maxTokensPerRound = 8192,
