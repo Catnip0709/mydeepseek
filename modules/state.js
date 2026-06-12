@@ -15,29 +15,92 @@ if (!_dsUserId) {
   localStorage.setItem('ds_user_id', _dsUserId);
 }
 
+// ========== dsTabs 压缩存储编解码 ==========
+//
+// 写入 localStorage 前用 lz-string 压缩，读取后解压；内存中始终是普通对象。
+// 压缩串带前缀 COMPRESSED_PREFIX 以便与历史明文数据区分，实现无缝迁移。
+const COMPRESSED_PREFIX = 'LZ1:';
+
+export const storageRecoveryState = {
+  dsTabsReadFailed: false,
+  dsTabsReadError: null
+};
+
+// 将对象序列化并压缩为可安全存入 localStorage 的字符串。
+// 若运行环境缺少 LZString（CDN 加载失败），降级为明文，保证功能不中断。
+export function encodeTabData(obj) {
+  const json = JSON.stringify(obj);
+  if (typeof LZString === 'undefined' || !LZString.compressToUTF16) {
+    return json;
+  }
+  return COMPRESSED_PREFIX + LZString.compressToUTF16(json);
+}
+
+// 将 localStorage 中的原始字符串解码为对象。
+// 兼容两种来源：带前缀的压缩串、历史明文 JSON。解析失败抛出由调用方兜底。
+export function decodeTabData(raw) {
+  if (typeof raw !== 'string') return JSON.parse(raw);
+  if (raw.startsWith(COMPRESSED_PREFIX)) {
+    const compressed = raw.slice(COMPRESSED_PREFIX.length);
+    const json = (typeof LZString !== 'undefined' && LZString.decompressFromUTF16)
+      ? LZString.decompressFromUTF16(compressed)
+      : null;
+    // decompressFromUTF16 对损坏输入会返回 null 或空串，两者都视为解压失败
+    if (!json) throw new Error('dsTabs 解压失败');
+    return JSON.parse(json);
+  }
+  // 历史明文数据：直接解析（首次保存后会自动迁移为压缩格式）
+  return JSON.parse(raw);
+}
+
 function readJsonWithFallback(key, fallbackFactory, options = {}) {
   const {
     validate = () => true,
     resetMessage = `${key} 数据损坏，已重置`,
-    persistFallback = true
+    persistFallback = true,
+    decode = JSON.parse,
+    encode = JSON.stringify,
+    preserveOnFailure = false
   } = options;
 
   const fallbackValue = fallbackFactory();
   const raw = localStorage.getItem(key);
   if (raw == null) {
-    if (persistFallback) localStorage.setItem(key, JSON.stringify(fallbackValue));
+    if (persistFallback) localStorage.setItem(key, encode(fallbackValue));
     return fallbackValue;
   }
 
+  let parseError = null;
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = decode(raw);
     if (validate(parsed)) return parsed;
     console.warn(`${resetMessage}：数据结构无效`);
   } catch (e) {
+    parseError = e;
     console.warn(`${resetMessage}:`, e);
   }
 
-  if (persistFallback) localStorage.setItem(key, JSON.stringify(fallbackValue));
+  // 聊天主数据解析失败时绝不自动覆盖主 key，避免把仍可恢复的数据替换为空白会话。
+  if (preserveOnFailure) {
+    storageRecoveryState.dsTabsReadFailed = key === 'dsTabs';
+    storageRecoveryState.dsTabsReadError = parseError;
+    try {
+      localStorage.setItem(`${key}_corrupted_backup`, raw);
+    } catch (_) {
+      // 备份失败也不能继续覆盖主数据；保留原 key 供用户后续恢复。
+    }
+    return fallbackValue;
+  }
+
+  // 非主聊天数据沿用历史行为：解析失败时备份后写入 fallback。
+  if (persistFallback) {
+    try {
+      localStorage.setItem(`${key}_corrupted_backup`, raw);
+    } catch (_) {
+      // 备份失败（多为配额不足）不应阻断启动，忽略
+    }
+    localStorage.setItem(key, encode(fallbackValue));
+  }
   return fallbackValue;
 }
 
@@ -101,7 +164,10 @@ export const state = {
     buildDefaultTabData,
     {
       validate: value => !!(value && typeof value === 'object' && value.list && typeof value.list === 'object'),
-      resetMessage: 'dsTabs 数据损坏，已重置为空白会话'
+      resetMessage: 'dsTabs 数据损坏，已重置为空白会话',
+      decode: decodeTabData,
+      encode: encodeTabData,
+      preserveOnFailure: true
     }
   ),
 

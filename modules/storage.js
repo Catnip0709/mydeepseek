@@ -4,7 +4,7 @@
  * 负责 localStorage 的读写、存储用量统计、数据构建等。
  */
 
-import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
+import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, encodeTabData, decodeTabData, storageRecoveryState } from './state.js';
 import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
@@ -87,8 +87,12 @@ function _flushPendingSave() {
 
   if (typesToFlush.has('tabs')) {
     try {
-      localStorage.setItem("dsTabs", JSON.stringify(state.tabData));
+      const targetKey = storageRecoveryState.dsTabsReadFailed ? "dsTabs_recovery_session" : "dsTabs";
+      localStorage.setItem(targetKey, encodeTabData(state.tabData));
       wroteAnyData = true;
+      if (storageRecoveryState.dsTabsReadFailed) {
+        _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已保护原数据并将当前会话保存到恢复区'));
+      }
     } catch (e) {
       console.error('保存对话数据失败:', e);
       failedSaveTypes.add('tabs');
@@ -481,7 +485,7 @@ export function initializeData() {
 
 export function repairData() {
   const raw = localStorage.getItem("dsTabs");
-  const parsed = JSON.parse(raw);
+  const parsed = decodeTabData(raw);
   if (parsed && parsed.list && typeof parsed.list === 'object') {
     Object.keys(parsed.list).forEach(function(id) {
       const tab = parsed.list[id];
@@ -512,7 +516,7 @@ export function repairData() {
       const firstKey = Object.keys(parsed.list)[0];
       if (firstKey) parsed.active = firstKey;
     }
-    localStorage.setItem("dsTabs", JSON.stringify(parsed));
+    localStorage.setItem("dsTabs", encodeTabData(parsed));
     // 收藏修复：基于修复后的 parsed 数据验证 messageId 是否有效
     const validMessageIdsByTab = new Map();
     Object.keys(parsed.list).forEach(function(id) {

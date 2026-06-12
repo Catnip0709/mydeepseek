@@ -5,7 +5,7 @@
  * 所有模块在此汇聚，由 index.html 作为 ES Module 入口加载。
  */
 
-import { state } from './state.js';
+import { state, storageRecoveryState } from './state.js';
 import { trackEvent } from './utils.js';
 import { initializeData, repairData, flushPendingSaveImmediately, onPersistError } from './storage.js';
 import { register } from './core.js';
@@ -121,6 +121,10 @@ function init() {
         }
       }
     });
+
+    if (storageRecoveryState.dsTabsReadFailed) {
+      showToast('本地聊天数据暂时无法读取，已保护原数据；请刷新或导出恢复区后再处理');
+    }
 
     // 检查 API Key
     const keyPanel = document.getElementById("keyPanel");
@@ -290,9 +294,16 @@ function init() {
     try {
       repairData();
     } catch (repairErr) {
-      console.error('数据修复失败，执行重置:', repairErr);
-      localStorage.removeItem("dsTabs");
-      location.reload();
+      console.error('数据修复失败，已保留原始 dsTabs:', repairErr);
+      try {
+        const corrupted = localStorage.getItem("dsTabs");
+        if (corrupted != null) localStorage.setItem("dsTabs_corrupted_backup", corrupted);
+      } catch (_) {}
+      try {
+        showToast('数据修复失败，已保留原始聊天数据；请先导出 localStorage 后再手动处理');
+      } catch (_) {
+        alert('数据修复失败，已保留原始聊天数据；请先导出 localStorage 后再手动处理');
+      }
     }
   }
 }
