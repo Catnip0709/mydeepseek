@@ -7,7 +7,7 @@
 import { state, abortTabSending, clearTabSending, isTabSending } from './state.js';
 import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js';
 import { saveTabs, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js';
-import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint } from './panels.js';
+import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js';
 import { removeFavoritesForTab } from './favorites.js';
 import { call as coreCall } from './core.js';
 
@@ -66,7 +66,7 @@ export function renderTabs() {
       <span class="tab-title" title="${escapeHtml(getTabDisplayName(id))}">${escapeHtml(getTabDisplayName(id))}</span>
       <div class="tab-actions">
         <span class="tab-btn tab-rename" data-id="${id}" title="修改会话名称">${editIconSvg}</span>
-        <span class="tab-btn tab-cleanup" data-id="${id}" title="释放历史版本">${cleanupIconSvg}</span>
+        <span class="tab-btn tab-cleanup" data-id="${id}" title="释放空间">${cleanupIconSvg}</span>
         <span class="tab-btn tab-export" data-id="${id}" title="导出对话">${downloadIconSvg}</span>
         <span class="tab-btn tab-del" data-id="${id}" title="删除对话">×</span>
       </div>
@@ -123,12 +123,12 @@ export function renderTabs() {
     });
   });
 
-  // 释放历史版本按钮
+  // 释放空间按钮
   document.querySelectorAll(".tab-cleanup").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const cleanupId = btn.dataset.id;
-      handleCleanupTabHistoryVersions(cleanupId);
+      handleCleanupTab(cleanupId);
     });
   });
 
@@ -166,7 +166,7 @@ export function renderTabs() {
   });
 }
 
-// ========== 释放历史版本 ==========
+// ========== 释放空间 ==========
 
 // 扫描某个 tab：统计可释放的旧版本数量与字节数；不修改数据。
 function scanCleanupTabHistoryVersions(tabId) {
@@ -225,36 +225,168 @@ function applyCleanupTabHistoryVersions(tabId) {
   return { released, bytesSaved };
 }
 
-function handleCleanupTabHistoryVersions(tabId) {
+// 扫描某个 tab：统计当前选中版本可释放的思考过程字节数；不修改数据。
+function scanCleanupTabThinking(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab || !Array.isArray(tab.messages)) return { released: 0, bytesSaved: 0 };
+  let released = 0;
+  let bytesSaved = 0;
+  tab.messages.forEach(msg => {
+    if (!msg || msg.role !== 'assistant') return;
+    let reasoning = '';
+    if (Array.isArray(msg.history) && msg.history.length > 0) {
+      const idx = Number.isInteger(msg.historyIndex) ? msg.historyIndex : 0;
+      const safeIdx = Math.min(Math.max(idx, 0), msg.history.length - 1);
+      reasoning = (msg.history[safeIdx] && msg.history[safeIdx].reasoningContent) || '';
+    } else {
+      reasoning = msg.reasoningContent || '';
+    }
+    if (reasoning) {
+      bytesSaved += reasoning.length * 2; // UTF-16
+      released += 1;
+    }
+  });
+  return { released, bytesSaved };
+}
+
+// 实际执行清理：清空每条 assistant 消息当前选中版本的思考过程（含顶层字段）。
+function applyCleanupTabThinking(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab || !Array.isArray(tab.messages)) return { released: 0, bytesSaved: 0 };
+  let released = 0;
+  let bytesSaved = 0;
+  tab.messages.forEach(msg => {
+    if (!msg || msg.role !== 'assistant') return;
+    if (Array.isArray(msg.history) && msg.history.length > 0) {
+      const idx = Number.isInteger(msg.historyIndex) ? msg.historyIndex : 0;
+      const safeIdx = Math.min(Math.max(idx, 0), msg.history.length - 1);
+      const cur = msg.history[safeIdx];
+      const reasoning = (cur && cur.reasoningContent) || '';
+      if (reasoning) {
+        bytesSaved += reasoning.length * 2;
+        released += 1;
+        cur.reasoningContent = '';
+      }
+      // 顶层字段始终与当前版本保持同步
+      msg.reasoningContent = '';
+    } else if (msg.reasoningContent) {
+      bytesSaved += msg.reasoningContent.length * 2;
+      released += 1;
+      msg.reasoningContent = '';
+    }
+  });
+  return { released, bytesSaved };
+}
+
+// 释放空间入口：弹出类型选择弹窗（历史版本 / 思考内容）。
+function handleCleanupTab(tabId) {
   const tab = state.tabData.list[tabId];
   if (!tab) return;
 
   // 流式中：禁止清理（避免与 history.push({state:'generating'}) 竞态）
   if (isTabSending(tabId)) {
-    showToast('该对话正在生成中，请稍后再释放历史版本');
+    showToast('该对话正在生成中，请稍后再释放空间');
     return;
   }
 
+  const versions = scanCleanupTabHistoryVersions(tabId);
+  const thinking = scanCleanupTabThinking(tabId);
+  const name = getTabDisplayName(tabId);
+
+  if (versions.released === 0 && thinking.released === 0) {
+    showToast('该对话没有可释放的内容');
+    return;
+  }
+
+  openCleanupChoicePanel({
+    desc: `对话「${name}」`,
+    versionsEnabled: versions.released > 0,
+    thinkingEnabled: thinking.released > 0,
+    versionsInfo: versions.released > 0
+      ? `${versions.released} 个旧版本 · 约 ${formatBytes(versions.bytesSaved)}`
+      : '无可释放',
+    thinkingInfo: thinking.released > 0
+      ? `约 ${formatBytes(thinking.bytesSaved)}`
+      : '无可释放',
+    onVersions: () => confirmAndCleanupVersions(tabId),
+    onThinking: () => confirmAndCleanupThinking(tabId)
+  });
+}
+
+async function confirmAndCleanupVersions(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab) return;
+  if (isTabSending(tabId)) {
+    showToast('该对话正在生成中，请稍后再释放空间');
+    return;
+  }
   const { released, bytesSaved } = scanCleanupTabHistoryVersions(tabId);
   if (released === 0) {
     showToast('该对话没有可释放的历史版本');
     return;
   }
-
   const name = getTabDisplayName(tabId);
-  const ok = confirm(
-    `对话「${name}」共有 ${released} 个旧版本可释放，预计可节省 约 ${formatBytes(bytesSaved)} 空间。\n` +
-    `释放后未选中的版本将永久删除，无法恢复。\n是否继续？`
-  );
+  const ok = await showConfirmModal({
+    title: '释放历史版本',
+    desc: `对话「${name}」共有 ${released} 个旧版本可释放，预计可节省 约 ${formatBytes(bytesSaved)} 空间。\n` +
+      `释放后未选中的版本（正文与思考）将永久删除，无法恢复。是否继续？`,
+    okText: '释放',
+    cancelText: '取消'
+  });
   if (!ok) return;
 
+  // 二次确认期间可能开始了流式生成，apply 前再次校验，避免与 history 竞态
+  if (isTabSending(tabId)) {
+    showToast('该对话正在生成中，已取消释放');
+    return;
+  }
+
   const result = applyCleanupTabHistoryVersions(tabId);
+  finalizeCleanup(tabId);
+  showToast(`已释放 ${result.released} 个版本，节省 约 ${formatBytes(result.bytesSaved)}`);
+}
+
+async function confirmAndCleanupThinking(tabId) {
+  const tab = state.tabData.list[tabId];
+  if (!tab) return;
+  if (isTabSending(tabId)) {
+    showToast('该对话正在生成中，请稍后再释放空间');
+    return;
+  }
+  const { released, bytesSaved } = scanCleanupTabThinking(tabId);
+  if (released === 0) {
+    showToast('该对话没有可释放的思考内容');
+    return;
+  }
+  const name = getTabDisplayName(tabId);
+  const ok = await showConfirmModal({
+    title: '释放思考内容',
+    desc: `对话「${name}」可释放当前回复的思考过程，预计可节省 约 ${formatBytes(bytesSaved)} 空间。\n` +
+      `释放后这些回复的思考过程将不再显示，且永久删除、无法恢复（正文保留）。是否继续？`,
+    okText: '释放',
+    cancelText: '取消'
+  });
+  if (!ok) return;
+
+  // 二次确认期间可能开始了流式生成，apply 前再次校验，避免与 history 竞态
+  if (isTabSending(tabId)) {
+    showToast('该对话正在生成中，已取消释放');
+    return;
+  }
+
+  const result = applyCleanupTabThinking(tabId);
+  finalizeCleanup(tabId);
+  showToast(`已释放思考内容，节省 约 ${formatBytes(result.bytesSaved)}`);
+}
+
+// 清理后的统一收尾：落盘 + 刷新存储用量 + 刷新渲染。
+function finalizeCleanup(tabId) {
   saveTabs();
   // 立即落盘：避免防抖窗口内（300ms）用户刷新或关闭页面导致清理结果丢失
   flushPendingSaveImmediately();
   updateStorageUsage();
 
-  // 当前正在查看这个对话：刷新渲染（移除版本切换控件）
+  // 当前正在查看这个对话：刷新渲染（移除版本切换控件 / 思考折叠块）
   if (state.tabData.active === tabId) {
     invalidateTabCache(tabId);
     coreCall('renderChat');
@@ -262,8 +394,6 @@ function handleCleanupTabHistoryVersions(tabId) {
     // 非当前 tab：仅清掉它的缓存，下次切回时会重新渲染
     invalidateTabCache(tabId);
   }
-
-  showToast(`已释放 ${result.released} 个版本，节省 约 ${formatBytes(result.bytesSaved)}`);
 }
 
 // ========== Tab 事件绑定 ==========

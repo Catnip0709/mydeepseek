@@ -13,7 +13,7 @@ import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatBu
 import { renderTabs, invalidateTabCache } from './tabs.js';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
-  showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar
+  showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel
 } from './panels.js';
 import { bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI, syncDeepThinkFromInput } from './settings.js';
 import { bindTabEvents } from './tabs.js';
@@ -229,6 +229,7 @@ function init() {
         const editPanel = document.getElementById('editPanel');
         const renameTabPanel = document.getElementById('renameTabPanel');
         const confirmPanel = document.getElementById('confirmPanel');
+        const cleanupChoicePanel = document.getElementById('cleanupChoicePanel');
         const promptOptimizePreviewPanel = document.getElementById('promptOptimizePreviewPanel');
         const promptPanel = document.getElementById('promptPanel');
         const characterPanel = document.getElementById('characterPanel');
@@ -253,6 +254,7 @@ function init() {
         if (editPanel && !editPanel.classList.contains('hidden')) cancelEdit();
         if (renameTabPanel && !renameTabPanel.classList.contains('hidden')) closeRenameTabPanel();
         if (confirmPanel && !confirmPanel.classList.contains('hidden')) closeConfirmModal(false);
+        if (cleanupChoicePanel && !cleanupChoicePanel.classList.contains('hidden')) closeCleanupChoicePanel();
         if (promptOptimizePreviewPanel && !promptOptimizePreviewPanel.classList.contains('hidden')) closeOptimizePreviewPanel();
         if (promptPanel && !promptPanel.classList.contains('hidden')) closePromptPanel();
         if (characterPanel && !characterPanel.classList.contains('hidden')) closeCharacterPanel();

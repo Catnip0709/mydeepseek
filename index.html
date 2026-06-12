@@ -522,6 +522,28 @@
   </div>
 </div>
 
+<div id="cleanupChoicePanel" class="edit-panel hidden">
+  <div class="edit-container">
+    <h3 class="text-white mb-2">释放本对话空间</h3>
+    <div id="cleanupChoiceDesc" class="modal-desc"></div>
+    <div class="cleanup-choice-list mt-4">
+      <button id="cleanupVersionsBtn" class="cleanup-choice-btn" type="button">
+        <span class="cleanup-choice-main">释放历史版本</span>
+        <span id="cleanupVersionsInfo" class="cleanup-choice-info"></span>
+        <span class="cleanup-choice-sub">删除重新生成留下的旧回复（正文+思考），保留当前显示的回复</span>
+      </button>
+      <button id="cleanupThinkingBtn" class="cleanup-choice-btn" type="button">
+        <span class="cleanup-choice-main">释放思考内容</span>
+        <span id="cleanupThinkingInfo" class="cleanup-choice-info"></span>
+        <span class="cleanup-choice-sub">清除当前回复的思考过程，正文保留</span>
+      </button>
+    </div>
+    <div class="edit-buttons mt-4">
+      <button id="cleanupChoiceCancelBtn" class="edit-btn-cancel">取消</button>
+    </div>
+  </div>
+</div>
+
 <div id="modelInfoPanel" class="edit-panel hidden">
   <div class="edit-container">
     <h3 class="text-white mb-3">模型说明</h3>

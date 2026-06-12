@@ -160,6 +160,53 @@ export function closeConfirmModal(result) {
   }
 }
 
+// ========== 释放空间：类型选择弹窗 ==========
+
+/**
+ * 打开"释放本对话空间"类型选择弹窗。
+ * @param {object} opts
+ * @param {string} opts.desc - 顶部说明文案
+ * @param {string} opts.versionsInfo - 历史版本可释放量文案（为空表示无可释放）
+ * @param {string} opts.thinkingInfo - 思考内容可释放量文案（为空表示无可释放）
+ * @param {boolean} opts.versionsEnabled - 历史版本按钮是否可点
+ * @param {boolean} opts.thinkingEnabled - 思考内容按钮是否可点
+ * @param {function} opts.onVersions - 点击历史版本按钮回调
+ * @param {function} opts.onThinking - 点击思考内容按钮回调
+ */
+export function openCleanupChoicePanel(opts = {}) {
+  const panel = document.getElementById('cleanupChoicePanel');
+  const desc = document.getElementById('cleanupChoiceDesc');
+  const versionsBtn = document.getElementById('cleanupVersionsBtn');
+  const thinkingBtn = document.getElementById('cleanupThinkingBtn');
+  const versionsInfo = document.getElementById('cleanupVersionsInfo');
+  const thinkingInfo = document.getElementById('cleanupThinkingInfo');
+  if (!panel) return;
+
+  if (desc) desc.textContent = opts.desc || '';
+  if (versionsInfo) versionsInfo.textContent = opts.versionsInfo || '';
+  if (thinkingInfo) thinkingInfo.textContent = opts.thinkingInfo || '';
+
+  if (versionsBtn) {
+    versionsBtn.disabled = !opts.versionsEnabled;
+    versionsBtn.onclick = opts.versionsEnabled
+      ? () => { closeCleanupChoicePanel(); opts.onVersions && opts.onVersions(); }
+      : null;
+  }
+  if (thinkingBtn) {
+    thinkingBtn.disabled = !opts.thinkingEnabled;
+    thinkingBtn.onclick = opts.thinkingEnabled
+      ? () => { closeCleanupChoicePanel(); opts.onThinking && opts.onThinking(); }
+      : null;
+  }
+
+  panel.classList.remove('hidden');
+}
+
+export function closeCleanupChoicePanel() {
+  const panel = document.getElementById('cleanupChoicePanel');
+  if (panel) panel.classList.add('hidden');
+}
+
 // ========== 导出面板 ==========
 
 export function openDownloadPanel(tabId) {
