@@ -464,6 +464,40 @@ body.search-active #emptyChatHint {
       margin-bottom: 12px;
     }
 
+    .humanizer-phase-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: #93c5fd;
+      font-size: 13px !important;
+      line-height: 1.4;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      opacity: 0.92;
+      user-select: none;
+    }
+
+    .humanizer-phase-status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #60a5fa;
+      box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.12);
+      animation: humanizerPhasePulse 1.35s ease-in-out infinite;
+    }
+
+    @keyframes humanizerPhasePulse {
+      0%, 100% {
+        opacity: 0.45;
+        transform: scale(0.88);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
     .version-control {
       position: absolute;
       bottom: 6px;
@@ -1539,6 +1573,15 @@ body.day-mode .user-input-meta {
 body.day-mode .generation-status {
   color: #b45309 !important;
   font-weight: 500;
+}
+
+body.day-mode .humanizer-phase-status {
+  color: #2563eb;
+}
+
+body.day-mode .humanizer-phase-status::before {
+  background: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
 /* Reasoning details */

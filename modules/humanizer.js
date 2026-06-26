@@ -123,6 +123,7 @@ export async function generateHumanizedNormalReply({
   thinkingType = null,
   signal = null,
   onPhaseChange = null,
+  onRefineChunk = null,
   onTimeout = null
 } = {}) {
   if (onPhaseChange) onPhaseChange('draft');
@@ -155,10 +156,11 @@ export async function generateHumanizedNormalReply({
         { role: 'system', content: HUMANIZE_REFINEMENT_SYSTEM_PROMPT },
         { role: 'user', content: buildRefinementUserPrompt(userText, draft) }
       ],
-      stream: false,
+      stream: true,
       temperature: Math.min(temperature, 0.5),
       maxTokens: 8192,
       signal,
+      onChunk: onRefineChunk,
       chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
       onTimeout
     });

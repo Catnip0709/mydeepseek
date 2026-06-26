@@ -57,7 +57,7 @@ function setAssistantContentPlaceholder(aiMsgDiv, text) {
   if (!aiMsgDiv || !aiMsgDiv.isConnected) return;
   const contentDiv = aiMsgDiv.querySelector('.msg-content');
   if (!contentDiv) return;
-  contentDiv.innerHTML = `<span class="text-gray-400">${escapeHtml(text)}</span>`;
+  contentDiv.innerHTML = `<span class="humanizer-phase-status" role="status">${escapeHtml(text)}</span>`;
 }
 
 function isChatNearBottom(chat, threshold = 80) {
@@ -1125,7 +1125,11 @@ export async function fetchAndStreamResponse(opts = {}) {
 
     if (aiMsgDiv) {
       const contentDiv = aiMsgDiv.querySelector('.msg-content');
-      if (contentDiv) contentDiv.textContent = shouldHumanize ? "正在生成..." : "";
+      if (shouldHumanize) {
+        setAssistantContentPlaceholder(aiMsgDiv, '正在生成...');
+      } else if (contentDiv) {
+        contentDiv.textContent = "";
+      }
       const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
       if (reasoningDetails) reasoningDetails.remove();
       const metaEl = aiMsgDiv.querySelector('.assistant-meta');
@@ -1237,6 +1241,19 @@ export async function fetchAndStreamResponse(opts = {}) {
             chat.scrollTop = chat.scrollHeight;
           }
         },
+        onRefineChunk({ fullContent: refinedSoFar } = {}) {
+          if (!refinedSoFar) return;
+          fullContent = refinedSoFar;
+          if (state.tabData.active !== lockedTabId || !aiMsgDiv || !aiMsgDiv.isConnected) {
+            liveRenderBroken = true;
+          }
+          if (liveRenderBroken) return;
+          const contentDiv = aiMsgDiv.querySelector('.msg-content');
+          if (!contentDiv) return;
+          const autoScroll = shouldAutoScrollDuringStream(chat);
+          renderMarkdown(contentDiv, refinedSoFar);
+          if (autoScroll) chat.scrollTop = chat.scrollHeight;
+        },
         onTimeout() {
           tabEntry.abortReason = 'timeout';
         }
@@ -1249,17 +1266,24 @@ export async function fetchAndStreamResponse(opts = {}) {
       }
       finalizeMessage('complete');
     } catch (e) {
-      restoreHumanizedPendingMessage();
-      refreshAfterHumanizerNoSave();
-
-      const wasAborted = e?.name === 'AbortError' || ['manual', 'background', 'timeout'].includes(tabEntry.abortReason);
-      if (wasAborted) {
-        if (tabEntry.abortReason === 'timeout') {
-          showToast('请求超时，请检查网络后重试');
-        }
+      if (tabEntry.abortReason === 'manual' || tabEntry.abortReason === 'background' || (e?.name === 'AbortError' && tabEntry.abortReason !== 'timeout')) {
+        finalizeMessage('interrupted');
         return;
       }
-      if (isBackgroundRelatedError(e)) return;
+      if (tabEntry.abortReason === 'timeout') {
+        if (!fullContent) fullContent = '❌ 请求超时，请检查网络后重试';
+        fullReasoningContent = '';
+        finalizeMessage('timeout');
+        showToast('请求超时，请检查网络后重试');
+        return;
+      }
+      if (isBackgroundRelatedError(e)) {
+        finalizeMessage('interrupted');
+        return;
+      }
+
+      restoreHumanizedPendingMessage();
+      refreshAfterHumanizerNoSave();
 
       const friendlyMessage = getFriendlyApiErrorMessage(e);
       console.error("去 AI 味生成失败：", e);
