@@ -11,7 +11,7 @@ import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
   closeConfirmModal, closeDownloadPanel, hideReplyBar,
-  openSidebar, closeSidebar, closeCleanupChoicePanel
+  openSidebar, closeSidebar, closeCleanupChoicePanel, showConfirmModal
 } from './panels.js';
 import { renderChat } from './chat.js';
 import { renderTabs } from './tabs.js';
@@ -132,6 +132,7 @@ export function bindSettingsEvents() {
   const settingsApiKeyInput = document.getElementById('settingsApiKeyInput');
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
   const settingsTokenEstimateToggle = document.getElementById('settingsTokenEstimateToggle');
+  const settingsHumanizeNormalChatToggle = document.getElementById('settingsHumanizeNormalChatToggle');
   const menuBtn = document.getElementById('menuBtn');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
   const renameTabCancelBtn = document.getElementById('renameTabCancelBtn');
@@ -232,6 +233,33 @@ export function bindSettingsEvents() {
         document.body.classList.add("hide-token-estimate");
       }
       localStorage.setItem("dsShowTokenEstimate", show.toString());
+    });
+  }
+
+  // 设置 - 去 AI 味（普通对话）
+  if (settingsHumanizeNormalChatToggle) {
+    settingsHumanizeNormalChatToggle.checked = !!state.humanizeNormalChat;
+    settingsHumanizeNormalChatToggle.addEventListener("change", async (e) => {
+      const nextChecked = !!e.target.checked;
+      if (!nextChecked) {
+        state.humanizeNormalChat = false;
+        localStorage.setItem('dsHumanizeNormalChat', 'false');
+        return;
+      }
+
+      e.target.checked = false;
+      const confirmed = await showConfirmModal({
+        title: '开启去 AI 味（普通对话）？',
+        desc: '开启后，普通对话会额外进行自检和精修，因此会消耗更多 token，并可能增加等待时间。该功能不影响群聊和角色对话。',
+        okText: '确认开启',
+        cancelText: '取消'
+      });
+      state.humanizeNormalChat = !!confirmed;
+      localStorage.setItem('dsHumanizeNormalChat', String(state.humanizeNormalChat));
+      e.target.checked = state.humanizeNormalChat;
+      if (state.humanizeNormalChat) {
+        showToast('已开启去 AI 味（普通对话）');
+      }
     });
   }
 

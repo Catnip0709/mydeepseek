@@ -249,6 +249,20 @@
     </div>
     
     <div class="mb-6">
+      <h4 class="text-white text-sm font-medium mb-3">生成设置</h4>
+      <div class="settings-day-mode-container flex items-center justify-between gap-4 bg-gray-800 p-3 rounded-lg border border-gray-700">
+        <div>
+          <div class="text-sm text-gray-300">去 AI 味（普通对话）</div>
+          <div class="text-xs text-gray-500 mt-1 leading-relaxed">开启后，普通对话会额外自检和精修，回复可能稍慢并消耗更多 token。群聊和角色对话不受影响。</div>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+          <input type="checkbox" id="settingsHumanizeNormalChatToggle" class="sr-only peer">
+          <div class="w-9 h-5 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="mb-6">
       <div class="flex items-center gap-2 mb-3">
         <h4 class="text-white text-sm font-medium">模型选择</h4>
         <button id="modelInfoToggle" type="button" class="model-info-btn" title="查看详情" onclick="document.getElementById('modelInfoPanel').classList.remove('hidden')">

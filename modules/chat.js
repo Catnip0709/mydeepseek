@@ -16,6 +16,7 @@ import {
 } from './storage.js';
 import { checkAndGenerateSummary, clearSummary } from './summary.js';
 import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
+import { generateHumanizedNormalReply } from './humanizer.js';
 import { renderMarkdown } from './markdown.js';
 import { enhanceHtmlCodeBlocks } from './html-preview.js';
 import {
@@ -31,6 +32,33 @@ let _chatEventsBound = false;
 let _streamAutoScrollLocked = false;
 const TEXT_ATTACHMENT_FULL_CHAR_LIMIT = 5000;
 const TEXT_ATTACHMENT_MAX_CHAR_LIMIT = 25000;
+
+function isNormalChatTab(tab) {
+  return !!tab && !tab.type;
+}
+
+function getHumanizerUserText(messages, targetIndex) {
+  const safeEnd = Math.max(Math.min(targetIndex, messages.length), 0);
+  for (let i = safeEnd - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg && msg.role === 'user') {
+      return (msg.userQuestion || msg.content || '').trim();
+    }
+  }
+  return '';
+}
+
+function cloneMessageForRestore(msg) {
+  if (!msg) return null;
+  return JSON.parse(JSON.stringify(msg));
+}
+
+function setAssistantContentPlaceholder(aiMsgDiv, text) {
+  if (!aiMsgDiv || !aiMsgDiv.isConnected) return;
+  const contentDiv = aiMsgDiv.querySelector('.msg-content');
+  if (!contentDiv) return;
+  contentDiv.innerHTML = `<span class="text-gray-400">${escapeHtml(text)}</span>`;
+}
 
 function isChatNearBottom(chat, threshold = 80) {
   if (!chat) return false;
@@ -1039,6 +1067,8 @@ export async function fetchAndStreamResponse(opts = {}) {
 
   // 防御：传入的 tabId 在等待期间被删除了
   if (!state.tabData.list[lockedTabId]) return;
+  const lockedTabAtStart = state.tabData.list[lockedTabId];
+  const shouldHumanize = state.humanizeNormalChat && isNormalChatTab(lockedTabAtStart);
 
   // 按 tab 隔离的发送状态：在发起时绑定到 lockedTabId，避免切换 tab 后相互干扰
   const tabEntry = setTabSending(lockedTabId, {
@@ -1049,13 +1079,15 @@ export async function fetchAndStreamResponse(opts = {}) {
   resetStreamAutoScrollLock();
   updateComposerPrimaryButtonState();
 
-  const chunkGuard = createChunkInactivityGuard({
-    timeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
-    signal: tabEntry.abortController.signal,
-    onTimeout() {
-      tabEntry.abortReason = 'timeout';
-    }
-  });
+  const chunkGuard = shouldHumanize
+    ? { signal: tabEntry.abortController.signal, touch() {}, cleanup() {} }
+    : createChunkInactivityGuard({
+      timeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
+      signal: tabEntry.abortController.signal,
+      onTimeout() {
+        tabEntry.abortReason = 'timeout';
+      }
+    });
 
   trackEvent('发送消息');
 
@@ -1075,10 +1107,12 @@ export async function fetchAndStreamResponse(opts = {}) {
     ? (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 20)
     : false;
   let aiMsgDiv = null;
+  let regenSnapshot = null;
 
   if (isRegen) {
     // regenerate 路径仅在 active tab 上触发（入口检查 currentMsgs 用 active），保持原行为
     aiMsgDiv = document.getElementById(`msg-${targetIndex}`);
+    regenSnapshot = cloneMessageForRestore(currentMsgs[targetIndex]);
     if (!currentMsgs[targetIndex].history) {
       currentMsgs[targetIndex].history = [{ content: currentMsgs[targetIndex].content, reasoningContent: currentMsgs[targetIndex].reasoningContent || "", state: currentMsgs[targetIndex].generationState || 'complete' }];
       currentMsgs[targetIndex].historyIndex = 0;
@@ -1091,7 +1125,7 @@ export async function fetchAndStreamResponse(opts = {}) {
 
     if (aiMsgDiv) {
       const contentDiv = aiMsgDiv.querySelector('.msg-content');
-      if (contentDiv) contentDiv.textContent = "";
+      if (contentDiv) contentDiv.textContent = shouldHumanize ? "正在生成..." : "";
       const reasoningDetails = aiMsgDiv.querySelector('.reasoning-details');
       if (reasoningDetails) reasoningDetails.remove();
       const metaEl = aiMsgDiv.querySelector('.assistant-meta');
@@ -1118,6 +1152,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
 
     aiMsgDiv.innerHTML = streamLabelHtml + `<button class="copy-btn" title="复制">${copyIconSvg}</button><div class="msg-content prose prose-invert max-w-none"></div>`;
+    if (shouldHumanize) {
+      setAssistantContentPlaceholder(aiMsgDiv, '正在生成...');
+    }
 
     const promptWarning = chat.querySelector('.text-xs.text-gray-500.text-center');
     if (promptWarning) {
@@ -1158,6 +1195,85 @@ export async function fetchAndStreamResponse(opts = {}) {
     return /(load failed|failed to fetch|networkerror|cancelled|canceled)/i.test(msg);
   }
 
+  function restoreHumanizedPendingMessage() {
+    const lockedTab = state.tabData.list[lockedTabId];
+    if (!lockedTab) return;
+    if (isRegen && regenSnapshot) {
+      currentMsgs[targetIndex] = cloneMessageForRestore(regenSnapshot);
+      lockedTab.messages = currentMsgs;
+      return;
+    }
+    if (startedOnActiveTab && aiMsgDiv && aiMsgDiv.isConnected) {
+      aiMsgDiv.remove();
+    }
+  }
+
+  function refreshAfterHumanizerNoSave() {
+    if (state.tabData.active === lockedTabId) {
+      renderChat();
+    } else {
+      coreCall('invalidateTabCache', lockedTabId);
+    }
+  }
+
+  async function runHumanizedNormalFlow(chatTemperature) {
+    const userText = getHumanizerUserText(currentMsgs, targetIndex);
+    try {
+      const result = await generateHumanizedNormalReply({
+        userText,
+        payloadMsgs,
+        model: selectedModel,
+        temperature: chatTemperature,
+        reasoningEffort,
+        thinkingType,
+        signal: tabEntry.abortController.signal,
+        onPhaseChange(phase) {
+          if (phase === 'draft') {
+            setAssistantContentPlaceholder(aiMsgDiv, '正在生成...');
+          } else if (phase === 'refine') {
+            setAssistantContentPlaceholder(aiMsgDiv, '正在精修回复...');
+          }
+          if (startedOnActiveTab && isAtBottom && chat) {
+            chat.scrollTop = chat.scrollHeight;
+          }
+        },
+        onTimeout() {
+          tabEntry.abortReason = 'timeout';
+        }
+      });
+
+      fullContent = result.content || '';
+      fullReasoningContent = result.reasoningContent || '';
+      if (result.draftUsedFallback) {
+        showToast('精修失败，已返回初稿');
+      }
+      finalizeMessage('complete');
+    } catch (e) {
+      restoreHumanizedPendingMessage();
+      refreshAfterHumanizerNoSave();
+
+      const wasAborted = e?.name === 'AbortError' || ['manual', 'background', 'timeout'].includes(tabEntry.abortReason);
+      if (wasAborted) {
+        if (tabEntry.abortReason === 'timeout') {
+          showToast('请求超时，请检查网络后重试');
+        }
+        return;
+      }
+      if (isBackgroundRelatedError(e)) return;
+
+      const friendlyMessage = getFriendlyApiErrorMessage(e);
+      console.error("去 AI 味生成失败：", e);
+      showToast(friendlyMessage);
+      if (friendlyMessage.includes("API Key")) {
+        setTimeout(() => {
+          if (confirm("检测到API Key可能无效，是否立即修改？")) {
+            openSettingsPanel();
+          }
+        }, 1000);
+      }
+    }
+  }
+
   try {
     // 角色单聊时读取角色的活跃度（温度）
     const _tab = state.tabData.list[lockedTabId];
@@ -1165,6 +1281,11 @@ export async function fetchAndStreamResponse(opts = {}) {
     if (_tab?.type === 'single-character' && _tab.characterId) {
       const _char = coreCall('getCharacterById', _tab.characterId);
       if (_char) chatTemperature = _char.talkativeness ?? 0.8;
+    }
+
+    if (shouldHumanize) {
+      await runHumanizedNormalFlow(chatTemperature);
+      return;
     }
 
     const requestBody = {

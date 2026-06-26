@@ -74,6 +74,7 @@ export function closeSidebar() {
 export function openSettingsPanel() {
   const settingsApiKeyInput = document.getElementById('settingsApiKeyInput');
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
+  const settingsHumanizeNormalChatToggle = document.getElementById('settingsHumanizeNormalChatToggle');
   const settingsPanel = document.getElementById('settingsPanel');
 
   if (settingsApiKeyInput) {
@@ -83,6 +84,9 @@ export function openSettingsPanel() {
   const currentDayMode = localStorage.getItem("dsDayMode") === "true";
   if (settingsDayModeToggle) {
     settingsDayModeToggle.checked = currentDayMode;
+  }
+  if (settingsHumanizeNormalChatToggle) {
+    settingsHumanizeNormalChatToggle.checked = !!state.humanizeNormalChat;
   }
   updateFontSizeButtons(currentFontSize);
 

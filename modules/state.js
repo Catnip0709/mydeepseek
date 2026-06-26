@@ -141,6 +141,11 @@ function readDeepThink() {
   return localStorage.getItem('dsDeepThink') === 'true';
 }
 
+// 去 AI 味（普通对话）开关
+function readHumanizeNormalChat() {
+  return localStorage.getItem('dsHumanizeNormalChat') === 'true';
+}
+
 // 集中的可变状态对象
 export const state = {
   // 用户ID
@@ -154,6 +159,9 @@ export const state = {
 
   // 深度思考
   deepThink: readDeepThink(),
+
+  // 去 AI 味（普通对话）
+  humanizeNormalChat: readHumanizeNormalChat(),
 
   // 记忆策略
   memoryStrategy: readMemoryStrategy(),
