@@ -657,7 +657,7 @@ body.search-active #emptyChatHint {
 
     .input-container {
       position: fixed;
-      bottom: 0;
+      bottom: var(--composer-keyboard-inset-bottom, 0px);
       left: 0;
       right: 0;
       background: #000;

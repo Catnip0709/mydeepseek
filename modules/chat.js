@@ -235,7 +235,66 @@ function queueComposerActionMenuAfterClose(menu, callback) {
 }
 
 let _composerLayoutRafId = 0;
+let _composerViewportRafId = 0;
 let _composerResizeObserver = null;
+let _composerViewportListenersBound = false;
+
+function isTextEntryElement(element) {
+  if (!element) return false;
+  if (element.isContentEditable) return true;
+  if (element.tagName === 'TEXTAREA') return true;
+  if (element.tagName !== 'INPUT') return false;
+
+  const type = (element.getAttribute('type') || 'text').toLowerCase();
+  return !['button', 'checkbox', 'color', 'file', 'hidden', 'image', 'radio', 'range', 'reset', 'submit'].includes(type);
+}
+
+function getComposerKeyboardInset(inputContainer) {
+  const visualViewport = window.visualViewport;
+  const activeElement = document.activeElement;
+  if (!visualViewport || !inputContainer || !inputContainer.contains(activeElement) || !isTextEntryElement(activeElement)) {
+    return 0;
+  }
+
+  const layoutViewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+  const visualViewportBottom = visualViewport.offsetTop + visualViewport.height;
+  return Math.max(0, Math.ceil(layoutViewportHeight - visualViewportBottom));
+}
+
+function syncComposerKeyboardInset() {
+  const inputContainer = document.querySelector('.input-container');
+  if (!inputContainer) return;
+
+  inputContainer.style.setProperty('--composer-keyboard-inset-bottom', `${getComposerKeyboardInset(inputContainer)}px`);
+  updateComposerLayoutMetrics();
+}
+
+function scheduleComposerViewportSync() {
+  if (_composerViewportRafId) cancelAnimationFrame(_composerViewportRafId);
+  _composerViewportRafId = requestAnimationFrame(() => {
+    _composerViewportRafId = 0;
+    syncComposerKeyboardInset();
+  });
+}
+
+function scheduleComposerViewportSyncAfterFocusChange() {
+  scheduleComposerViewportSync();
+  window.setTimeout(scheduleComposerViewportSync, 120);
+}
+
+function bindComposerViewportListeners() {
+  if (_composerViewportListenersBound) return;
+  _composerViewportListenersBound = true;
+
+  window.addEventListener('resize', scheduleComposerViewportSync);
+  document.addEventListener('focusin', scheduleComposerViewportSyncAfterFocusChange);
+  document.addEventListener('focusout', scheduleComposerViewportSyncAfterFocusChange);
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', scheduleComposerViewportSync);
+    window.visualViewport.addEventListener('scroll', scheduleComposerViewportSync);
+  }
+}
 
 export function updateComposerLayoutMetrics() {
   if (_composerLayoutRafId) cancelAnimationFrame(_composerLayoutRafId);
@@ -1857,12 +1916,12 @@ export function bindChatEvents() {
     if (inputShell) _composerResizeObserver.observe(inputShell);
   }
 
-  window.addEventListener('resize', updateComposerLayoutMetrics);
+  bindComposerViewportListeners();
 
   // 初始化输入框
   autoHeight();
   updatePendingTextAttachmentUI();
   updateInputCounter();
   updateComposerPrimaryButtonState();
-  updateComposerLayoutMetrics();
+  syncComposerKeyboardInset();
 }
