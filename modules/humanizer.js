@@ -123,6 +123,7 @@ export async function generateHumanizedNormalReply({
   thinkingType = null,
   signal = null,
   onPhaseChange = null,
+  onDraftChunk = null,
   onRefineChunk = null,
   onTimeout = null
 } = {}) {
@@ -131,12 +132,13 @@ export async function generateHumanizedNormalReply({
   const draftResult = await callLLM({
     model,
     messages: payloadMsgs,
-    stream: false,
+    stream: true,
     temperature,
     maxTokens: 8192,
     reasoningEffort,
     thinkingType,
     signal,
+    onChunk: onDraftChunk,
     chunkTimeoutMs: CHUNK_INACTIVITY_TIMEOUT_MS,
     onTimeout
   });

@@ -1279,6 +1279,36 @@ export async function fetchAndStreamResponse(opts = {}) {
     }
   }
 
+  function renderHumanizerDraftReasoning(reasoningText) {
+    if (!reasoningText) return;
+    if (state.tabData.active !== lockedTabId || !aiMsgDiv || !aiMsgDiv.isConnected) {
+      liveRenderBroken = true;
+    }
+    if (liveRenderBroken) return;
+
+    if (!reasoningContentDiv) {
+      let details = aiMsgDiv.querySelector('.reasoning-details');
+      if (!details) {
+        details = document.createElement('details');
+        details.className = "reasoning-details mb-2 border border-gray-700 rounded-lg p-2 bg-gray-900";
+        details.open = true;
+        details.innerHTML = `<summary class="text-xs text-gray-400 cursor-pointer select-none outline-none">思考过程</summary><div class="reasoning-content prose prose-invert max-w-none text-sm text-gray-400 mt-2 border-t border-gray-700 pt-2"></div>`;
+        const msgContentDiv = aiMsgDiv.querySelector('.msg-content');
+        if (msgContentDiv) {
+          aiMsgDiv.insertBefore(details, msgContentDiv);
+        } else {
+          aiMsgDiv.appendChild(details);
+        }
+      }
+      reasoningContentDiv = details.querySelector('.reasoning-content');
+    }
+
+    if (!reasoningContentDiv) return;
+    const autoScroll = shouldAutoScrollDuringStream(chat);
+    renderMarkdown(reasoningContentDiv, reasoningText);
+    if (autoScroll) chat.scrollTop = chat.scrollHeight;
+  }
+
   async function runHumanizedNormalFlow(chatTemperature) {
     const userText = getHumanizerUserText(currentMsgs, targetIndex);
     try {
@@ -1299,6 +1329,11 @@ export async function fetchAndStreamResponse(opts = {}) {
           if (startedOnActiveTab && isAtBottom && chat) {
             chat.scrollTop = chat.scrollHeight;
           }
+        },
+        onDraftChunk({ reasoningContent: reasoningDelta, fullReasoningContent: draftReasoningSoFar } = {}) {
+          if (!reasoningDelta || !draftReasoningSoFar) return;
+          fullReasoningContent = draftReasoningSoFar;
+          renderHumanizerDraftReasoning(draftReasoningSoFar);
         },
         onRefineChunk({ fullContent: refinedSoFar } = {}) {
           if (!refinedSoFar) return;
