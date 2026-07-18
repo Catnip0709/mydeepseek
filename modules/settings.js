@@ -82,8 +82,176 @@ function validateApiKey(key) {
 
 // ========== 导出功能 ==========
 
+const EXPORT_TEXT_MIME = 'text/plain;charset=utf-8';
+const UTF8_BOM = '\uFEFF';
+
+function isQuarkLikeMobileBrowser() {
+  const ua = navigator.userAgent || '';
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua) && /Quark|UCBrowser|UCWEB/i.test(ua);
+}
+
+function triggerBlobDownload(blob, filename) {
+  if (navigator.msSaveOrOpenBlob) {
+    navigator.msSaveOrOpenBlob(blob, filename);
+    return;
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // 部分移动浏览器会异步交给下载器处理，立即 revoke 可能导致下载器拿不到内容。
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+}
+
+function toSafeInlineJson(value) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003C')
+    .replace(/>/g, '\\u003E')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function openCompatibleExportPage(txtContent, filename) {
+  const page = window.open('', '_blank');
+  if (!page) {
+    copyText(txtContent);
+    alert('当前浏览器限制直接下载，已尝试复制导出内容。请粘贴到备忘录或文本编辑器中保存。');
+    return;
+  }
+
+  const inlineText = toSafeInlineJson(txtContent);
+  const inlineFilename = toSafeInlineJson(filename);
+
+  page.document.open();
+  page.document.write(`<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>兼容导出 - ${filename}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 18px;
+      color: #e5e7eb;
+      background: #111827;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    h1 { margin: 0 0 10px; font-size: 20px; }
+    p { margin: 0 0 14px; color: #9ca3af; line-height: 1.6; font-size: 14px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #fff;
+      background: #2563eb;
+      font-size: 14px;
+    }
+    button.secondary { background: #374151; }
+    textarea {
+      width: 100%;
+      min-height: 70vh;
+      padding: 14px;
+      border: 1px solid #374151;
+      border-radius: 12px;
+      color: #f9fafb;
+      background: #030712;
+      font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>兼容导出</h1>
+    <p>当前浏览器可能不支持直接保存网页生成的文件。内容已在下方生成，可复制保存；也可以尝试下载 TXT 或通过系统分享保存。</p>
+    <div class="actions">
+      <button id="copyBtn">复制全文</button>
+      <button id="downloadBtn" class="secondary">尝试下载 TXT</button>
+      <button id="shareBtn" class="secondary">系统分享/保存</button>
+      <button id="selectBtn" class="secondary">全选文本</button>
+    </div>
+    <textarea id="exportText" readonly></textarea>
+  </main>
+  <script>
+    const exportText = ${inlineText};
+    const filename = ${inlineFilename};
+    const textArea = document.getElementById('exportText');
+    textArea.value = exportText;
+
+    function fallbackCopy() {
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+    }
+
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(exportText);
+        } else {
+          fallbackCopy();
+        }
+        alert('导出内容已复制');
+      } catch (err) {
+        fallbackCopy();
+        alert('已选中导出内容，请手动复制');
+      }
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      const a = document.createElement('a');
+      a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent('\\uFEFF' + exportText);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    });
+
+    document.getElementById('shareBtn').addEventListener('click', async () => {
+      try {
+        if (!navigator.share) {
+          alert('当前浏览器不支持系统分享，请使用复制全文。');
+          return;
+        }
+        if (typeof File === 'function' && navigator.canShare) {
+          const file = new File(['\\uFEFF' + exportText], filename, { type: 'text/plain' });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return;
+          }
+        }
+        await navigator.share({ title: filename, text: exportText });
+      } catch (err) {
+        if (!err || err.name !== 'AbortError') {
+          alert('分享失败，请使用复制全文。');
+        }
+      }
+    });
+
+    document.getElementById('selectBtn').addEventListener('click', () => {
+      textArea.focus();
+      textArea.select();
+    });
+  <\/script>
+</body>
+</html>`);
+  page.document.close();
+}
+
 export function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
-  const msgs = state.tabData.list[tabId].messages || [];
+  const currentTab = state.tabData.list[tabId];
+  const msgs = currentTab?.messages || [];
   if (msgs.length === 0) {
     alert("当前对话为空，无法导出。");
     return;
@@ -97,7 +265,6 @@ export function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
       return;
     }
 
-    const currentTab = state.tabData.list[tabId];
     const isSingleChar = currentTab && currentTab.type === 'single-character';
     const charName = isSingleChar && currentTab.characterId ? (state.characterData.find(c => c.id === currentTab.characterId) || {}).name || 'DeepSeek' : 'DeepSeek';
     const roleName = m.role === 'user' ? '我' : (m.role === 'character' ? (m.characterName || '角色') : charName);
@@ -113,18 +280,20 @@ export function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
   });
 
   // 添加 UTF-8 BOM，避免在中文 Windows 记事本等以 GBK/ANSI 默认编码打开时出现"锟斤拷"乱码
-  const blob = new Blob(["\uFEFF" + txtContent], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
+  const blob = new Blob([UTF8_BOM + txtContent], { type: EXPORT_TEXT_MIME });
   const modeSuffix = mode === 'ai_only' ? '_AI回复' : '';
   const reasoningSuffix = includeReasoning ? '' : '_不含思考';
   const safeName = getTabDisplayName(tabId).replace(/[\\/:*?"<>|]/g, '_');
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${safeName}${modeSuffix}${reasoningSuffix}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const filename = `${safeName}${modeSuffix}${reasoningSuffix}.txt`;
+
+  if (isQuarkLikeMobileBrowser()) {
+    openCompatibleExportPage(txtContent, filename);
+    showToast('已打开兼容导出页');
+    return;
+  }
+
+  triggerBlobDownload(blob, filename);
+  showToast('导出已开始');
 }
 
 // ========== 设置面板事件绑定 ==========

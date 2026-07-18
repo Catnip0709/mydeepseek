@@ -23,7 +23,6 @@ const COMPRESSED_PREFIX = 'LZ1:';
 const PAGE_LOCK_KEY = 'dsActivePageLock';
 const PAGE_LOCK_TTL_MS = 15000;
 const PAGE_INSTANCE_ID = `page_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-const INITIAL_DS_TABS_RAW = localStorage.getItem('dsTabs');
 
 export const storageRecoveryState = {
   dsTabsReadFailed: false,
@@ -233,13 +232,26 @@ function readHumanizeNormalChat() {
   return localStorage.getItem('dsHumanizeNormalChat') === 'true';
 }
 
+const initialTabData = readJsonWithFallback(
+  'dsTabs',
+  buildDefaultTabData,
+  {
+    validate: value => !!(value && typeof value === 'object' && value.list && typeof value.list === 'object'),
+    resetMessage: 'dsTabs 数据损坏，已重置为空白会话',
+    decode: decodeTabData,
+    encode: encodeTabData,
+    preserveOnFailure: true
+  }
+);
+const initialTabDataStorageFingerprint = localStorage.getItem('dsTabs');
+
 // 集中的可变状态对象
 export const state = {
   // 用户ID
   dsUserId: _dsUserId,
   pageInstanceId: PAGE_INSTANCE_ID,
   isReadOnlyPage: false,
-  tabDataStorageFingerprint: INITIAL_DS_TABS_RAW,
+  tabDataStorageFingerprint: initialTabDataStorageFingerprint,
 
   // API Key
   apiKey: localStorage.getItem("dsApiKey"),
@@ -257,17 +269,7 @@ export const state = {
   memoryStrategy: readMemoryStrategy(),
 
   // Tab 数据
-  tabData: readJsonWithFallback(
-    'dsTabs',
-    buildDefaultTabData,
-    {
-      validate: value => !!(value && typeof value === 'object' && value.list && typeof value.list === 'object'),
-      resetMessage: 'dsTabs 数据损坏，已重置为空白会话',
-      decode: decodeTabData,
-      encode: encodeTabData,
-      preserveOnFailure: true
-    }
-  ),
+  tabData: initialTabData,
 
   // 角色卡数据
   characterData: readJsonWithFallback(
