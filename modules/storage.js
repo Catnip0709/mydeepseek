@@ -55,6 +55,7 @@ export function isStorageFull() {
 let _saveDebounceTimer = null;
 let _pendingSaveTypes = new Set(); // 支持多种类型同时待保存
 const SAVE_DEBOUNCE_MS = 300;
+const _recoverySessionTabIds = new Map();
 
 // 配额/持久化错误监听器（由上层注册，用于回滚或弹 Toast）
 const _persistErrorListeners = new Set();
@@ -76,22 +77,101 @@ function _notifyPersistError(type, err) {
   }
 }
 
+function cloneTabData(tabData) {
+  return JSON.parse(JSON.stringify(tabData));
+}
+
+function appendRecoveryTabs(targetData, recoveryData) {
+  const target = targetData?.list;
+  const recovery = recoveryData?.list;
+  if (!target || !recovery) return false;
+
+  Object.entries(recovery).forEach(([id, tab], index) => {
+    let targetId = id;
+    while (target[targetId]) {
+      targetId = `recovery_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+    target[targetId] = tab;
+  });
+  return true;
+}
+
+function readRecoverySessionRaw() {
+  const raw = localStorage.getItem('dsTabs_recovery_session');
+  if (!raw) return { raw: null, data: null };
+  try {
+    const data = decodeTabData(raw);
+    return data && data.list && typeof data.list === 'object'
+      ? { raw, data }
+      : { raw, data: null };
+  } catch (_) {
+    return { raw, data: null };
+  }
+}
+
+function writeRecoverySession(currentData) {
+  const { raw, data: existing } = readRecoverySessionRaw();
+  if (raw && !existing) {
+    // 既有恢复区无法解析时，先备份原始值；备份失败则拒绝覆盖唯一副本。
+    localStorage.setItem(`dsTabs_recovery_session_corrupted_backup_${Date.now()}`, raw);
+  }
+
+  const next = existing ? cloneTabData(existing) : { active: currentData.active, list: {} };
+  Object.entries(currentData.list || {}).forEach(([id, tab], index) => {
+    let targetId = _recoverySessionTabIds.get(id) || id;
+    while (next.list[targetId] && _recoverySessionTabIds.get(id) !== targetId) {
+      targetId = `recovery_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+    next.list[targetId] = tab;
+    _recoverySessionTabIds.set(id, targetId);
+  });
+  localStorage.setItem('dsTabs_recovery_session', encodeTabData(next));
+  storageRecoveryState.recoverySessionPresent = true;
+  return true;
+}
+
 function _flushPendingSave() {
   // 先把待保存集合 swap 出来，避免 flush 执行期间新加入的保存被意外清空（竞态修复）
   const typesToFlush = _pendingSaveTypes;
   _pendingSaveTypes = new Set();
   _saveDebounceTimer = null;
 
+  // 快照 flush 开始时的可写状态：tabs 分支在检测到指纹冲突时会设置 isReadOnlyPage=true，
+  // 该状态污染会导致同一 flush 周期内后续 characters/prompts/favorites 被误跳过。
+  // 因此各类型保存分支统一使用快照值，tabs 冲突仅影响 tabs 自身。
+  const startedWritable = !state.isReadOnlyPage;
+
   const failedSaveTypes = new Set();
   let wroteAnyData = false;
+  let tabsSaved = false;
 
   if (typesToFlush.has('tabs')) {
     try {
-      const targetKey = storageRecoveryState.dsTabsReadFailed ? "dsTabs_recovery_session" : "dsTabs";
-      localStorage.setItem(targetKey, encodeTabData(state.tabData));
-      wroteAnyData = true;
-      if (storageRecoveryState.dsTabsReadFailed) {
-        _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已保护原数据并将当前会话保存到恢复区'));
+      if (!startedWritable) {
+        _notifyPersistError('tabs', new Error('当前页面为只读页面，未保存聊天数据'));
+      } else {
+        const encoded = encodeTabData(state.tabData);
+        if (!storageRecoveryState.dsTabsReadFailed) {
+          const latestRaw = localStorage.getItem('dsTabs');
+          if (latestRaw !== state.tabDataStorageFingerprint) {
+            // 跨页冲突：把当前内存数据尽量落到恢复区（下次启动会弹合并），再切只读。
+            try { writeRecoverySession(state.tabData); } catch (_) {}
+            state.isReadOnlyPage = true;
+            _notifyPersistError('tabs', new Error('检测到其他页面已更新聊天数据，当前页面已切换为只读，未落盘的内容已进入恢复区'));
+          } else {
+            localStorage.setItem('dsTabs', encoded);
+            state.tabDataStorageFingerprint = encoded;
+            wroteAnyData = true;
+            tabsSaved = true;
+          }
+        } else {
+          writeRecoverySession(state.tabData);
+          wroteAnyData = true;
+          tabsSaved = true;
+        }
+        if (storageRecoveryState.dsTabsReadFailed) {
+          _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已保护原数据并将当前会话保存到恢复区'));
+        }
       }
     } catch (e) {
       console.error('保存对话数据失败:', e);
@@ -99,10 +179,18 @@ function _flushPendingSave() {
       _notifyPersistError('tabs', e);
     }
   }
+  // 非 tabs 类型：仅依赖 flush 开始时的快照。tabs 分支即使因指纹冲突转为只读，
+  // 也只影响 tabs 自身；角色/指令/收藏并无跨页指纹，与冲突无关，本轮最后一次
+  // 落盘必须放行，否则用户的角色/指令/收藏修改会被静默丢失。
+  const canSaveNonTabs = startedWritable;
   if (typesToFlush.has('characters')) {
     try {
-      localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
-      wroteAnyData = true;
+      if (!canSaveNonTabs) {
+        _notifyPersistError('characters', new Error('当前页面为只读页面，未保存角色数据'));
+      } else {
+        localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
+        wroteAnyData = true;
+      }
     } catch (e) {
       console.error('保存角色数据失败:', e);
       failedSaveTypes.add('characters');
@@ -111,8 +199,12 @@ function _flushPendingSave() {
   }
   if (typesToFlush.has('prompts')) {
     try {
-      localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
-      wroteAnyData = true;
+      if (!canSaveNonTabs) {
+        _notifyPersistError('prompts', new Error('当前页面为只读页面，未保存指令数据'));
+      } else {
+        localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
+        wroteAnyData = true;
+      }
     } catch (e) {
       console.error('保存指令数据失败:', e);
       failedSaveTypes.add('prompts');
@@ -121,8 +213,12 @@ function _flushPendingSave() {
   }
   if (typesToFlush.has('favorites')) {
     try {
-      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favoriteData));
-      wroteAnyData = true;
+      if (!canSaveNonTabs) {
+        _notifyPersistError('favorites', new Error('当前页面为只读页面，未保存收藏数据'));
+      } else {
+        localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favoriteData));
+        wroteAnyData = true;
+      }
     } catch (e) {
       console.error('保存收藏数据失败:', e);
       failedSaveTypes.add('favorites');
@@ -138,27 +234,33 @@ function _flushPendingSave() {
     for (const t of failedSaveTypes) _pendingSaveTypes.add(t);
     // 失败项不立即重试（避免死循环），仅保留在待保存集合中，留待下次手动触发或下一次 saveXxx 带起
   }
+
+  return { tabsSaved };
 }
 
 export function saveTabs() {
+  if (state.isReadOnlyPage) return;
   _pendingSaveTypes.add('tabs');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function saveCharacters() {
+  if (state.isReadOnlyPage) return;
   _pendingSaveTypes.add('characters');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function savePrompts() {
+  if (state.isReadOnlyPage) return;
   _pendingSaveTypes.add('prompts');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function saveFavorites() {
+  if (state.isReadOnlyPage) return;
   _pendingSaveTypes.add('favorites');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
@@ -166,7 +268,42 @@ export function saveFavorites() {
 
 export function flushPendingSaveImmediately() {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
-  _flushPendingSave();
+  return _flushPendingSave();
+}
+
+export function getRecoverySession() {
+  return readRecoverySessionRaw().data;
+}
+
+export function saveRecoverySessionSnapshot() {
+  try {
+    writeRecoverySession(state.tabData);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function mergeRecoverySession() {
+  if (state.isReadOnlyPage) return false;
+  const recovery = getRecoverySession();
+  if (!recovery) return false;
+  const merged = cloneTabData(state.tabData);
+  if (!appendRecoveryTabs(merged, recovery)) return false;
+
+  const originalTabData = state.tabData;
+  state.tabData = merged;
+  saveTabs();
+  const { tabsSaved } = flushPendingSaveImmediately();
+  if (!tabsSaved) {
+    state.tabData = originalTabData;
+    return false;
+  }
+
+  try { localStorage.removeItem('dsTabs_recovery_session'); } catch (_) {}
+  _recoverySessionTabIds.clear();
+  storageRecoveryState.recoverySessionPresent = false;
+  return true;
 }
 
 // ========== Token 限制检查 ==========

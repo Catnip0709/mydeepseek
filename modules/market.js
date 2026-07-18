@@ -4,7 +4,7 @@
  * 负责指令市场的随机获取、刷新、保存、AI 生成等功能。
  */
 
-import { state } from './state.js';
+import { state, canModifyPersistedData } from './state.js';
 import { showToast, closeSidebar } from './panels.js';
 import { savePrompts } from './storage.js';
 import { createNewTab } from './tabs.js';
@@ -104,6 +104,10 @@ export function generatePromptTitle(content) {
 // ========== 保存到指令管理 ==========
 
 export function saveCurrentPromptToManager() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const promptMarketContent = document.getElementById('promptMarketContent');
   const content = promptMarketContent.value.trim();
   if (!content) {

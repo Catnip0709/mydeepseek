@@ -4,7 +4,7 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL } from './state.js';
+import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js';
 import { copyText, checkIconSvg } from './utils.js';
 import { getTabDisplayName, updateStorageUsage, isTokenLimitReached } from './storage.js';
 import {
@@ -20,6 +20,12 @@ import { call as coreCall } from './core.js';
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
   if (!deepThinkToggle) return;
+  if (!canModifyPersistedData()) {
+    // 只读时把 UI 复位到内存中的当前值，避免浏览器已经把 checkbox 自动切换但状态未同步。
+    deepThinkToggle.checked = !!state.deepThink;
+    try { showToast('当前页面只读，请切换到正在操作的页面'); } catch (_) {}
+    return;
+  }
 
   // 互斥：HTML 模式开启时，拒绝"开启深度思考"的动作（关闭动作放行）
   // 使用同步 require 避免循环依赖时死锁：通过全局变量透传 htmlmode 的状态
@@ -195,6 +201,10 @@ export function bindSettingsEvents() {
   // 设置 - 保存 API Key
   if (settingsSaveKeyBtn) {
     settingsSaveKeyBtn.addEventListener("click", () => {
+        if (!canModifyPersistedData()) {
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       if (!settingsApiKeyInput) return;
       const newKey = settingsApiKeyInput.value.trim();
       if (!validateApiKey(newKey)) return;
@@ -213,6 +223,11 @@ export function bindSettingsEvents() {
   // 设置 - 日间模式
   if (settingsDayModeToggle) {
     settingsDayModeToggle.addEventListener("change", (e) => {
+        if (!canModifyPersistedData()) {
+          e.target.checked = !e.target.checked;
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       const isDayMode = e.target.checked;
       if (isDayMode) {
         document.body.classList.add("day-mode");
@@ -226,6 +241,11 @@ export function bindSettingsEvents() {
   // 设置 - Token 预估显示
   if (settingsTokenEstimateToggle) {
     settingsTokenEstimateToggle.addEventListener("change", (e) => {
+        if (!canModifyPersistedData()) {
+          e.target.checked = !e.target.checked;
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       const show = e.target.checked;
       if (show) {
         document.body.classList.remove("hide-token-estimate");
@@ -241,6 +261,11 @@ export function bindSettingsEvents() {
     settingsHumanizeNormalChatToggle.checked = !!state.humanizeNormalChat;
     settingsHumanizeNormalChatToggle.addEventListener("change", async (e) => {
       const nextChecked = !!e.target.checked;
+        if (!canModifyPersistedData()) {
+          e.target.checked = !nextChecked;
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       if (!nextChecked) {
         state.humanizeNormalChat = false;
         localStorage.setItem('dsHumanizeNormalChat', 'false');
@@ -277,6 +302,11 @@ export function bindSettingsEvents() {
   // 绑定事件
   if (memoryStrategyWindow) {
     memoryStrategyWindow.addEventListener("change", (e) => {
+        if (!canModifyPersistedData()) {
+          e.target.checked = false;
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       if (e.target.checked) {
         state.memoryStrategy = MEMORY_STRATEGY_WINDOW;
         localStorage.setItem("dsMemoryStrategy", MEMORY_STRATEGY_WINDOW);
@@ -285,6 +315,11 @@ export function bindSettingsEvents() {
   }
   if (memoryStrategyFull) {
     memoryStrategyFull.addEventListener("change", (e) => {
+        if (!canModifyPersistedData()) {
+          e.target.checked = false;
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       if (e.target.checked) {
         state.memoryStrategy = MEMORY_STRATEGY_FULL;
         localStorage.setItem("dsMemoryStrategy", MEMORY_STRATEGY_FULL);
@@ -295,6 +330,10 @@ export function bindSettingsEvents() {
   // 字号选择
   document.querySelectorAll('.font-size-option').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (!canModifyPersistedData()) {
+        showToast('当前页面只读，请切换到正在操作的页面');
+        return;
+      }
       const size = btn.getAttribute('data-size');
       applyFontSize(size);
       updateFontSizeButtons(size);
@@ -381,6 +420,10 @@ export function bindSettingsEvents() {
   // API Key 面板
   if (saveKey) {
     saveKey.onclick = () => {
+      if (!canModifyPersistedData()) {
+        showToast('当前页面只读，请切换到正在操作的页面');
+        return;
+      }
       const newKey = apiKeyInput.value.trim();
       if (!validateApiKey(newKey)) return;
       state.apiKey = newKey;
@@ -405,6 +448,13 @@ export function bindSettingsEvents() {
     // 监听切换
     modelChoiceRadios.forEach(radio => {
       radio.addEventListener('change', (e) => {
+        if (!canModifyPersistedData()) {
+          modelChoiceRadios.forEach(choice => {
+            choice.checked = choice.value === state.selectedModel;
+          });
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
         state.selectedModel = e.target.value;
         localStorage.setItem('dsSelectedModel', state.selectedModel);
         // 切换模型后，若当前对话已超过新模型的上下文上限，立即刷新渲染以显示警告

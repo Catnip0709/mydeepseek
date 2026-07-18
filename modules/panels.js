@@ -5,7 +5,7 @@
  * 字号设置、回复引用条、空对话提示等 UI 面板。
  */
 
-import { state } from './state.js';
+import { state, canModifyPersistedData } from './state.js';
 import { saveTabs, getTabDisplayName } from './storage.js';
 
 // ========== Toast 提示 ==========
@@ -126,6 +126,10 @@ export function closeRenameTabPanel() {
 }
 
 export function saveRenamedTab() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   if (!state.renamingTabId || !state.tabData.list[state.renamingTabId]) return;
   const renameTabInput = document.getElementById('renameTabInput');
   const finalName = renameTabInput.value.trim();

@@ -9,7 +9,7 @@
  *   生成过程对用户透明：气泡只显示进度文案，完成后一次性展示完整代码 + 预览按钮
  */
 
-import { state, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
+import { state, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js';
 import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js';
 import { saveTabs } from './storage.js';
 import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js';
@@ -470,6 +470,10 @@ function removeGeneratingBubble(tabId) {
  * @param {string} opts.userText         - 用户原始输入
  */
 export async function sendHtmlGenerationMessage({ tabId, userText, regenerateIndex, fromEdit }) {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const tab = state.tabData.list[tabId];
   if (!tab) return;
 
@@ -659,6 +663,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
   }
 
   // 落盘：把完整 HTML 包装成一个 ```html 代码块，让 html-preview.js 自动注入预览按钮
+  if (!canModifyPersistedData()) return;
   const lockedTab = state.tabData.list[tabId];
   if (!lockedTab) return;
 

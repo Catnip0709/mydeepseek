@@ -5,7 +5,7 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel } from './state.js';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js';
 import {
   escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
@@ -809,6 +809,10 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 
   function commitPendingReplies() {
     if (!pendingReplies.length) return;
+    if (!canModifyPersistedData()) {
+      pendingReplies = [];
+      return;
+    }
     const targetTab = state.tabData.list[lockedTabId];
     if (!targetTab) return;
     const msgs = targetTab.messages || [];
@@ -979,6 +983,10 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 // ========== 群聊面板管理 ==========
 
 export function openCreateGroupPanel() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   if (state.characterData.length < 2) {
     showToast('至少需要创建 2 个角色才能创建群聊');
     return;
@@ -1019,6 +1027,10 @@ export function closeBgInfoPanel() {
 }
 
 export function saveBgInfo() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const roleInput = document.getElementById('bgInfoRoleInput');
   const bgInput = document.getElementById('bgInfoStoryInput');
   const bannedWordsInput = document.getElementById('bgInfoBannedWordsInput');
@@ -1068,6 +1080,10 @@ export function renderCreateGroupCharacterList() {
 }
 
 export function createGroupChat() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   if (state.selectedGroupCharacterIds.size < 2) {
     showToast('请至少选择 2 个角色');
     return;

@@ -4,7 +4,7 @@
  * 负责指令的 CRUD、AI 优化、插入到新对话等功能。
  */
 
-import { state } from './state.js';
+import { state, canModifyPersistedData } from './state.js';
 import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js';
 import { savePrompts } from './storage.js';
 import { showToast, closeSidebar, showConfirmModal } from './panels.js';
@@ -145,10 +145,12 @@ export function renderPromptList() {
         okText: '确认',
         cancelText: '取消'
       });
-      if (confirmed) {
+      if (confirmed && canModifyPersistedData()) {
         state.promptData = state.promptData.filter(p => p.id !== id);
         savePrompts();
         renderPromptList();
+      } else if (confirmed) {
+        showToast('当前页面只读，请切换到正在操作的页面');
       }
     });
   });
@@ -171,6 +173,10 @@ export function insertPromptToNewChat(text) {
 // ========== 保存指令 ==========
 
 function savePromptItem() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const promptTitleInput = document.getElementById('promptTitleInput');
   const promptContentInput = document.getElementById('promptContentInput');
 

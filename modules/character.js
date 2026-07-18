@@ -4,7 +4,7 @@
  * 负责角色卡的 CRUD、AI 增强、面板管理、角色选择面板等。
  */
 
-import { state, CHARACTER_COLORS } from './state.js';
+import { state, CHARACTER_COLORS, canModifyPersistedData } from './state.js';
 import { escapeHtml, editIconSvg, deleteIconSvg } from './utils.js';
 import { saveCharacters, getTabDisplayName, saveTabs, generateNewTabId } from './storage.js';
 import { callLLMJSON } from './llm.js';
@@ -22,6 +22,7 @@ export function getCharacterColor(index) {
 }
 
 export function createCharacter(data) {
+  if (!canModifyPersistedData()) return null;
   const character = {
     id: 'char_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     name: data.name || '未命名角色',
@@ -43,6 +44,7 @@ export function createCharacter(data) {
 }
 
 export function updateCharacter(id, data) {
+  if (!canModifyPersistedData()) return null;
   const idx = state.characterData.findIndex(c => c.id === id);
   if (idx === -1) return null;
   Object.assign(state.characterData[idx], data, { updatedAt: Date.now() });
@@ -51,8 +53,10 @@ export function updateCharacter(id, data) {
 }
 
 export function deleteCharacter(id) {
+  if (!canModifyPersistedData()) return false;
   state.characterData = state.characterData.filter(c => c.id !== id);
   saveCharacters();
+  return true;
 }
 
 export function findCharacterRefs(charId, charName) {
@@ -154,7 +158,10 @@ export function renderCharacterList() {
         return;
       }
       if (!confirm('确定删除角色「' + char.name + '」吗？')) return;
-      deleteCharacter(char.id);
+        if (!deleteCharacter(char.id)) {
+          showToast('当前页面只读，请切换到正在操作的页面');
+          return;
+        }
       renderCharacterList();
       showToast('角色已删除');
     });
@@ -260,6 +267,10 @@ export async function handleAiEnhance() {
 }
 
 export function saveCharacterForm() {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const characterEditName = document.getElementById('characterEditName');
   const characterEditSummary = document.getElementById('characterEditSummary');
   const characterEditPersonality = document.getElementById('characterEditPersonality');
@@ -300,6 +311,10 @@ export function saveCharacterForm() {
 // ========== 创建角色对话 Tab ==========
 
 export function createCharacterChatTab(characterId) {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const char = getCharacterById(characterId);
   if (!char) return;
 

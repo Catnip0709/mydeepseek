@@ -32,6 +32,10 @@ export function invalidateTabCache(tabId) {
 // ========== 创建新 Tab ==========
 
 export function createNewTab() {
+  if (state.isReadOnlyPage) {
+    showToast('当前页面只读，请先切换为操作页面');
+    return state.tabData.active;
+  }
   coreCall('clearPendingTextAttachment');
   const newId = generateNewTabId();
   state.tabData.list[newId] = { messages: [], title: "", storyArchive: null };
@@ -109,6 +113,10 @@ export function renderTabs() {
   document.querySelectorAll(".tab-rename").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (state.isReadOnlyPage) {
+        showToast('当前页面只读，请先切换为操作页面');
+        return;
+      }
       const tabId = btn.dataset.id;
       openRenameTabPanel(tabId);
     });
@@ -127,6 +135,10 @@ export function renderTabs() {
   document.querySelectorAll(".tab-cleanup").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (state.isReadOnlyPage) {
+        showToast('当前页面只读，请先切换为操作页面');
+        return;
+      }
       const cleanupId = btn.dataset.id;
       handleCleanupTab(cleanupId);
     });
@@ -136,6 +148,10 @@ export function renderTabs() {
   document.querySelectorAll(".tab-del").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (state.isReadOnlyPage) {
+        showToast('当前页面只读，请先切换为操作页面');
+        return;
+      }
       const delId = btn.dataset.id;
       if (confirm(`确定删除「${getTabDisplayName(delId)}」吗？删除后记录将永久消失！`)) {
         // 若该 tab 仍有正在进行的发送/附件摘要，clearTabSending 会先 abort 再重置（CR-7）；

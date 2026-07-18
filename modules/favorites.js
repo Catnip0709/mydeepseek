@@ -1,4 +1,4 @@
-import { state } from './state.js';
+import { state, canModifyPersistedData } from './state.js';
 import { saveFavorites, saveTabs, getTabDisplayName } from './storage.js';
 import { closeSidebar, showToast } from './panels.js';
 import { escapeHtml, generateFavoriteId } from './utils.js';
@@ -129,6 +129,10 @@ export function isMessageFavorited(tabId, messageId) {
 }
 
 export function toggleFavoriteForMessage(tabId, message) {
+  if (!canModifyPersistedData()) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return false;
+  }
   if (!tabId || !message?.id || !canFavoriteMessage(message)) return false;
   const favoriteIndex = getFavoriteIndex(tabId, message.id);
   if (favoriteIndex >= 0) {
@@ -154,6 +158,10 @@ export function toggleFavoriteForMessage(tabId, message) {
 }
 
 export function removeFavoriteById(favoriteId, options = {}) {
+  if (!canModifyPersistedData()) {
+    if (!options.silent) showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const { silent = false } = options;
   const removedItem = state.favoriteData.find(item => item.id === favoriteId) || null;
   const before = state.favoriteData.length;
@@ -168,6 +176,7 @@ export function removeFavoriteById(favoriteId, options = {}) {
 }
 
 export function removeFavoritesForMessageIds(tabId, messageIds = [], options = {}) {
+  if (!canModifyPersistedData()) return 0;
   const ids = new Set((Array.isArray(messageIds) ? messageIds : []).filter(Boolean));
   if (!tabId || ids.size === 0) return 0;
   const before = state.favoriteData.length;
@@ -183,6 +192,7 @@ export function removeFavoritesForMessageIds(tabId, messageIds = [], options = {
 }
 
 export function removeFavoritesForTab(tabId, options = {}) {
+  if (!canModifyPersistedData()) return 0;
   if (!tabId) return 0;
   const removedMessageIds = state.favoriteData
     .filter(item => item.tabId === tabId)

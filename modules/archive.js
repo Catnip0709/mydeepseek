@@ -4,7 +4,7 @@
  * 负责剧情档案馆的生成、渲染与面板交互。
  */
 
-import { state } from './state.js';
+import { state, canModifyPersistedData } from './state.js';
 import { callLLM, extractJsonFromText } from './llm.js';
 import { saveTabs, getTabDisplayName } from './storage.js';
 import { isHtmlRelatedMessage } from './utils.js';
@@ -737,6 +737,10 @@ export function markStoryArchiveStale(tabId) {
 }
 
 export async function generateStoryArchive(tabId = state.tabData.active, options = {}) {
+  if (!canModifyPersistedData()) {
+    if (!options.silent) showToast('当前页面只读，请切换到正在操作的页面');
+    return null;
+  }
   const { silent = false, silentSuccess = false } = options;
   const tab = state.tabData.list[tabId];
   const keyPanel = document.getElementById('keyPanel');
@@ -871,6 +875,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
       totalTimer = null;
     }
 
+    if (!canModifyPersistedData()) return null;
     const currentTab = state.tabData.list[tabId];
     if (!currentTab) {
       throw new Error('会话已被删除');
@@ -903,6 +908,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
     if (abortController.signal.aborted && !isTotalTimeout) {
       // 手动停止时，如果 core 已经成功，优先落盘 core 档案，避免两阶段 extras 中断导致整次结果丢失
       if (profile.twoStage && coreArchiveForFallback) {
+        if (!canModifyPersistedData()) return null;
         const currentTab = state.tabData.list[tabId];
         if (currentTab) {
           currentTab.storyArchive = normalizeArchive(coreArchiveForFallback, snapshotTab, sourceMessageCount, sourceSignature);

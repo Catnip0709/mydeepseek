@@ -20,11 +20,98 @@ if (!_dsUserId) {
 // 写入 localStorage 前用 lz-string 压缩，读取后解压；内存中始终是普通对象。
 // 压缩串带前缀 COMPRESSED_PREFIX 以便与历史明文数据区分，实现无缝迁移。
 const COMPRESSED_PREFIX = 'LZ1:';
+const PAGE_LOCK_KEY = 'dsActivePageLock';
+const PAGE_LOCK_TTL_MS = 15000;
+const PAGE_INSTANCE_ID = `page_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+const INITIAL_DS_TABS_RAW = localStorage.getItem('dsTabs');
 
 export const storageRecoveryState = {
   dsTabsReadFailed: false,
-  dsTabsReadError: null
+  dsTabsReadError: null,
+  recoverySessionPresent: localStorage.getItem('dsTabs_recovery_session') != null,
+  persistenceRisk: false
 };
+
+export async function detectStoragePersistenceRisk() {
+  try {
+    const probeKey = '__mydeepseek_storage_probe__';
+    localStorage.setItem(probeKey, String(Date.now()));
+    const probeOk = localStorage.getItem(probeKey) != null;
+    localStorage.removeItem(probeKey);
+    if (!probeOk) {
+      storageRecoveryState.persistenceRisk = true;
+      return true;
+    }
+
+    // 无痕/隐私环境无法稳定识别，只把极低配额视为风险信号，避免误报。
+    // 阈值需低于常见移动端浏览器正常配额（iOS Safari ≈ 5MB 属正常），因此设为 2MB。
+    if (navigator.storage?.estimate) {
+      const estimate = await navigator.storage.estimate();
+      const quota = Number(estimate?.quota || 0);
+      if (quota > 0 && quota < 2 * 1024 * 1024) {
+        storageRecoveryState.persistenceRisk = true;
+      }
+    }
+  } catch (_) {
+    storageRecoveryState.persistenceRisk = true;
+  }
+  return storageRecoveryState.persistenceRisk;
+}
+
+export function getPageInstanceId() {
+  return PAGE_INSTANCE_ID;
+}
+
+export function canModifyPersistedData() {
+  return !state.isReadOnlyPage;
+}
+
+export function readPageLock() {
+  try {
+    const raw = localStorage.getItem(PAGE_LOCK_KEY);
+    if (!raw) return null;
+    const lock = JSON.parse(raw);
+    if (!lock?.id || !Number.isFinite(lock.ts)) return null;
+    return lock;
+  } catch (_) {
+    return null;
+  }
+}
+
+export function isPageLockStale(lock = readPageLock()) {
+  return !lock || Date.now() - lock.ts > PAGE_LOCK_TTL_MS;
+}
+
+export function acquirePageLock(force = false) {
+  const current = readPageLock();
+  if (!force && current && current.id !== PAGE_INSTANCE_ID && !isPageLockStale(current)) {
+    return false;
+  }
+  try {
+    localStorage.setItem(PAGE_LOCK_KEY, JSON.stringify({ id: PAGE_INSTANCE_ID, ts: Date.now() }));
+    const verified = readPageLock();
+    return verified?.id === PAGE_INSTANCE_ID;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function refreshPageLock() {
+  const current = readPageLock();
+  if (!current || current.id !== PAGE_INSTANCE_ID) return false;
+  try {
+    localStorage.setItem(PAGE_LOCK_KEY, JSON.stringify({ id: PAGE_INSTANCE_ID, ts: Date.now() }));
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function releasePageLock() {
+  const current = readPageLock();
+  if (!current || current.id !== PAGE_INSTANCE_ID) return;
+  try { localStorage.removeItem(PAGE_LOCK_KEY); } catch (_) {}
+}
 
 // 将对象序列化并压缩为可安全存入 localStorage 的字符串。
 // 若运行环境缺少 LZString（CDN 加载失败），降级为明文，保证功能不中断。
@@ -150,6 +237,9 @@ function readHumanizeNormalChat() {
 export const state = {
   // 用户ID
   dsUserId: _dsUserId,
+  pageInstanceId: PAGE_INSTANCE_ID,
+  isReadOnlyPage: false,
+  tabDataStorageFingerprint: INITIAL_DS_TABS_RAW,
 
   // API Key
   apiKey: localStorage.getItem("dsApiKey"),

@@ -5,15 +5,16 @@
  * 所有模块在此汇聚，由 index.html 作为 ES Module 入口加载。
  */
 
-import { state, storageRecoveryState } from './state.js';
+import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk } from './state.js';
 import { trackEvent } from './utils.js';
-import { initializeData, repairData, flushPendingSaveImmediately, onPersistError } from './storage.js';
+import { initializeData, repairData, flushPendingSaveImmediately, onPersistError, getRecoverySession, mergeRecoverySession, saveRecoverySessionSnapshot } from './storage.js';
 import { register } from './core.js';
 import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
-  showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel
+  showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel,
+  showConfirmModal
 } from './panels.js';
 import { bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI, syncDeepThinkFromInput } from './settings.js';
 import { bindTabEvents } from './tabs.js';
@@ -95,8 +96,110 @@ function runLegacySummaryMigrationForTab(tabId) {
   });
 }
 
+function applyPageAccessState() {
+  const banner = document.getElementById('multiPageReadonlyBanner');
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('sendBtn');
+  const addTab = document.getElementById('addTab');
+  const readonly = !!state.isReadOnlyPage;
+  if (banner) banner.classList.toggle('hidden', !readonly);
+  if (input) {
+    input.disabled = readonly;
+    input.placeholder = readonly ? '当前页面只读，请切换到操作页面' : '输入消息...';
+  }
+  if (sendBtn) {
+    if (readonly) {
+      if (!sendBtn.dataset.origTitle) sendBtn.dataset.origTitle = sendBtn.title;
+      sendBtn.title = '当前页面只读';
+    } else {
+      sendBtn.title = sendBtn.dataset.origTitle || sendBtn.title;
+    }
+    sendBtn.disabled = readonly;
+  }
+  if (addTab) addTab.disabled = readonly;
+}
+
+function initializePageLock() {
+  // 启动时如果发现现存锁其实已经过期（原页面崩溃/被杀未释放锁），直接强制接管，
+  // 避免存量用户被"幽灵锁"卡在只读横幅上。
+  const existingLock = readPageLock();
+  const shouldForceAcquire = isPageLockStale(existingLock);
+  state.isReadOnlyPage = !acquirePageLock(shouldForceAcquire);
+  applyPageAccessState();
+
+  const takeoverBtn = document.getElementById('takeoverPageBtn');
+  if (takeoverBtn) {
+    takeoverBtn.addEventListener('click', () => {
+      if (!acquirePageLock(true)) {
+        showToast('暂时无法接管，请稍后重试');
+        return;
+      }
+      // 抢锁成功后立即 reload：reload 期间浏览器会停止执行当前脚本，
+      // 避免留出"看似可写但内存快照过期"的窗口导致脏写覆盖。
+      location.reload();
+    });
+  }
+
+  window.addEventListener('storage', event => {
+    if (event.key !== 'dsActivePageLock') return;
+    const lock = readPageLock();
+    if (lock?.id && lock.id !== getPageInstanceId()) {
+      if (!state.isReadOnlyPage) {
+        // 让位前尽力把内存中的修改落到恢复区，保证不丢数据。
+        flushPendingSaveImmediately();
+        saveRecoverySessionSnapshot();
+      }
+      state.isReadOnlyPage = true;
+      applyPageAccessState();
+      return;
+    }
+    if (!lock && state.isReadOnlyPage && acquirePageLock()) {
+      state.isReadOnlyPage = false;
+      applyPageAccessState();
+      location.reload();
+    }
+  });
+
+  const heartbeat = window.setInterval(() => {
+    if (!state.isReadOnlyPage) {
+      if (!refreshPageLock()) {
+        // 锁丢失：直接把当前内存数据写入恢复区，避开指纹冲突导致的静默丢失；
+        // 下次启动会引导用户合并恢复。
+        saveRecoverySessionSnapshot();
+        state.isReadOnlyPage = true;
+        applyPageAccessState();
+        showToast('操作权限已转移到另一个页面，未保存内容已存入恢复区');
+      }
+    } else {
+      // 只读状态下也定期检查锁是否过期（例如原操作页崩溃未释放锁），
+      // 过期则自动接管并刷新，避免用户被永久卡在只读状态。
+      const lock = readPageLock();
+      if (isPageLockStale(lock) && acquirePageLock()) {
+        state.isReadOnlyPage = false;
+        applyPageAccessState();
+        location.reload();
+      }
+    }
+  }, 3000);
+
+  // 前台可见时补一次心跳，减小后台节流醒来后被"抢锁"的窗口。
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!state.isReadOnlyPage) refreshPageLock();
+  });
+
+  // pagehide 在 iOS Safari 上比 beforeunload 更可靠。
+  const releaseOnHide = () => {
+    window.clearInterval(heartbeat);
+    releasePageLock();
+  };
+  window.addEventListener('pagehide', releaseOnHide);
+  window.addEventListener('beforeunload', releaseOnHide);
+}
+
 function init() {
   try {
+    initializePageLock();
     // 事件埋点
     trackEvent('访问页面');
 
@@ -108,6 +211,9 @@ function init() {
     let _lastGenericToastAt = 0;
     onPersistError(({ type, isQuota }) => {
       const now = Date.now();
+      if (type === 'tabs' && state.isReadOnlyPage) {
+        applyPageAccessState();
+      }
       if (isQuota) {
         if (now - _lastQuotaToastAt > 3000) {
           _lastQuotaToastAt = now;
@@ -125,6 +231,36 @@ function init() {
     if (storageRecoveryState.dsTabsReadFailed) {
       showToast('本地聊天数据暂时无法读取，已保护原数据；请刷新或导出恢复区后再处理');
     }
+    if (storageRecoveryState.recoverySessionPresent) {
+      if (storageRecoveryState.dsTabsReadFailed) {
+        showToast('检测到恢复区聊天记录，但主聊天数据暂时无法读取；已保护两份数据，请勿继续覆盖');
+      } else if (getRecoverySession()) {
+        setTimeout(async () => {
+          const shouldMerge = await showConfirmModal({
+            title: '发现可恢复的聊天记录',
+            desc: '检测到之前异常会话产生的聊天记录。合并后会追加为新的会话，不会覆盖当前记录。',
+            okText: '合并恢复',
+            cancelText: '暂不处理'
+          });
+          if (shouldMerge) {
+            if (state.isReadOnlyPage) {
+              showToast('当前页面只读，暂不能合并；请先切换到操作页面');
+            } else if (mergeRecoverySession()) {
+              renderTabs();
+              renderChat();
+              showToast('恢复区聊天记录已合并');
+            } else {
+              showToast('本次未能合并恢复区，数据仍保留在本地，可稍后重试');
+            }
+          }
+        }, 0);
+      }
+    }
+    detectStoragePersistenceRisk().then(risky => {
+      if (risky) {
+        showToast('当前浏览环境可能不会长期保存聊天记录，建议不要使用无痕模式，并及时导出重要对话');
+      }
+    }).catch(() => {});
 
     // 检查 API Key
     const keyPanel = document.getElementById("keyPanel");

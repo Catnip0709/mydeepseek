@@ -5,7 +5,7 @@
  * 摘要滚动更新，始终只保留一个。
  */
 
-import { state, MEMORY_STRATEGY_FULL } from './state.js';
+import { state, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js';
 import { callLLM } from './llm.js';
 import { isHtmlRelatedMessage } from './utils.js';
 import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js';
@@ -144,6 +144,7 @@ export async function migrateLegacySummariesOnInit() {
  * @param {string} tabId - 对话 ID
  */
 export function clearSummary(tabId) {
+  if (!canModifyPersistedData()) return;
   const tab = state.tabData.list[tabId];
   if (tab) {
     tab.summary = '';
@@ -246,6 +247,7 @@ async function generateNewSummary(tabId) {
   if (currentTab.summary && currentTab.summaryCoversUpTo > 0) return;
   if (!isConversationSnapshotUnchanged(tabId, 0, targetCover, conversationText)) return;
 
+  if (!canModifyPersistedData()) return;
   currentTab.summary = summary.trim();
   currentTab.summaryCoversUpTo = targetCover;
   currentTab.summaryVersion = SUMMARY_FORMAT_VERSION;
@@ -270,6 +272,7 @@ async function rebuildSummaryToCover(tabId, coverIdx) {
   if (currentTargetCover !== coverIdx) return;
   if (!isConversationSnapshotUnchanged(tabId, 0, coverIdx, conversationText)) return;
 
+  if (!canModifyPersistedData()) return;
   currentTab.summary = summary.trim();
   currentTab.summaryCoversUpTo = coverIdx;
   currentTab.summaryVersion = SUMMARY_FORMAT_VERSION;
@@ -314,6 +317,7 @@ async function updateExistingSummary(tabId) {
   if ((currentTab.summary || '') !== (baseSummary || '')) return;
   if (!isConversationSnapshotUnchanged(tabId, startIdx, endIdx, newConversationText)) return;
 
+  if (!canModifyPersistedData()) return;
   currentTab.summary = summary.trim();
   currentTab.summaryCoversUpTo = endIdx;
   currentTab.summaryVersion = SUMMARY_FORMAT_VERSION;

@@ -4,7 +4,7 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel } from './state.js';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
@@ -606,6 +606,10 @@ function handleChatClick(e) {
   // Delete button
   const deleteBtn = target.closest('.delete-btn');
   if (deleteBtn) {
+    if (!canModifyPersistedData()) {
+      showToast('当前页面只读，请切换到正在操作的页面');
+      return;
+    }
     const index = parseInt(deleteBtn.getAttribute('data-index'));
     if (confirm("确定删除这条消息吗？")) {
       const activeTab = state.tabData.list[state.tabData.active];
@@ -627,6 +631,10 @@ function handleChatClick(e) {
 
   const favoriteBtn = target.closest('.favorite-btn');
   if (favoriteBtn) {
+    if (!canModifyPersistedData()) {
+      showToast('当前页面只读，请切换到正在操作的页面');
+      return;
+    }
     const index = parseInt(favoriteBtn.getAttribute('data-index'));
     const message = currentMsgs[index];
     if (message && canFavoriteMessage(message)) {
@@ -991,6 +999,10 @@ export async function sendMessage() {
   const input = document.getElementById("input");
   const keyPanel = document.getElementById("keyPanel");
 
+  if (state.isReadOnlyPage) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   if (state.isSending || state.isPreparingTextAttachment) return;
   const text = input.value.trim();
   if (!text) {
@@ -1440,6 +1452,19 @@ export async function fetchAndStreamResponse(opts = {}) {
     let buffer = "";
 
     while (true) {
+      if (!canModifyPersistedData()) {
+        reader.cancel().catch(() => {});
+        fullContent = '❌ 操作权限已转移到另一个页面，本次回复未保存';
+        fullReasoningContent = '';
+        finalizeState = 'interrupted';
+        if (!liveRenderBroken && aiMsgDiv && aiMsgDiv.isConnected) {
+          const contentDiv = aiMsgDiv.querySelector('.msg-content');
+          if (contentDiv) {
+            contentDiv.innerHTML = '<span class="text-red-400">❌ 操作权限已转移到另一个页面，本次回复未保存</span>';
+          }
+        }
+        break;
+      }
       const { done, value } = await reader.read();
       if (done) break;
       chunkGuard.touch();
@@ -1569,6 +1594,9 @@ export async function fetchAndStreamResponse(opts = {}) {
     _finalizeCalled = true;
     shouldCheckSummary = fState === "complete";
 
+    // 页面被其他实例接管后，旧页面的迟到响应不得写入内存或覆盖记录。
+    if (!canModifyPersistedData()) return;
+
     // 防御：发起时的 tab 可能已被用户删除
     const lockedTab = state.tabData.list[lockedTabId];
     if (!lockedTab) return;
@@ -1633,6 +1661,10 @@ export async function fetchAndStreamResponse(opts = {}) {
 // ========== 编辑和重新生成 ==========
 
 export async function saveEditAndRegenerate() {
+  if (state.isReadOnlyPage) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   const editPanel = document.getElementById("editPanel");
   const editTextarea = document.getElementById("editTextarea");
 
@@ -1715,6 +1747,10 @@ export function editUserMessage(messageIndex) {
 }
 
 export function regenerateResponse(messageIndex) {
+  if (state.isReadOnlyPage) {
+    showToast('当前页面只读，请切换到正在操作的页面');
+    return;
+  }
   if (!state.apiKey) {
     const keyPanel = document.getElementById("keyPanel");
     keyPanel.classList.remove("hidden");
