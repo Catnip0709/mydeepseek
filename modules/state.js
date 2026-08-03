@@ -501,12 +501,13 @@ export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // V4: 1M
 /**
  * 获取当前生效的模型 ID 和额外参数。
  * - V4 + 深度思考 → model: 选中的 V4, thinkingType: 'enabled', reasoningEffort: 'max'
- * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: null
+ * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: 'disabled'
  */
 export function getEffectiveModel() {
   return {
     model: state.selectedModel,
-    thinkingType: state.deepThink ? 'enabled' : null,
+    // V4 默认开启思考模式，关闭时必须显式传 disabled。
+    thinkingType: state.deepThink ? 'enabled' : 'disabled',
     reasoningEffort: state.deepThink ? 'max' : null
   };
 }

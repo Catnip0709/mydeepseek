@@ -1868,6 +1868,7 @@ export async function generateTitleForCurrentTab() {
           { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${titleSource}` }
         ],
         stream: false,
+          thinking: { type: 'disabled' },
         temperature: 0.5,
         max_tokens: 50
       })

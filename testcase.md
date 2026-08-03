@@ -107,7 +107,7 @@
 
 **六B、模型选择**
 
-- 设置页中显示模型选择区域，包含 V4-Flash（推荐）、V4-Pro 两个 radio 选项
+- 设置页中显示模型选择区域，包含 V4-Flash 正式版（推荐）、V4-Pro 预览版两个 radio 选项
 - 默认选中 V4-Flash
 - 切换模型后，`state.selectedModel` 立即更新并持久化到 `dsSelectedModel`
 - 刷新页面后，模型选择恢复为上次选中的模型
@@ -134,6 +134,8 @@
 - 深度思考 chip 在日间模式下样式正确
 - 深度思考关闭时按 V4 模型的非思考模式发送
 - 深度思考打开时，AI 回复的思考过程（reasoning_content）正常显示
+- 群聊不受深度思考开关影响，请求体始终包含 `thinking: { type: "disabled" }` 且不包含 `reasoning_effort`
+- 标题、摘要、角色卡等辅助生成请求默认包含 `thinking: { type: "disabled" }`
 
 **七、会话管理**
 

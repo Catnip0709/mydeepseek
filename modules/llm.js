@@ -91,7 +91,7 @@ export async function callLLM({
   tools = null,
   toolChoice = 'auto',
   reasoningEffort = null,
-  thinkingType = null,
+  thinkingType = 'disabled',
   signal = null,
   onChunk = null,
   onToolCallReady = null,

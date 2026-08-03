@@ -740,7 +740,10 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
 export async function sendGroupMessage(tabId, userMessage, replyInfo) {
   const chat = document.getElementById("chat");
-  const { model: selectedModel, reasoningEffort, thinkingType } = getEffectiveModel();
+  const { model: selectedModel } = getEffectiveModel();
+  // 群聊编排固定使用非思考模式，避免增加首条角色回复的延迟和 token 消耗。
+  const reasoningEffort = null;
+  const thinkingType = 'disabled';
 
   const lockedTabId = tabId;
 
