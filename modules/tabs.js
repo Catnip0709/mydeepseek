@@ -4,9 +4,9 @@
  * 负责 Tab 的渲染、创建、切换、缓存和删除。
  */
 
-import { state, abortTabSending, clearTabSending, isTabSending } from './state.js';
+import { state, clearTabSending, isTabSending, storageRecoveryState } from './state.js';
 import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js';
-import { saveTabs, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js';
+import { saveTabs, saveFavorites, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js';
 import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js';
 import { removeFavoritesForTab } from './favorites.js';
 import { call as coreCall } from './core.js';
@@ -154,29 +154,68 @@ export function renderTabs() {
       }
       const delId = btn.dataset.id;
       if (confirm(`确定删除「${getTabDisplayName(delId)}」吗？删除后记录将永久消失！`)) {
-        // 若该 tab 仍有正在进行的发送/附件摘要，clearTabSending 会先 abort 再重置（CR-7）；
-        // 这里显式设置 abortReason 以便 catch 分支能正确识别为"手动中断"。
-        abortTabSending(delId, 'manual');
-        clearTabSending(delId);
-        removeFavoritesForTab(delId, { silent: true });
+        if (storageRecoveryState.dsTabsReadFailed) {
+          showToast('主聊天数据暂不可读取，为避免损坏恢复数据，当前不能删除会话');
+          return;
+        }
+        if (isTabSending(delId)) {
+          showToast('该会话正在生成内容，请先停止生成后再删除');
+          return;
+        }
+
+        // 先提交删除前已有的待保存数据，避免全局防抖队列混入本次删除事务。
+        const pendingResult = flushPendingSaveImmediately();
+        if (pendingResult.failedTypes.length > 0) {
+          showToast('仍有数据尚未保存，请释放空间或刷新后再删除会话');
+          return;
+        }
+
+        const previousTabData = JSON.parse(JSON.stringify(state.tabData));
+        const previousFavoriteData = state.favoriteData.slice();
+
+        const removedFavorites = removeFavoritesForTab(delId, { silent: true, deferSave: true });
 
         delete state.tabData.list[delId];
 
         const remainingTabIds = Object.keys(state.tabData.list);
         if (remainingTabIds.length === 0) {
-          const newId = createNewTab();
+          const newId = generateNewTabId();
+          state.tabData.list[newId] = { messages: [], title: "", storyArchive: null };
           state.tabData.active = newId;
+        } else if (delId === state.tabData.active) {
+          state.tabData.active = remainingTabIds[0];
+        }
+
+        saveTabs();
+        const saveResult = flushPendingSaveImmediately(['tabs']);
+        if (!saveResult.tabsSaved) {
+          state.tabData = previousTabData;
+          state.favoriteData = previousFavoriteData;
+          coreCall('renderChat');
+          coreCall('renderFavoritesPanel');
+          renderTabs();
+          coreCall('updateInputCounter');
+          showToast('删除未能保存，聊天和收藏数据均未删除');
           return;
         }
 
-        if (delId === state.tabData.active) {
-          coreCall('clearPendingTextAttachment');
-          state.tabData.active = remainingTabIds[0];
+        clearTabSending(delId);
+        if (delId === previousTabData.active) coreCall('clearPendingTextAttachment');
+
+        // 主会话删除已成功落盘后再清理收藏，避免主数据保存失败时误删收藏。
+        let favoritesSaved = true;
+        if (removedFavorites > 0) {
+          saveFavorites();
+          const favoriteResult = flushPendingSaveImmediately(['favorites']);
+          favoritesSaved = favoriteResult.savedTypes.includes('favorites');
         }
-        saveTabs();
+        invalidateTabCache(delId);
         coreCall('renderChat');
         renderTabs();
         coreCall('updateInputCounter');
+        if (!favoritesSaved) {
+          showToast('会话已删除，但关联收藏暂未清理；系统将在后续保存时重试');
+        }
       }
     });
   });

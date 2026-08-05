@@ -202,7 +202,7 @@ export function removeFavoritesForTab(tabId, options = {}) {
   state.favoriteData = state.favoriteData.filter(item => item.tabId !== tabId);
   const removed = before - state.favoriteData.length;
   if (removed > 0) {
-    saveFavorites();
+    if (!options.deferSave) saveFavorites();
     renderFavoritesPanel();
     if (currentPreviewFavoriteId && !state.favoriteData.some(item => item.id === currentPreviewFavoriteId)) {
       closeFavoritePreviewPanel();

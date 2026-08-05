@@ -41,7 +41,7 @@
 - 22 个 ES 模块文件均可通过 HTTP 正常加载（无 404、无 CORS 错误）
 - 模块间所有 `import` 的符号在源模块中均有对应 `export`
 - `core.js` 函数注册中心正常工作：`register`、`call`、`get` 三个接口可用
-- `init.js` 中注册的 21 个跨模块函数均可通过 `coreCall` 正确调用：renderChat、rebindChatButtons、updateInputCounter、clearPendingTextAttachment、updateComposerPrimaryButtonState、closeComposerActionMenu、renderTabs、invalidateTabCache、getCharacterColor、getCharacterById、createCharacterChatTab、openCharacterSelectPanel、openCharacterPanel、openCreateGroupPanel、updateBgInfoChip、runLegacySummaryMigration、runLegacySummaryMigrationForTab、openStoryArchivePanel、markStoryArchiveStale、openFavoritesPanel、renderFavoritesPanel
+- `init.js` 中注册的跨模块函数均可通过 `coreCall` 正确调用，包括新增的 `refreshRecoverableStorageInfo`
 - chat.js、tabs.js、character.js、groupchat.js、favorites.js 之间无循环 `import`（通过 core.js 间接调用）
 - 调用未注册的函数时，`core.call` 输出 console.warn 而非崩溃
 
@@ -149,6 +149,12 @@
 - 删除当前会话后，会自动切到其他会话
 - 删除最后一个会话时，会自动创建一个新的空白会话
 - 删除会话后不应出现空列表、卡死或活动会话丢失
+- 删除会话后立即刷新或关闭页面，已删除会话不会恢复
+- 删除会话写入失败时，内存中的会话与关联收藏恢复到删除前状态，不显示“已删除但未落盘”的假成功
+- 正在生成内容或准备附件的会话不能删除，停止生成后才允许删除
+- `dsTabs` 主数据不可读取时禁止删除会话，恢复区不会因追加保存而重新带回已删除会话
+- 删除前存在待保存收藏时，提交会话删除不会提前写入修改后的收藏数据
+- 会话删除成功但关联收藏保存失败时，明确提示部分失败并保留后续重试状态
 - 首轮对话完成后，可自动生成简短标题
 - 流式输出期间切换会话，消息不会串到其他会话（tab 锁定修复验证）
 - 流式输出期间切换会话，AI 回复写回正确的原始会话
@@ -489,6 +495,14 @@
 - 存储用量 ≥ 99% 时，按回车同样被阻止
 - 存储用量在日间模式下正常显示（灰字/红字适配）
 - localStorage 写入遇到容量异常时，不会因 `setItem` 抛错导致页面直接崩溃；其余数据类型仍可继续保存
+- 已存在有效 `dsTabs` 时，启动过程不会读取或重新创建旧版 `dsMessages`
+- 仅有旧版 `dsMessages` 时，成功写入并读回 `dsTabs` 后才删除旧键；写入失败时旧键和内存会话均保留
+- 存量 `dsMessages` 只有在其全部消息内容被当前 `dsTabs` 完整覆盖时才自动清理，无法证明覆盖时继续保留
+- 检测到恢复区时可选择“合并恢复 / 删除恢复数据 / 暂不处理”，删除恢复数据需要二次确认
+- 二次确认期间恢复区内容或页面锁发生变化时，旧确认失效且新恢复数据保持不变
+- 设置页展示恢复数据与故障备份的数量和大小，并可分别清理
+- 主聊天数据不可读或页面只读时，恢复数据与故障备份清理入口不可用
+- 清理恢复数据或故障备份不会删除 `dsTabs`、角色卡、指令、收藏和 API Key
 
 **二十二、数据损坏自动修复**
 

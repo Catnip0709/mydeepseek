@@ -5,8 +5,11 @@
  */
 
 import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js';
-import { copyText, checkIconSvg } from './utils.js';
-import { getTabDisplayName, updateStorageUsage, isTokenLimitReached } from './storage.js';
+import { copyText, checkIconSvg, formatBytes } from './utils.js';
+import {
+  getTabDisplayName, updateStorageUsage, isTokenLimitReached,
+  getRecoverableStorageInfo, discardRecoverySession, clearCorruptedBackups
+} from './storage.js';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
@@ -298,6 +301,24 @@ export function exportChatToTxt(tabId, mode = 'all', includeReasoning = true) {
 
 // ========== 设置面板事件绑定 ==========
 
+export function refreshRecoverableStorageInfo() {
+  const infoEl = document.getElementById('recoverableStorageInfo');
+  const discardBtn = document.getElementById('discardRecoveryStorageBtn');
+  const clearBackupsBtn = document.getElementById('clearCorruptedBackupsBtn');
+  const info = getRecoverableStorageInfo();
+  const recoveryText = info.recoveryPresent
+    ? `恢复数据 ${formatBytes(info.recoveryBytes)}`
+    : '无恢复数据';
+  const backupText = info.backupCount > 0
+    ? `故障备份 ${info.backupCount} 份，共 ${formatBytes(info.backupBytes)}`
+    : '无故障备份';
+  if (infoEl) {
+    infoEl.textContent = `${recoveryText}；${backupText}${info.cleanupBlocked ? '。当前状态下禁止清理' : ''}`;
+  }
+  if (discardBtn) discardBtn.disabled = !info.recoveryPresent || info.cleanupBlocked;
+  if (clearBackupsBtn) clearBackupsBtn.disabled = info.backupCount === 0 || info.cleanupBlocked;
+}
+
 export function bindSettingsEvents() {
   const settingsBtn = document.getElementById('settingsBtn');
   const settingsCloseBtn = document.getElementById('settingsCloseBtn');
@@ -308,6 +329,8 @@ export function bindSettingsEvents() {
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
   const settingsTokenEstimateToggle = document.getElementById('settingsTokenEstimateToggle');
   const settingsHumanizeNormalChatToggle = document.getElementById('settingsHumanizeNormalChatToggle');
+  const discardRecoveryStorageBtn = document.getElementById('discardRecoveryStorageBtn');
+  const clearCorruptedBackupsBtn = document.getElementById('clearCorruptedBackupsBtn');
   const menuBtn = document.getElementById('menuBtn');
   const sidebarOverlay = document.getElementById('sidebarOverlay');
   const renameTabCancelBtn = document.getElementById('renameTabCancelBtn');
@@ -315,6 +338,7 @@ export function bindSettingsEvents() {
   const renameTabPanel = document.getElementById('renameTabPanel');
   const renameTabInput = document.getElementById('renameTabInput');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmSecondaryBtn = document.getElementById('confirmSecondaryBtn');
   const confirmOkBtn = document.getElementById('confirmOkBtn');
   const confirmPanel = document.getElementById('confirmPanel');
   const downloadCancelBtn = document.getElementById('downloadCancelBtn');
@@ -345,11 +369,49 @@ export function bindSettingsEvents() {
   if (sidebarOverlay) sidebarOverlay.addEventListener("click", closeSidebar);
 
   // 设置面板
-  if (settingsBtn) settingsBtn.addEventListener("click", openSettingsPanel);
+  if (settingsBtn) settingsBtn.addEventListener("click", () => {
+    refreshRecoverableStorageInfo();
+    openSettingsPanel();
+  });
   if (settingsCloseBtn) settingsCloseBtn.addEventListener("click", closeSettingsPanel);
   if (settingsPanel) settingsPanel.addEventListener("click", (e) => {
     if (e.target === settingsPanel) closeSettingsPanel();
   });
+
+  if (discardRecoveryStorageBtn) {
+    discardRecoveryStorageBtn.addEventListener('click', async () => {
+      const info = getRecoverableStorageInfo();
+      const confirmed = await showConfirmModal({
+        title: '确认删除恢复数据',
+        desc: '恢复区中的聊天记录将永久删除，且无法撤销。当前正常会话不会受到影响。',
+        okText: '确认删除',
+        cancelText: '保留数据'
+      });
+      if (!confirmed) return;
+      showToast(
+        discardRecoverySession(info.recoveryFingerprint)
+          ? '恢复数据已删除'
+          : '恢复数据已变化或当前页面已失去操作权，请重新确认'
+      );
+      refreshRecoverableStorageInfo();
+    });
+  }
+
+  if (clearCorruptedBackupsBtn) {
+    clearCorruptedBackupsBtn.addEventListener('click', async () => {
+      const info = getRecoverableStorageInfo();
+      const confirmed = await showConfirmModal({
+        title: '确认清理故障备份',
+        desc: `将删除 ${info.backupCount} 份异常数据备份，共 ${formatBytes(info.backupBytes)}。当前正常会话不会受到影响。`,
+        okText: '确认清理',
+        cancelText: '取消'
+      });
+      if (!confirmed) return;
+      const result = clearCorruptedBackups();
+      showToast(result.blocked ? '当前状态下不能清理故障备份' : `已清理 ${result.cleared} 份故障备份`);
+      refreshRecoverableStorageInfo();
+    });
+  }
 
   // 设置 - 复制 API Key
   if (settingsCopyKeyBtn) {
@@ -528,6 +590,7 @@ export function bindSettingsEvents() {
 
   // 确认弹窗
   if (confirmCancelBtn) confirmCancelBtn.addEventListener('click', () => closeConfirmModal(false));
+  if (confirmSecondaryBtn) confirmSecondaryBtn.addEventListener('click', () => closeConfirmModal('secondary'));
   if (confirmOkBtn) confirmOkBtn.addEventListener('click', () => closeConfirmModal(true));
   if (confirmPanel) confirmPanel.addEventListener('click', (e) => {
     if (e.target === confirmPanel) closeConfirmModal(false);

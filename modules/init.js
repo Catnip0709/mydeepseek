@@ -7,7 +7,11 @@
 
 import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk } from './state.js';
 import { trackEvent } from './utils.js';
-import { initializeData, repairData, flushPendingSaveImmediately, onPersistError, getRecoverySession, mergeRecoverySession, saveRecoverySessionSnapshot } from './storage.js';
+import {
+  initializeData, repairData, flushPendingSaveImmediately, onPersistError,
+  getRecoverySession, getRecoverableStorageInfo, mergeRecoverySession,
+  discardRecoverySession, saveRecoverySessionSnapshot
+} from './storage.js';
 import { register } from './core.js';
 import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js';
 import { renderTabs, invalidateTabCache } from './tabs.js';
@@ -16,7 +20,10 @@ import {
   showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel,
   showConfirmModal
 } from './panels.js';
-import { bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI, syncDeepThinkFromInput } from './settings.js';
+import {
+  bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI,
+  syncDeepThinkFromInput, refreshRecoverableStorageInfo
+} from './settings.js';
 import { bindTabEvents } from './tabs.js';
 import { bindChatEvents } from './chat.js';
 import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js';
@@ -52,6 +59,7 @@ register('openStoryArchivePanel', openStoryArchivePanel);
 register('markStoryArchiveStale', markStoryArchiveStale);
 register('openFavoritesPanel', openFavoritesPanel);
 register('renderFavoritesPanel', renderFavoritesPanel);
+register('refreshRecoverableStorageInfo', refreshRecoverableStorageInfo);
 
 // 将深度思考函数挂载到 window，供 HTML inline handler 调用
 window.applyDeepThinkState = function(nextChecked) {
@@ -236,13 +244,15 @@ function init() {
         showToast('检测到恢复区聊天记录，但主聊天数据暂时无法读取；已保护两份数据，请勿继续覆盖');
       } else if (getRecoverySession()) {
         setTimeout(async () => {
-          const shouldMerge = await showConfirmModal({
+          const recoveryInfo = getRecoverableStorageInfo();
+          const recoveryAction = await showConfirmModal({
             title: '发现可恢复的聊天记录',
             desc: '检测到之前异常会话产生的聊天记录。合并后会追加为新的会话，不会覆盖当前记录。',
             okText: '合并恢复',
-            cancelText: '暂不处理'
+            cancelText: '暂不处理',
+            secondaryText: '删除恢复数据'
           });
-          if (shouldMerge) {
+          if (recoveryAction === true) {
             if (state.isReadOnlyPage) {
               showToast('当前页面只读，暂不能合并；请先切换到操作页面');
             } else if (mergeRecoverySession()) {
@@ -251,6 +261,20 @@ function init() {
               showToast('恢复区聊天记录已合并');
             } else {
               showToast('本次未能合并恢复区，数据仍保留在本地，可稍后重试');
+            }
+          } else if (recoveryAction === 'secondary') {
+            const shouldDiscard = await showConfirmModal({
+              title: '确认删除恢复数据',
+              desc: '恢复区中的聊天记录将永久删除，且无法撤销。当前正常会话不会受到影响。',
+              okText: '确认删除',
+              cancelText: '保留数据'
+            });
+            if (shouldDiscard) {
+              if (discardRecoverySession(recoveryInfo.recoveryFingerprint)) {
+                showToast('恢复区聊天记录已删除');
+              } else {
+                showToast('恢复数据已变化或当前页面已失去操作权，请重新确认');
+              }
             }
           }
         }, 0);

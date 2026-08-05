@@ -4,7 +4,11 @@
  * 负责 localStorage 的读写、存储用量统计、数据构建等。
  */
 
-import { state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY, getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, encodeTabData, decodeTabData, storageRecoveryState } from './state.js';
+import {
+  state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY,
+  getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL,
+  encodeTabData, decodeTabData, storageRecoveryState, readPageLock, isPageLockStale
+} from './state.js';
 import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js';
 import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
 
@@ -43,6 +47,40 @@ export function updateStorageUsage() {
       storageWarningIcon.classList.add('hidden');
     }
   }
+}
+
+function getStoredValueBytes(key) {
+  return (localStorage.getItem(key) || '').length * 2;
+}
+
+function getCorruptedBackupKeys() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (
+      key === 'dsTabs_corrupted_backup' ||
+      key?.startsWith('dsTabs_corrupted_backup_') ||
+      key?.startsWith('dsTabs_recovery_session_corrupted_backup_')
+    ) {
+      keys.push(key);
+    }
+  }
+  return keys;
+}
+
+export function getRecoverableStorageInfo() {
+  const recoveryKey = 'dsTabs_recovery_session';
+  const recoveryFingerprint = localStorage.getItem(recoveryKey);
+  const recoveryPresent = recoveryFingerprint != null;
+  const backupKeys = getCorruptedBackupKeys();
+  return {
+    recoveryPresent,
+    recoveryBytes: recoveryPresent ? getStoredValueBytes(recoveryKey) : 0,
+    recoveryFingerprint,
+    backupCount: backupKeys.length,
+    backupBytes: backupKeys.reduce((sum, key) => sum + getStoredValueBytes(key), 0),
+    cleanupBlocked: state.isReadOnlyPage || storageRecoveryState.dsTabsReadFailed
+  };
 }
 
 export function isStorageFull() {
@@ -130,10 +168,19 @@ function writeRecoverySession(currentData) {
   return true;
 }
 
-function _flushPendingSave() {
-  // 先把待保存集合 swap 出来，避免 flush 执行期间新加入的保存被意外清空（竞态修复）
-  const typesToFlush = _pendingSaveTypes;
-  _pendingSaveTypes = new Set();
+function _flushPendingSave(requestedTypes = null) {
+  // 指定类型时只从全局队列中取出这些类型，避免一次事务误提交其他数据。
+  // 未指定时沿用批量 flush 行为。
+  let typesToFlush;
+  if (requestedTypes) {
+    typesToFlush = new Set();
+    requestedTypes.forEach(type => {
+      if (_pendingSaveTypes.delete(type)) typesToFlush.add(type);
+    });
+  } else {
+    typesToFlush = _pendingSaveTypes;
+    _pendingSaveTypes = new Set();
+  }
   _saveDebounceTimer = null;
 
   // 快照 flush 开始时的可写状态：tabs 分支在检测到指纹冲突时会设置 isReadOnlyPage=true，
@@ -142,6 +189,7 @@ function _flushPendingSave() {
   const startedWritable = !state.isReadOnlyPage;
 
   const failedSaveTypes = new Set();
+  const persistedTypes = new Set();
   let wroteAnyData = false;
   let tabsSaved = false;
 
@@ -163,11 +211,13 @@ function _flushPendingSave() {
             state.tabDataStorageFingerprint = encoded;
             wroteAnyData = true;
             tabsSaved = true;
+            persistedTypes.add('tabs');
           }
         } else {
           writeRecoverySession(state.tabData);
           wroteAnyData = true;
           tabsSaved = true;
+          persistedTypes.add('tabs');
         }
         if (storageRecoveryState.dsTabsReadFailed) {
           _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已保护原数据并将当前会话保存到恢复区'));
@@ -190,6 +240,7 @@ function _flushPendingSave() {
       } else {
         localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
         wroteAnyData = true;
+        persistedTypes.add('characters');
       }
     } catch (e) {
       console.error('保存角色数据失败:', e);
@@ -204,6 +255,7 @@ function _flushPendingSave() {
       } else {
         localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
         wroteAnyData = true;
+        persistedTypes.add('prompts');
       }
     } catch (e) {
       console.error('保存指令数据失败:', e);
@@ -218,6 +270,7 @@ function _flushPendingSave() {
       } else {
         localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favoriteData));
         wroteAnyData = true;
+        persistedTypes.add('favorites');
       }
     } catch (e) {
       console.error('保存收藏数据失败:', e);
@@ -230,12 +283,18 @@ function _flushPendingSave() {
   }
 
   // 把失败项以及 flush 过程中新加入的待保存合并回去
-  if (failedSaveTypes.size > 0 || _pendingSaveTypes.size > 0) {
-    for (const t of failedSaveTypes) _pendingSaveTypes.add(t);
-    // 失败项不立即重试（避免死循环），仅保留在待保存集合中，留待下次手动触发或下一次 saveXxx 带起
+  const hasUnrelatedPendingTypes = _pendingSaveTypes.size > 0;
+  for (const t of failedSaveTypes) _pendingSaveTypes.add(t);
+  // 仅为隔离在本次事务之外的待保存项恢复定时器；失败项不自动重试，避免死循环。
+  if (hasUnrelatedPendingTypes && !_saveDebounceTimer) {
+    _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
   }
 
-  return { tabsSaved };
+  return {
+    tabsSaved,
+    savedTypes: [...persistedTypes],
+    failedTypes: [...failedSaveTypes]
+  };
 }
 
 export function saveTabs() {
@@ -266,9 +325,10 @@ export function saveFavorites() {
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
-export function flushPendingSaveImmediately() {
+export function flushPendingSaveImmediately(types = null) {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
-  return _flushPendingSave();
+  const requestedTypes = Array.isArray(types) ? new Set(types) : null;
+  return _flushPendingSave(requestedTypes);
 }
 
 export function getRecoverySession() {
@@ -303,7 +363,47 @@ export function mergeRecoverySession() {
   try { localStorage.removeItem('dsTabs_recovery_session'); } catch (_) {}
   _recoverySessionTabIds.clear();
   storageRecoveryState.recoverySessionPresent = false;
+  updateStorageUsage();
   return true;
+}
+
+export function discardRecoverySession(expectedFingerprint = null) {
+  if (state.isReadOnlyPage || storageRecoveryState.dsTabsReadFailed) return false;
+  try {
+    const lock = readPageLock();
+    if (!lock || lock.id !== state.pageInstanceId || isPageLockStale(lock)) return false;
+    const currentFingerprint = localStorage.getItem('dsTabs_recovery_session');
+    if (expectedFingerprint == null || currentFingerprint !== expectedFingerprint) return false;
+    localStorage.removeItem('dsTabs_recovery_session');
+    if (localStorage.getItem('dsTabs_recovery_session') != null) return false;
+    _recoverySessionTabIds.clear();
+    storageRecoveryState.recoverySessionPresent = false;
+    updateStorageUsage();
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function clearCorruptedBackups() {
+  if (state.isReadOnlyPage || storageRecoveryState.dsTabsReadFailed) {
+    return { cleared: 0, bytesFreed: 0, blocked: true };
+  }
+
+  let cleared = 0;
+  let bytesFreed = 0;
+  getCorruptedBackupKeys().forEach(key => {
+    const bytes = getStoredValueBytes(key);
+    try {
+      localStorage.removeItem(key);
+      if (localStorage.getItem(key) == null) {
+        cleared += 1;
+        bytesFreed += bytes;
+      }
+    } catch (_) {}
+  });
+  updateStorageUsage();
+  return { cleared, bytesFreed, blocked: false };
 }
 
 // ========== Token 限制检查 ==========

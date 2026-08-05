@@ -7,6 +7,7 @@
 
 import { state, canModifyPersistedData } from './state.js';
 import { saveTabs, getTabDisplayName } from './storage.js';
+import { call as coreCall } from './core.js';
 
 // ========== Toast 提示 ==========
 
@@ -72,6 +73,7 @@ export function closeSidebar() {
 // ========== 设置面板 ==========
 
 export function openSettingsPanel() {
+  coreCall('refreshRecoverableStorageInfo');
   const settingsApiKeyInput = document.getElementById('settingsApiKeyInput');
   const settingsDayModeToggle = document.getElementById('settingsDayModeToggle');
   const settingsHumanizeNormalChatToggle = document.getElementById('settingsHumanizeNormalChatToggle');
@@ -141,17 +143,22 @@ export function saveRenamedTab() {
 
 // ========== 确认弹窗 ==========
 
-export function showConfirmModal({ title = '确认操作', desc = '确定继续吗？', okText = '确认', cancelText = '取消' } = {}) {
+export function showConfirmModal({ title = '确认操作', desc = '确定继续吗？', okText = '确认', cancelText = '取消', secondaryText = '' } = {}) {
   const confirmTitle = document.getElementById('confirmTitle');
   const confirmDesc = document.getElementById('confirmDesc');
   const confirmOkBtn = document.getElementById('confirmOkBtn');
   const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+  const confirmSecondaryBtn = document.getElementById('confirmSecondaryBtn');
   const confirmPanel = document.getElementById('confirmPanel');
 
   confirmTitle.textContent = title;
   confirmDesc.textContent = desc;
   confirmOkBtn.textContent = okText;
   confirmCancelBtn.textContent = cancelText;
+  if (confirmSecondaryBtn) {
+    confirmSecondaryBtn.textContent = secondaryText;
+    confirmSecondaryBtn.classList.toggle('hidden', !secondaryText);
+  }
   confirmPanel.classList.remove('hidden');
 
   return new Promise(resolve => {
@@ -161,7 +168,9 @@ export function showConfirmModal({ title = '确认操作', desc = '确定继续�
 
 export function closeConfirmModal(result) {
   const confirmPanel = document.getElementById('confirmPanel');
+  const confirmSecondaryBtn = document.getElementById('confirmSecondaryBtn');
   confirmPanel.classList.add('hidden');
+  confirmSecondaryBtn?.classList.add('hidden');
   if (state.confirmResolve) {
     state.confirmResolve(result);
     state.confirmResolve = null;

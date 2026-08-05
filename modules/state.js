@@ -149,10 +149,16 @@ function readJsonWithFallback(key, fallbackFactory, options = {}) {
     preserveOnFailure = false
   } = options;
 
-  const fallbackValue = fallbackFactory();
   const raw = localStorage.getItem(key);
   if (raw == null) {
-    if (persistFallback) localStorage.setItem(key, encode(fallbackValue));
+    const fallbackValue = fallbackFactory();
+    if (persistFallback) {
+      try {
+        localStorage.setItem(key, encode(fallbackValue));
+      } catch (e) {
+        console.warn(`${key} 初始数据暂未写入本地存储:`, e);
+      }
+    }
     return fallbackValue;
   }
 
@@ -175,10 +181,11 @@ function readJsonWithFallback(key, fallbackFactory, options = {}) {
     } catch (_) {
       // 备份失败也不能继续覆盖主数据；保留原 key 供用户后续恢复。
     }
-    return fallbackValue;
+    return fallbackFactory();
   }
 
   // 非主聊天数据沿用历史行为：解析失败时备份后写入 fallback。
+  const fallbackValue = fallbackFactory();
   if (persistFallback) {
     try {
       localStorage.setItem(`${key}_corrupted_backup`, raw);
@@ -190,15 +197,24 @@ function readJsonWithFallback(key, fallbackFactory, options = {}) {
   return fallbackValue;
 }
 
+let legacyMessagesImportedRaw = null;
+
 function buildDefaultTabData() {
-  const oldMsgs = readJsonWithFallback(
-    'dsMessages',
-    () => [],
-    {
-      validate: Array.isArray,
-      resetMessage: 'dsMessages 数据损坏，已重置'
+  const raw = localStorage.getItem('dsMessages');
+  let oldMsgs = [];
+  if (raw != null) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        oldMsgs = parsed;
+        legacyMessagesImportedRaw = raw;
+      } else {
+        console.warn('dsMessages 数据结构无效，已保留原始数据');
+      }
+    } catch (e) {
+      console.warn('dsMessages 数据损坏，已保留原始数据:', e);
     }
-  );
+  }
   return { active: "tab1", list: { tab1: { messages: oldMsgs, memoryLimit: "0", title: "", storyArchive: null } } };
 }
 
@@ -243,6 +259,44 @@ const initialTabData = readJsonWithFallback(
     preserveOnFailure: true
   }
 );
+
+function isLegacyValueCovered(legacyValue, currentValue) {
+  if (Array.isArray(legacyValue)) {
+    if (!Array.isArray(currentValue) || currentValue.length < legacyValue.length) return false;
+    return legacyValue.every((item, index) => isLegacyValueCovered(item, currentValue[index]));
+  }
+  if (legacyValue && typeof legacyValue === 'object') {
+    if (!currentValue || typeof currentValue !== 'object') return false;
+    return Object.keys(legacyValue).every(key => isLegacyValueCovered(legacyValue[key], currentValue[key]));
+  }
+  // 历史版本由旧字符串升级为对象时，正文位于 content 字段。
+  if (typeof legacyValue === 'string' && currentValue && typeof currentValue === 'object') {
+    return currentValue.content === legacyValue;
+  }
+  return Object.is(legacyValue, currentValue);
+}
+
+// 仅当已持久化的主数据可以完整覆盖旧版消息时，才删除 dsMessages。
+// 这既处理本次迁移，也安全清理由旧版本遗留的重复副本；无法证明覆盖时一律保留。
+const legacyMessagesRaw = legacyMessagesImportedRaw ?? localStorage.getItem('dsMessages');
+if (legacyMessagesRaw != null) {
+  try {
+    const persisted = decodeTabData(localStorage.getItem('dsTabs'));
+    const legacyMessages = JSON.parse(legacyMessagesRaw);
+    const currentTabs = Object.values(persisted?.list || {});
+    const isCovered = Array.isArray(legacyMessages) && currentTabs.some(tab =>
+      Array.isArray(tab?.messages) && isLegacyValueCovered(legacyMessages, tab.messages)
+    );
+    if (
+      localStorage.getItem('dsMessages') === legacyMessagesRaw &&
+      isCovered
+    ) {
+      localStorage.removeItem('dsMessages');
+    }
+  } catch (_) {
+    // 保留旧键，后续启动仍可重试迁移。
+  }
+}
 const initialTabDataStorageFingerprint = localStorage.getItem('dsTabs');
 
 // 集中的可变状态对象

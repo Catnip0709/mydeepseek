@@ -59,7 +59,7 @@
 
     function loadApp() {
       loadScript('./prompts.js', '', function () {
-        loadScript('./modules/init.js?v=3', 'module', null, 'app_module_load_failed');
+        loadScript('./modules/init.js?v=4', 'module', null, 'app_module_load_failed');
       }, 'prompts_load_failed');
     }
 
@@ -301,6 +301,18 @@
       </div>
     </div>
     
+    <div class="mb-6">
+      <h4 class="text-white text-sm font-medium mb-3">存储管理</h4>
+      <div class="bg-gray-800 p-3 rounded-lg border border-gray-700 space-y-3">
+        <div id="recoverableStorageInfo" class="text-xs text-gray-400 leading-relaxed">正在读取可清理数据...</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="discardRecoveryStorageBtn" class="py-2 rounded bg-gray-700 hover:bg-gray-600 text-xs text-white disabled:opacity-40 disabled:cursor-not-allowed" type="button">删除恢复数据</button>
+          <button id="clearCorruptedBackupsBtn" class="py-2 rounded bg-gray-700 hover:bg-gray-600 text-xs text-white disabled:opacity-40 disabled:cursor-not-allowed" type="button">清理故障备份</button>
+        </div>
+        <div class="text-xs text-gray-500 leading-relaxed">仅清理异常恢复副本，不会删除当前会话、角色卡、指令或收藏。</div>
+      </div>
+    </div>
+
     <button id="settingsCloseBtn" class="w-full bg-gray-700 hover:bg-gray-600 py-2 rounded-lg text-sm text-white transition-colors">关闭</button>
   </div>
 </div>
@@ -536,6 +548,7 @@
     <div id="confirmDesc" class="modal-desc"></div>
     <div class="edit-buttons mt-5">
       <button id="confirmCancelBtn" class="edit-btn-cancel">取消</button>
+      <button id="confirmSecondaryBtn" class="edit-btn-cancel hidden">其他操作</button>
       <button id="confirmOkBtn" class="edit-btn-save">确认</button>
     </div>
   </div>
