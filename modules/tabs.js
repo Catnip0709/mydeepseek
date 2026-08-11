@@ -4,12 +4,12 @@
  * 负责 Tab 的渲染、创建、切换、缓存和删除。
  */
 
-import { state, clearTabSending, isTabSending, storageRecoveryState } from './state.js';
-import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js';
-import { saveTabs, saveFavorites, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js';
-import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js';
-import { removeFavoritesForTab } from './favorites.js';
-import { call as coreCall } from './core.js';
+import { state, clearTabSending, isTabSending, storageRecoveryState, canModifyPersistedData } from './state.js?v=5';
+import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js?v=5';
+import { saveTabs, saveFavorites, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js?v=5';
+import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js?v=5';
+import { removeFavoritesForTab } from './favorites.js?v=5';
+import { call as coreCall } from './core.js?v=5';
 
 // ========== Tab DOM 缓存 ==========
 
@@ -32,8 +32,8 @@ export function invalidateTabCache(tabId) {
 // ========== 创建新 Tab ==========
 
 export function createNewTab() {
-  if (state.isReadOnlyPage) {
-    showToast('当前页面只读，请先切换为操作页面');
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return state.tabData.active;
   }
   coreCall('clearPendingTextAttachment');
@@ -113,8 +113,8 @@ export function renderTabs() {
   document.querySelectorAll(".tab-rename").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (state.isReadOnlyPage) {
-        showToast('当前页面只读，请先切换为操作页面');
+      if (!canModifyPersistedData()) {
+        showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
         return;
       }
       const tabId = btn.dataset.id;
@@ -135,8 +135,8 @@ export function renderTabs() {
   document.querySelectorAll(".tab-cleanup").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (state.isReadOnlyPage) {
-        showToast('当前页面只读，请先切换为操作页面');
+      if (!canModifyPersistedData()) {
+        showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
         return;
       }
       const cleanupId = btn.dataset.id;
@@ -148,8 +148,8 @@ export function renderTabs() {
   document.querySelectorAll(".tab-del").forEach(btn => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (state.isReadOnlyPage) {
-        showToast('当前页面只读，请先切换为操作页面');
+      if (!canModifyPersistedData()) {
+        showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
         return;
       }
       const delId = btn.dataset.id;
@@ -335,6 +335,10 @@ function applyCleanupTabThinking(tabId) {
 
 // 释放空间入口：弹出类型选择弹窗（历史版本 / 思考内容）。
 function handleCleanupTab(tabId) {
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+    return;
+  }
   const tab = state.tabData.list[tabId];
   if (!tab) return;
 
@@ -369,6 +373,10 @@ function handleCleanupTab(tabId) {
 }
 
 async function confirmAndCleanupVersions(tabId) {
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+    return;
+  }
   const tab = state.tabData.list[tabId];
   if (!tab) return;
   if (isTabSending(tabId)) {
@@ -391,6 +399,10 @@ async function confirmAndCleanupVersions(tabId) {
   if (!ok) return;
 
   // 二次确认期间可能开始了流式生成，apply 前再次校验，避免与 history 竞态
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，已取消释放');
+    return;
+  }
   if (isTabSending(tabId)) {
     showToast('该对话正在生成中，已取消释放');
     return;
@@ -402,6 +414,10 @@ async function confirmAndCleanupVersions(tabId) {
 }
 
 async function confirmAndCleanupThinking(tabId) {
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+    return;
+  }
   const tab = state.tabData.list[tabId];
   if (!tab) return;
   if (isTabSending(tabId)) {
@@ -424,6 +440,10 @@ async function confirmAndCleanupThinking(tabId) {
   if (!ok) return;
 
   // 二次确认期间可能开始了流式生成，apply 前再次校验，避免与 history 竞态
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，已取消释放');
+    return;
+  }
   if (isTabSending(tabId)) {
     showToast('该对话正在生成中，已取消释放');
     return;
@@ -436,6 +456,7 @@ async function confirmAndCleanupThinking(tabId) {
 
 // 清理后的统一收尾：落盘 + 刷新存储用量 + 刷新渲染。
 function finalizeCleanup(tabId) {
+  if (!canModifyPersistedData()) return;
   saveTabs();
   // 立即落盘：避免防抖窗口内（300ms）用户刷新或关闭页面导致清理结果丢失
   flushPendingSaveImmediately();

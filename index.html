@@ -58,8 +58,8 @@
     }
 
     function loadApp() {
-      loadScript('./prompts.js', '', function () {
-        loadScript('./modules/init.js?v=4', 'module', null, 'app_module_load_failed');
+      loadScript('./prompts.js?v=5', '', function () {
+        loadScript('./modules/init.js?v=5', 'module', null, 'app_module_load_failed');
       }, 'prompts_load_failed');
     }
 

@@ -4,27 +4,27 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=5';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js';
+} from './utils.js?v=5';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
   isTokenLimitReached, isStorageFull
-} from './storage.js';
-import { checkAndGenerateSummary, clearSummary } from './summary.js';
-import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
-import { generateHumanizedNormalReply } from './humanizer.js';
-import { renderMarkdown } from './markdown.js';
-import { enhanceHtmlCodeBlocks } from './html-preview.js';
+} from './storage.js?v=5';
+import { checkAndGenerateSummary, clearSummary } from './summary.js?v=5';
+import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=5';
+import { generateHumanizedNormalReply } from './humanizer.js?v=5';
+import { renderMarkdown } from './markdown.js?v=5';
+import { enhanceHtmlCodeBlocks } from './html-preview.js?v=5';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
   hideEmptyChatHint, hideReplyBar, showReplyBar
-} from './panels.js';
-import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js';
-import { call as coreCall } from './core.js';
+} from './panels.js?v=5';
+import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js?v=5';
+import { call as coreCall } from './core.js?v=5';
 
 // ========== 聊天区域事件绑定（事件委托） ==========
 
@@ -657,6 +657,10 @@ function handleChatClick(e) {
   // Previous version button
   const prevVersionBtn = target.closest('.prev-version-btn');
   if (prevVersionBtn) {
+    if (!canModifyPersistedData()) {
+      showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+      return;
+    }
     if (prevVersionBtn.classList.contains('disabled')) return;
     const index = parseInt(prevVersionBtn.getAttribute('data-index'));
     const msg = currentMsgs[index];
@@ -676,6 +680,10 @@ function handleChatClick(e) {
   // Next version button
   const nextVersionBtn = target.closest('.next-version-btn');
   if (nextVersionBtn) {
+    if (!canModifyPersistedData()) {
+      showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+      return;
+    }
     if (nextVersionBtn.classList.contains('disabled')) return;
     const index = parseInt(nextVersionBtn.getAttribute('data-index'));
     const msg = currentMsgs[index];
@@ -999,8 +1007,8 @@ export async function sendMessage() {
   const input = document.getElementById("input");
   const keyPanel = document.getElementById("keyPanel");
 
-  if (state.isReadOnlyPage) {
-    showToast('当前页面只读，请切换到正在操作的页面');
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return;
   }
   if (state.isSending || state.isPreparingTextAttachment) return;
@@ -1030,7 +1038,7 @@ export async function sendMessage() {
 
   // HTML 模式分支：走自动续写通道，忽略角色扮演/群聊/附件等上下文
   try {
-    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js');
+    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js?v=5');
     if (isHtmlModeEnabled()) {
       input.value = "";
       autoHeight();
@@ -1077,7 +1085,7 @@ export async function sendMessage() {
     hideReplyBar();
 
     // 动态导入 groupchat.js 中的 sendGroupMessage，避免循环依赖
-    const { sendGroupMessage } = await import('./groupchat.js');
+    const { sendGroupMessage } = await import('./groupchat.js?v=5');
     try {
       await sendGroupMessage(sendingTabId, userText, replyInfo);
     } finally {
@@ -1661,8 +1669,8 @@ export async function fetchAndStreamResponse(opts = {}) {
 // ========== 编辑和重新生成 ==========
 
 export async function saveEditAndRegenerate() {
-  if (state.isReadOnlyPage) {
-    showToast('当前页面只读，请切换到正在操作的页面');
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return;
   }
   const editPanel = document.getElementById("editPanel");
@@ -1698,7 +1706,7 @@ export async function saveEditAndRegenerate() {
 
   // 群聊走群聊发送逻辑
   if (currentTab.type === 'group') {
-    const { sendGroupMessage } = await import('./groupchat.js');
+    const { sendGroupMessage } = await import('./groupchat.js?v=5');
     await sendGroupMessage(editingTabId, newContent);
   } else {
     if (messagesToKeep[editIdx]?.role === 'user') {
@@ -1710,7 +1718,7 @@ export async function saveEditAndRegenerate() {
     // 如果编辑的是一个 HTML 模式生成的 user 消息，重定向到 HTML 分支
     if (messagesToKeep[editIdx]?.htmlModeRequest) {
       try {
-        const { sendHtmlGenerationMessage } = await import('./htmlmode.js');
+        const { sendHtmlGenerationMessage } = await import('./htmlmode.js?v=5');
         // 由于是编辑 user 消息，重生成的是后面紧跟着的 assistant 消息，这与普通的 sendMessage 不同。
         // 不过由于前面的代码直接把 user 消息之后的全部切掉了（messagesToKeep 只有前面一半），
         // 等价于发了一条新消息，所以我们直接当新消息发送即可。
@@ -1732,6 +1740,10 @@ export function cancelEdit() {
 }
 
 export function editUserMessage(messageIndex) {
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
+    return;
+  }
   const editPanel = document.getElementById("editPanel");
   const editTextarea = document.getElementById("editTextarea");
 
@@ -1747,8 +1759,8 @@ export function editUserMessage(messageIndex) {
 }
 
 export function regenerateResponse(messageIndex) {
-  if (state.isReadOnlyPage) {
-    showToast('当前页面只读，请切换到正在操作的页面');
+  if (!canModifyPersistedData()) {
+    showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return;
   }
   if (!state.apiKey) {
@@ -1767,7 +1779,7 @@ export function regenerateResponse(messageIndex) {
 
   // 识别 HTML 模式消息并重定向到专门通道
   if (targetMessage.htmlGeneration) {
-    import('./htmlmode.js').then(({ sendHtmlGenerationMessage }) => {
+    import('./htmlmode.js?v=5').then(({ sendHtmlGenerationMessage }) => {
       sendHtmlGenerationMessage({ tabId: regenTabId, regenerateIndex: messageIndex });
     }).catch(err => {
       console.error('重载 HTML 模式生成异常:', err);
@@ -1878,7 +1890,7 @@ export async function generateTitleForCurrentTab() {
       const data = await res.json();
       let title = data?.choices?.[0]?.message?.content || '';
       title = title.trim().replace(/^["「『]|["」』]$/g, '');
-      if (title && title.length <= 30) {
+      if (title && title.length <= 30 && canModifyPersistedData()) {
         state.tabData.list[titleTabId].title = title;
         saveTabs();
         coreCall('renderTabs');

@@ -40,6 +40,8 @@
 
 - 22 个 ES 模块文件均可通过 HTTP 正常加载（无 404、无 CORS 错误）
 - 模块间所有 `import` 的符号在源模块中均有对应 `export`
+- 入口和所有本地 ES module import 均带同一版本参数，更新后不会出现新旧模块缓存混跑
+- Safari/iOS/Chromium bfcache 恢复时页面会重新加载，避免 pagehide 释放锁后旧页面继续可写
 - `core.js` 函数注册中心正常工作：`register`、`call`、`get` 三个接口可用
 - `init.js` 中注册的跨模块函数均可通过 `coreCall` 正确调用，包括新增的 `refreshRecoverableStorageInfo`
 - chat.js、tabs.js、character.js、groupchat.js、favorites.js 之间无循环 `import`（通过 core.js 间接调用）
@@ -503,13 +505,18 @@
 - 设置页展示恢复数据与故障备份的数量和大小，并可分别清理
 - 主聊天数据不可读或页面只读时，恢复数据与故障备份清理入口不可用
 - 清理恢复数据或故障备份不会删除 `dsTabs`、角色卡、指令、收藏和 API Key
+- 已有 `dsApiKey` 和有效 `dsTabs` 的用户升级后，页面打开仍显示原 API key 状态与原聊天内容，`localStorage` 不被重置
+- `dsTabs` 无法解码时，保留原始 `dsTabs`，禁止自动保存空白会话，也不写入空白恢复区
+- `dsTabs` 无法解码时，发送、编辑、收藏、删除等持久化写入口不可继续修改空白内存态
+- `dsTabs` 无法解码时，输入框、发送按钮、新建会话入口处于不可写状态，角色/指令/收藏等保存队列也不会落盘
 
 **二十二、数据损坏自动修复**
 
 - `dsTabs` 结构不完整但仍是合法 JSON 时，页面自动修复并刷新，不会白屏
 - `dsTabs` 数据损坏时，修复逻辑会尝试补齐缺失字段（title、memoryLimit）
-- `dsTabs` 为非法 JSON 时，应用不会初始化崩溃，而是自动重置为空白会话
-- `dsTabs` 数据彻底损坏时，清除并重置为空白状态
+- `dsTabs` 为非法 JSON 或压缩串无法解码时，应用不会初始化崩溃，原始主数据会保留且不会被空白会话覆盖
+- `dsTabs` 数据彻底损坏时，提示用户数据暂不可读取，并保留原始主数据和可用备份
+- 自动修复可解析的 `dsTabs` 前必须先生成 `dsTabs_corrupted_backup_*` 原始备份
 - `dsCharacters` 数据损坏时，自动重置为空数组，并回写到 localStorage
 - `dsPrompts` 数据损坏时，自动重置为空数组，指令管理功能正常
 - `dsPrompts` 数据损坏时，自动重置为空数组，并回写到 localStorage

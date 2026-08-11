@@ -5,20 +5,20 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=5';
 import {
   escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js';
-import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js';
-import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js';
-import { showToast, closeSidebar, hideReplyBar } from './panels.js';
-import { renderMarkdown } from './markdown.js';
-import { call as coreCall } from './core.js';
-import { GROUPCHAT_TOOLS_STABLE } from './tools.js';
-import { groupchatToolExecutor } from './agent.js';
+} from './utils.js?v=5';
+import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=5';
+import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js?v=5';
+import { showToast, closeSidebar, hideReplyBar } from './panels.js?v=5';
+import { renderMarkdown } from './markdown.js?v=5';
+import { call as coreCall } from './core.js?v=5';
+import { GROUPCHAT_TOOLS_STABLE } from './tools.js?v=5';
+import { groupchatToolExecutor } from './agent.js?v=5';
 
-import { isHtmlRelatedMessage } from './utils.js';
+import { isHtmlRelatedMessage } from './utils.js?v=5';
 
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
 const GROUPCHAT_MAX_ROUNDS = 30;
@@ -976,7 +976,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 
     // 异步检查是否需要生成/更新摘要
     if (shouldCheckSummary) {
-      import('./summary.js').then(({ checkAndGenerateSummary }) => {
+      import('./summary.js?v=5').then(({ checkAndGenerateSummary }) => {
         checkAndGenerateSummary(tabId).catch(() => {});
       });
     }

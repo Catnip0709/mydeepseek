@@ -4,12 +4,12 @@
  * 负责剧情档案馆的生成、渲染与面板交互。
  */
 
-import { state, canModifyPersistedData } from './state.js';
-import { callLLM, extractJsonFromText } from './llm.js';
-import { saveTabs, getTabDisplayName } from './storage.js';
-import { isHtmlRelatedMessage } from './utils.js';
-import { showToast, closeSidebar } from './panels.js';
-import { call as coreCall } from './core.js';
+import { state, canModifyPersistedData } from './state.js?v=5';
+import { callLLM, extractJsonFromText } from './llm.js?v=5';
+import { saveTabs, getTabDisplayName } from './storage.js?v=5';
+import { isHtmlRelatedMessage } from './utils.js?v=5';
+import { showToast, closeSidebar } from './panels.js?v=5';
+import { call as coreCall } from './core.js?v=5';
 
 const STORY_ARCHIVE_VERSION = 'v1';
 const STORY_ARCHIVE_MIN_MESSAGES = 4;

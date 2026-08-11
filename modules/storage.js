@@ -7,10 +7,10 @@
 import {
   state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY,
   getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL,
-  encodeTabData, decodeTabData, storageRecoveryState, readPageLock, isPageLockStale
-} from './state.js';
-import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js';
-import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
+  encodeTabData, decodeTabData, storageRecoveryState, readPageLock, isPageLockStale, canModifyPersistedData
+} from './state.js?v=5';
+import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js?v=5';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=5';
 
 // ========== 存储用量统计 ==========
 
@@ -186,7 +186,7 @@ function _flushPendingSave(requestedTypes = null) {
   // 快照 flush 开始时的可写状态：tabs 分支在检测到指纹冲突时会设置 isReadOnlyPage=true，
   // 该状态污染会导致同一 flush 周期内后续 characters/prompts/favorites 被误跳过。
   // 因此各类型保存分支统一使用快照值，tabs 冲突仅影响 tabs 自身。
-  const startedWritable = !state.isReadOnlyPage;
+  const startedWritable = canModifyPersistedData();
 
   const failedSaveTypes = new Set();
   const persistedTypes = new Set();
@@ -197,30 +197,23 @@ function _flushPendingSave(requestedTypes = null) {
     try {
       if (!startedWritable) {
         _notifyPersistError('tabs', new Error('当前页面为只读页面，未保存聊天数据'));
+      } else if (storageRecoveryState.dsTabsReadFailed) {
+        failedSaveTypes.add('tabs');
+        _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已暂停自动保存，避免空白数据覆盖原聊天记录'));
       } else {
         const encoded = encodeTabData(state.tabData);
-        if (!storageRecoveryState.dsTabsReadFailed) {
-          const latestRaw = localStorage.getItem('dsTabs');
-          if (latestRaw !== state.tabDataStorageFingerprint) {
-            // 跨页冲突：把当前内存数据尽量落到恢复区（下次启动会弹合并），再切只读。
-            try { writeRecoverySession(state.tabData); } catch (_) {}
-            state.isReadOnlyPage = true;
-            _notifyPersistError('tabs', new Error('检测到其他页面已更新聊天数据，当前页面已切换为只读，未落盘的内容已进入恢复区'));
-          } else {
-            localStorage.setItem('dsTabs', encoded);
-            state.tabDataStorageFingerprint = encoded;
-            wroteAnyData = true;
-            tabsSaved = true;
-            persistedTypes.add('tabs');
-          }
+        const latestRaw = localStorage.getItem('dsTabs');
+        if (latestRaw !== state.tabDataStorageFingerprint) {
+          // 跨页冲突：把当前内存数据尽量落到恢复区（下次启动会弹合并），再切只读。
+          try { writeRecoverySession(state.tabData); } catch (_) {}
+          state.isReadOnlyPage = true;
+          _notifyPersistError('tabs', new Error('检测到其他页面已更新聊天数据，当前页面已切换为只读，未落盘的内容已进入恢复区'));
         } else {
-          writeRecoverySession(state.tabData);
+          localStorage.setItem('dsTabs', encoded);
+          state.tabDataStorageFingerprint = encoded;
           wroteAnyData = true;
           tabsSaved = true;
           persistedTypes.add('tabs');
-        }
-        if (storageRecoveryState.dsTabsReadFailed) {
-          _notifyPersistError('tabs', new Error('原 dsTabs 暂不可读取，已保护原数据并将当前会话保存到恢复区'));
         }
       }
     } catch (e) {
@@ -298,28 +291,28 @@ function _flushPendingSave(requestedTypes = null) {
 }
 
 export function saveTabs() {
-  if (state.isReadOnlyPage) return;
+  if (state.isReadOnlyPage || storageRecoveryState.dsTabsReadFailed) return;
   _pendingSaveTypes.add('tabs');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function saveCharacters() {
-  if (state.isReadOnlyPage) return;
+  if (!canModifyPersistedData()) return;
   _pendingSaveTypes.add('characters');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function savePrompts() {
-  if (state.isReadOnlyPage) return;
+  if (!canModifyPersistedData()) return;
   _pendingSaveTypes.add('prompts');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
 }
 
 export function saveFavorites() {
-  if (state.isReadOnlyPage) return;
+  if (!canModifyPersistedData()) return;
   _pendingSaveTypes.add('favorites');
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(_flushPendingSave, SAVE_DEBOUNCE_MS);
@@ -336,6 +329,7 @@ export function getRecoverySession() {
 }
 
 export function saveRecoverySessionSnapshot() {
+  if (storageRecoveryState.dsTabsReadFailed) return false;
   try {
     writeRecoverySession(state.tabData);
     return true;
@@ -345,7 +339,7 @@ export function saveRecoverySessionSnapshot() {
 }
 
 export function mergeRecoverySession() {
-  if (state.isReadOnlyPage) return false;
+  if (!canModifyPersistedData()) return false;
   const recovery = getRecoverySession();
   if (!recovery) return false;
   const merged = cloneTabData(state.tabData);
@@ -752,6 +746,11 @@ export function repairData() {
     if (parsed.active && !parsed.list[parsed.active]) {
       const firstKey = Object.keys(parsed.list)[0];
       if (firstKey) parsed.active = firstKey;
+    }
+    try {
+      localStorage.setItem(`dsTabs_corrupted_backup_${Date.now()}`, raw);
+    } catch (_) {
+      // 备份失败时仍不应清空原数据；后续 setItem 若失败会进入外层 catch。
     }
     localStorage.setItem("dsTabs", encodeTabData(parsed));
     // 收藏修复：基于修复后的 parsed 数据验证 messageId 是否有效

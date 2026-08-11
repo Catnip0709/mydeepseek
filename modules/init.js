@@ -5,36 +5,36 @@
  * 所有模块在此汇聚，由 index.html 作为 ES Module 入口加载。
  */
 
-import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk } from './state.js';
-import { trackEvent } from './utils.js';
+import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk, canModifyPersistedData } from './state.js?v=5';
+import { trackEvent } from './utils.js?v=5';
 import {
   initializeData, repairData, flushPendingSaveImmediately, onPersistError,
   getRecoverySession, getRecoverableStorageInfo, mergeRecoverySession,
   discardRecoverySession, saveRecoverySessionSnapshot
-} from './storage.js';
-import { register } from './core.js';
-import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js';
-import { renderTabs, invalidateTabCache } from './tabs.js';
+} from './storage.js?v=5';
+import { register } from './core.js?v=5';
+import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js?v=5';
+import { renderTabs, invalidateTabCache } from './tabs.js?v=5';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
   showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel,
   showConfirmModal
-} from './panels.js';
+} from './panels.js?v=5';
 import {
   bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI,
   syncDeepThinkFromInput, refreshRecoverableStorageInfo
-} from './settings.js';
-import { bindTabEvents } from './tabs.js';
-import { bindChatEvents } from './chat.js';
-import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js';
-import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js';
-import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js';
-import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js';
-import { bindSearchEvents, clearSearch } from './search.js';
-import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js';
-import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js';
-import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js';
-import { bindHtmlModeEvents } from './htmlmode.js';
+} from './settings.js?v=5';
+import { bindTabEvents } from './tabs.js?v=5';
+import { bindChatEvents } from './chat.js?v=5';
+import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js?v=5';
+import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js?v=5';
+import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js?v=5';
+import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js?v=5';
+import { bindSearchEvents, clearSearch } from './search.js?v=5';
+import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js?v=5';
+import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js?v=5';
+import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js?v=5';
+import { bindHtmlModeEvents } from './htmlmode.js?v=5';
 
 // ========== 注册跨模块函数到 core ==========
 
@@ -109,16 +109,19 @@ function applyPageAccessState() {
   const input = document.getElementById('input');
   const sendBtn = document.getElementById('sendBtn');
   const addTab = document.getElementById('addTab');
-  const readonly = !!state.isReadOnlyPage;
+  const readonly = !canModifyPersistedData();
+  const readonlyText = storageRecoveryState.dsTabsReadFailed
+    ? '本地聊天数据暂不可读取，请刷新后再操作'
+    : '当前页面只读，请切换到操作页面';
   if (banner) banner.classList.toggle('hidden', !readonly);
   if (input) {
     input.disabled = readonly;
-    input.placeholder = readonly ? '当前页面只读，请切换到操作页面' : '输入消息...';
+    input.placeholder = readonly ? readonlyText : '输入消息...';
   }
   if (sendBtn) {
     if (readonly) {
       if (!sendBtn.dataset.origTitle) sendBtn.dataset.origTitle = sendBtn.title;
-      sendBtn.title = '当前页面只读';
+      sendBtn.title = readonlyText;
     } else {
       sendBtn.title = sendBtn.dataset.origTitle || sendBtn.title;
     }
@@ -201,6 +204,9 @@ function initializePageLock() {
     window.clearInterval(heartbeat);
     releasePageLock();
   };
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) location.reload();
+  });
   window.addEventListener('pagehide', releaseOnHide);
   window.addEventListener('beforeunload', releaseOnHide);
 }
@@ -253,7 +259,7 @@ function init() {
             secondaryText: '删除恢复数据'
           });
           if (recoveryAction === true) {
-            if (state.isReadOnlyPage) {
+            if (!canModifyPersistedData()) {
               showToast('当前页面只读，暂不能合并；请先切换到操作页面');
             } else if (mergeRecoverySession()) {
               renderTabs();

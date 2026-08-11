@@ -5,11 +5,11 @@
  * 摘要滚动更新，始终只保留一个。
  */
 
-import { state, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js';
-import { callLLM } from './llm.js';
-import { isHtmlRelatedMessage } from './utils.js';
-import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js';
-import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js';
+import { state, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=5';
+import { callLLM } from './llm.js?v=5';
+import { isHtmlRelatedMessage } from './utils.js?v=5';
+import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js?v=5';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=5';
 
 // ========== 常量 ==========
 

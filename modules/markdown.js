@@ -4,8 +4,8 @@
  * 使用 marked + DOMPurify 渲染 Markdown，支持搜索高亮和缓存。
  */
 
-import { state } from './state.js';
-import { escapeRegExp } from './utils.js';
+import { state } from './state.js?v=5';
+import { escapeRegExp } from './utils.js?v=5';
 
 // ========== Markdown 渲染缓存（本模块专用） ==========
 

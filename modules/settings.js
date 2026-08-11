@@ -4,21 +4,21 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js';
-import { copyText, checkIconSvg, formatBytes } from './utils.js';
+import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=5';
+import { copyText, checkIconSvg, formatBytes } from './utils.js?v=5';
 import {
   getTabDisplayName, updateStorageUsage, isTokenLimitReached,
   getRecoverableStorageInfo, discardRecoverySession, clearCorruptedBackups
-} from './storage.js';
+} from './storage.js?v=5';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
   closeConfirmModal, closeDownloadPanel, hideReplyBar,
   openSidebar, closeSidebar, closeCleanupChoicePanel, showConfirmModal
-} from './panels.js';
-import { renderChat } from './chat.js';
-import { renderTabs } from './tabs.js';
-import { call as coreCall } from './core.js';
+} from './panels.js?v=5';
+import { renderChat } from './chat.js?v=5';
+import { renderTabs } from './tabs.js?v=5';
+import { call as coreCall } from './core.js?v=5';
 
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
