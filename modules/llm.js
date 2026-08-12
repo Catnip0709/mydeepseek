@@ -4,7 +4,7 @@
  * 封装 DeepSeek API 的通用调用、流式调用和 JSON 调用。
  */
 
-import { state } from './state.js?v=5';
+import { state } from './state.js?v=6';
 
 export const CHUNK_INACTIVITY_TIMEOUT_MS = 120000;
 

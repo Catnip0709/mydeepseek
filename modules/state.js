@@ -5,7 +5,7 @@
  * 本模块不导入任何其他模块，避免循环依赖。
  *
  * 使用一个 state 对象来持有所有可变状态，这样其他模块可以通过
- * import { state } from './state.js?v=5' 来读写状态。
+ * import { state } from './state.js?v=6' 来读写状态。
  */
 
 // 用户ID（初始化时生成并持久化）
@@ -305,6 +305,7 @@ export const state = {
   dsUserId: _dsUserId,
   pageInstanceId: PAGE_INSTANCE_ID,
   isReadOnlyPage: false,
+  hasUnprotectedMemoryData: false,
   tabDataStorageFingerprint: initialTabDataStorageFingerprint,
 
   // API Key

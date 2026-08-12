@@ -5,9 +5,9 @@
  * 字号设置、回复引用条、空对话提示等 UI 面板。
  */
 
-import { state, canModifyPersistedData } from './state.js?v=5';
-import { saveTabs, getTabDisplayName } from './storage.js?v=5';
-import { call as coreCall } from './core.js?v=5';
+import { state, canModifyPersistedData } from './state.js?v=6';
+import { saveTabs, getTabDisplayName } from './storage.js?v=6';
+import { call as coreCall } from './core.js?v=6';
 
 // ========== Toast 提示 ==========
 

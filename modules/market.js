@@ -4,12 +4,12 @@
  * 负责指令市场的随机获取、刷新、保存、AI 生成等功能。
  */
 
-import { state, canModifyPersistedData } from './state.js?v=5';
-import { showToast, closeSidebar } from './panels.js?v=5';
-import { savePrompts } from './storage.js?v=5';
-import { createNewTab } from './tabs.js?v=5';
-import { autoHeight } from './chat.js?v=5';
-import { callLLM } from './llm.js?v=5';
+import { state, canModifyPersistedData } from './state.js?v=6';
+import { showToast, closeSidebar } from './panels.js?v=6';
+import { savePrompts } from './storage.js?v=6';
+import { createNewTab } from './tabs.js?v=6';
+import { autoHeight } from './chat.js?v=6';
+import { callLLM } from './llm.js?v=6';
 
 // ========== 指令市场预设指令 ==========
 

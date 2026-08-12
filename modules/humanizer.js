@@ -2,7 +2,7 @@
  * humanizer.js — 普通对话去 AI 味后台精修
  */
 
-import { callLLM, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=5';
+import { callLLM, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=6';
 
 const HUMANIZE_REFINEMENT_SYSTEM_PROMPT = `你是中文写作编辑。你的任务是把模型初稿改成更自然、更少 AI 味的最终回复。
 

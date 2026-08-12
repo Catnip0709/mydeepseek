@@ -9,12 +9,12 @@
  *   生成过程对用户透明：气泡只显示进度文案，完成后一次性展示完整代码 + 预览按钮
  */
 
-import { state, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=5';
-import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js?v=5';
-import { saveTabs } from './storage.js?v=5';
-import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js?v=5';
-import { applyDeepThinkState } from './settings.js?v=5';
-import { showToast } from './panels.js?v=5';
+import { state, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=6';
+import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js?v=6';
+import { saveTabs } from './storage.js?v=6';
+import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js?v=6';
+import { applyDeepThinkState } from './settings.js?v=6';
+import { showToast } from './panels.js?v=6';
 
 // ========== 常量 ==========
 
@@ -520,7 +520,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
 
   // 在 DOM 里渲染 user 消息 + 生成中气泡（loading 气泡用 tab 维度固定 id，自愈重建）
   if (state.tabData.active === tabId) {
-    const { renderChat } = await import('./chat.js?v=5');
+    const { renderChat } = await import('./chat.js?v=6');
     renderChat();
     ensureGeneratingBubble(tabId);
   }
@@ -610,7 +610,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
 
   // 生成期间让用户能看到"停止"按钮，复用现有 state.isSending 语义
   try {
-    const { updateComposerPrimaryButtonState } = await import('./chat.js?v=5');
+    const { updateComposerPrimaryButtonState } = await import('./chat.js?v=6');
     updateComposerPrimaryButtonState();
   } catch (_) {}
 
@@ -657,7 +657,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
     clearTabSending(tabId);
     removeGeneratingBubble(tabId);
     try {
-      const { updateComposerPrimaryButtonState } = await import('./chat.js?v=5');
+      const { updateComposerPrimaryButtonState } = await import('./chat.js?v=6');
       updateComposerPrimaryButtonState();
     } catch (_) {}
   }
@@ -715,7 +715,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
   saveTabs();
 
   if (state.tabData.active === tabId) {
-    const { renderChat } = await import('./chat.js?v=5');
+    const { renderChat } = await import('./chat.js?v=6');
     renderChat();
   }
 

@@ -4,21 +4,21 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=5';
-import { copyText, checkIconSvg, formatBytes } from './utils.js?v=5';
+import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=6';
+import { copyText, checkIconSvg, formatBytes } from './utils.js?v=6';
 import {
   getTabDisplayName, updateStorageUsage, isTokenLimitReached,
   getRecoverableStorageInfo, discardRecoverySession, clearCorruptedBackups
-} from './storage.js?v=5';
+} from './storage.js?v=6';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
   closeConfirmModal, closeDownloadPanel, hideReplyBar,
   openSidebar, closeSidebar, closeCleanupChoicePanel, showConfirmModal
-} from './panels.js?v=5';
-import { renderChat } from './chat.js?v=5';
-import { renderTabs } from './tabs.js?v=5';
-import { call as coreCall } from './core.js?v=5';
+} from './panels.js?v=6';
+import { renderChat } from './chat.js?v=6';
+import { renderTabs } from './tabs.js?v=6';
+import { call as coreCall } from './core.js?v=6';
 
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
@@ -626,7 +626,7 @@ export function bindSettingsEvents() {
   if (storageWarningIcon) {
     storageWarningIcon.addEventListener('click', function() {
       alert(
-        '当前聊天内容接近本地存储上限（5MB）。可以尝试以下方式释放空间：\n\n' +
+        '当前数据已接近或超过 5MB 安全线。浏览器的实际存储上限因设备而异，因此用量可能超过 5MB，但继续写入仍有失败风险。\n\n可以尝试以下方式释放空间：\n\n' +
         '1. 在侧边栏点击会话右侧的「🧹」按钮，选择「释放历史版本」清除重新生成留下的旧回复，或「释放思考内容」清除当前回复的思考过程（均不影响当前正文，最轻量）；\n' +
         '2. 导出重要会话后，删除不再需要的过期会话；\n' +
         '3. 如果上传过较大的文本附件，可考虑删除带附件的旧消息。\n\n' +

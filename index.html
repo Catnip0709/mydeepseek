@@ -58,8 +58,8 @@
     }
 
     function loadApp() {
-      loadScript('./prompts.js?v=5', '', function () {
-        loadScript('./modules/init.js?v=5', 'module', null, 'app_module_load_failed');
+      loadScript('./prompts.js?v=6', '', function () {
+        loadScript('./modules/init.js?v=6', 'module', null, 'app_module_load_failed');
       }, 'prompts_load_failed');
     }
 
@@ -327,8 +327,8 @@
 
 <div id="chat" class="pt-16 pb-32 px-4 h-screen overflow-y-auto space-y-4 bg-black"></div>
 <div id="multiPageReadonlyBanner" class="multi-page-readonly-banner hidden" role="status">
-  <span>当前页面为只读，另一个页面正在操作聊天数据。</span>
-  <button id="takeoverPageBtn" type="button">切换到此页面</button>
+  <span>检测到其他页面或浏览器残留状态，当前页面暂时只读。</span>
+  <button id="takeoverPageBtn" type="button">在此页面继续</button>
 </div>
 
 <div id="emptyChatHint" class="fixed left-1/2 transform -translate-x-1/2 bottom-48 text-center hidden">

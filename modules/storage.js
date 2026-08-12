@@ -8,9 +8,9 @@ import {
   state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY,
   getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL,
   encodeTabData, decodeTabData, storageRecoveryState, readPageLock, isPageLockStale, canModifyPersistedData
-} from './state.js?v=5';
-import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js?v=5';
-import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=5';
+} from './state.js?v=6';
+import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js?v=6';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=6';
 
 // ========== 存储用量统计 ==========
 
@@ -27,15 +27,18 @@ function getStorageUsedBytes() {
 
 export function updateStorageUsage() {
   const totalUsed = getStorageUsedBytes();
-  const limit = 5 * 1024 * 1024; // 5MB
-  const percent = Math.min(Math.round((totalUsed / limit) * 100), 100);
-  const isWarning = percent >= 95;
+  // localStorage 的实际硬配额由浏览器决定，5MB 仅作为跨浏览器的保守安全线。
+  const safetyLimit = 5 * 1024 * 1024;
+  const rawPercent = Math.round((totalUsed / safetyLimit) * 100);
+  const isWarning = rawPercent >= 95;
 
   const storageUsageText = document.getElementById('storageUsageText');
   const storageWarningIcon = document.getElementById('storageWarningIcon');
 
   if (storageUsageText) {
-    storageUsageText.textContent = '本地存储容量 ' + formatBytes(totalUsed) + '/5MB(' + percent + '%)';
+    storageUsageText.textContent = rawPercent > 100
+      ? `本地存储约 ${formatBytes(totalUsed)}（已超 5MB 安全线）`
+      : `本地存储约 ${formatBytes(totalUsed)}/5MB 安全线(${rawPercent}%)`;
   }
 
   if (storageWarningIcon) {
@@ -85,6 +88,7 @@ export function getRecoverableStorageInfo() {
 
 export function isStorageFull() {
   const totalUsed = getStorageUsedBytes();
+  // 达到安全线后提前阻止继续扩张；真正的写入上限仍以浏览器是否抛出配额异常为准。
   return totalUsed / (5 * 1024 * 1024) >= 0.99;
 }
 
@@ -196,6 +200,7 @@ function _flushPendingSave(requestedTypes = null) {
   if (typesToFlush.has('tabs')) {
     try {
       if (!startedWritable) {
+        failedSaveTypes.add('tabs');
         _notifyPersistError('tabs', new Error('当前页面为只读页面，未保存聊天数据'));
       } else if (storageRecoveryState.dsTabsReadFailed) {
         failedSaveTypes.add('tabs');
@@ -205,9 +210,17 @@ function _flushPendingSave(requestedTypes = null) {
         const latestRaw = localStorage.getItem('dsTabs');
         if (latestRaw !== state.tabDataStorageFingerprint) {
           // 跨页冲突：把当前内存数据尽量落到恢复区（下次启动会弹合并），再切只读。
-          try { writeRecoverySession(state.tabData); } catch (_) {}
+          try {
+            writeRecoverySession(state.tabData);
+          } catch (e) {
+            failedSaveTypes.add('tabs');
+            state.hasUnprotectedMemoryData = true;
+            _notifyPersistError('tabs', e);
+          }
           state.isReadOnlyPage = true;
-          _notifyPersistError('tabs', new Error('检测到其他页面已更新聊天数据，当前页面已切换为只读，未落盘的内容已进入恢复区'));
+          if (!failedSaveTypes.has('tabs')) {
+            _notifyPersistError('tabs', new Error('检测到其他页面已更新聊天数据，当前页面已切换为只读，未落盘的内容已进入恢复区'));
+          }
         } else {
           localStorage.setItem('dsTabs', encoded);
           state.tabDataStorageFingerprint = encoded;
@@ -229,6 +242,7 @@ function _flushPendingSave(requestedTypes = null) {
   if (typesToFlush.has('characters')) {
     try {
       if (!canSaveNonTabs) {
+        failedSaveTypes.add('characters');
         _notifyPersistError('characters', new Error('当前页面为只读页面，未保存角色数据'));
       } else {
         localStorage.setItem(CHARACTER_STORAGE_KEY, JSON.stringify(state.characterData));
@@ -244,6 +258,7 @@ function _flushPendingSave(requestedTypes = null) {
   if (typesToFlush.has('prompts')) {
     try {
       if (!canSaveNonTabs) {
+        failedSaveTypes.add('prompts');
         _notifyPersistError('prompts', new Error('当前页面为只读页面，未保存指令数据'));
       } else {
         localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(state.promptData));
@@ -259,6 +274,7 @@ function _flushPendingSave(requestedTypes = null) {
   if (typesToFlush.has('favorites')) {
     try {
       if (!canSaveNonTabs) {
+        failedSaveTypes.add('favorites');
         _notifyPersistError('favorites', new Error('当前页面为只读页面，未保存收藏数据'));
       } else {
         localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(state.favoriteData));
@@ -322,6 +338,17 @@ export function flushPendingSaveImmediately(types = null) {
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   const requestedTypes = Array.isArray(types) ? new Set(types) : null;
   return _flushPendingSave(requestedTypes);
+}
+
+export function hasUnpersistedTabChanges() {
+  if (storageRecoveryState.dsTabsReadFailed) return false;
+  try {
+    return _pendingSaveTypes.has('tabs') ||
+      encodeTabData(state.tabData) !== state.tabDataStorageFingerprint;
+  } catch (_) {
+    // 无法确认时宁可进入恢复区，避免把真实的未保存修改误判为无变化。
+    return true;
+  }
 }
 
 export function getRecoverySession() {
