@@ -4,21 +4,21 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=6';
-import { copyText, checkIconSvg, formatBytes } from './utils.js?v=6';
+import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=7';
+import { copyText, checkIconSvg, formatBytes } from './utils.js?v=7';
 import {
   getTabDisplayName, updateStorageUsage, isTokenLimitReached,
   getRecoverableStorageInfo, discardRecoverySession, clearCorruptedBackups
-} from './storage.js?v=6';
+} from './storage.js?v=7';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
   closeConfirmModal, closeDownloadPanel, hideReplyBar,
   openSidebar, closeSidebar, closeCleanupChoicePanel, showConfirmModal
-} from './panels.js?v=6';
-import { renderChat } from './chat.js?v=6';
-import { renderTabs } from './tabs.js?v=6';
-import { call as coreCall } from './core.js?v=6';
+} from './panels.js?v=7';
+import { renderChat } from './chat.js?v=7';
+import { renderTabs } from './tabs.js?v=7';
+import { call as coreCall } from './core.js?v=7';
 
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
@@ -669,33 +669,6 @@ export function bindSettingsEvents() {
 
   // 回复引用条取消
   if (replyBarCancel) replyBarCancel.addEventListener('click', hideReplyBar);
-
-  // 模型选择
-  const modelChoiceRadios = document.querySelectorAll('input[name="modelChoice"]');
-  if (modelChoiceRadios.length) {
-    // 初始化选中状态
-    modelChoiceRadios.forEach(radio => {
-      radio.checked = radio.value === state.selectedModel;
-    });
-    // 监听切换
-    modelChoiceRadios.forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        if (!canModifyPersistedData()) {
-          modelChoiceRadios.forEach(choice => {
-            choice.checked = choice.value === state.selectedModel;
-          });
-          showToast('当前页面只读，请切换到正在操作的页面');
-          return;
-        }
-        state.selectedModel = e.target.value;
-        localStorage.setItem('dsSelectedModel', state.selectedModel);
-        // 切换模型后，若当前对话已超过新模型的上下文上限，立即刷新渲染以显示警告
-        if (isTokenLimitReached()) {
-          renderChat();
-        }
-      });
-    });
-  }
 
   // 深度思考开关
   if (deepThinkToggle) {

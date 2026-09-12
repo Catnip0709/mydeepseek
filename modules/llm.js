@@ -4,7 +4,7 @@
  * 封装 DeepSeek API 的通用调用、流式调用和 JSON 调用。
  */
 
-import { state } from './state.js?v=6';
+import { state } from './state.js?v=7';
 
 export const CHUNK_INACTIVITY_TIMEOUT_MS = 120000;
 
@@ -83,7 +83,7 @@ export function createChunkInactivityGuard({
 }
 
 export async function callLLM({
-  model = 'deepseek-v4-flash',
+  model = 'deepseek-flash',
   messages = [],
   stream = false,
   temperature = 0.7,
@@ -290,7 +290,7 @@ export async function translateText(text, targetLang, options = {}) {
   ];
 
   const result = await callLLM({
-    model: state.selectedModel || 'deepseek-v4-flash',
+    model: state.selectedModel || 'deepseek-flash',
     messages,
     stream: false,
     temperature: 0.3,
@@ -304,7 +304,7 @@ export async function translateText(text, targetLang, options = {}) {
 
 // ========== LLM JSON 调用封装 ==========
 
-export async function callLLMJSON({ model = 'deepseek-v4-flash', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
+export async function callLLMJSON({ model = 'deepseek-flash', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
   const result = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
   const text = typeof result === 'string' ? result : (result?.content || '');
   const cleanedText = text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
@@ -622,7 +622,7 @@ function stripTrailingFence(text) {
  * @returns {Promise<{content:string, finishReason:string|null, rounds:number, truncated:boolean}>}
  */
 export async function callLLMWithAutoContinue({
-  model = 'deepseek-v4-flash',
+  model = 'deepseek-flash',
   messages = [],
   maxRounds = 6,
   maxTokensPerRound = 8192,

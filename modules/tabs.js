@@ -4,12 +4,12 @@
  * 负责 Tab 的渲染、创建、切换、缓存和删除。
  */
 
-import { state, clearTabSending, isTabSending, storageRecoveryState, canModifyPersistedData } from './state.js?v=6';
-import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js?v=6';
-import { saveTabs, saveFavorites, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js?v=6';
-import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js?v=6';
-import { removeFavoritesForTab } from './favorites.js?v=6';
-import { call as coreCall } from './core.js?v=6';
+import { state, clearTabSending, isTabSending, storageRecoveryState, canModifyPersistedData } from './state.js?v=7';
+import { escapeHtml, editIconSvg, downloadIconSvg, cleanupIconSvg, formatBytes } from './utils.js?v=7';
+import { saveTabs, saveFavorites, generateNewTabId, getTabDisplayName, updateStorageUsage, flushPendingSaveImmediately } from './storage.js?v=7';
+import { showToast, openRenameTabPanel, openDownloadPanel, closeSidebar, showEmptyChatHint, hideEmptyChatHint, showConfirmModal, openCleanupChoicePanel } from './panels.js?v=7';
+import { removeFavoritesForTab } from './favorites.js?v=7';
+import { call as coreCall } from './core.js?v=7';
 
 // ========== Tab DOM 缓存 ==========
 

@@ -5,7 +5,7 @@
  * 所有模块都可以安全导入本文件。
  */
 
-import { state } from './state.js?v=6';
+import { state } from './state.js?v=7';
 
 // ========== HTML 转义 ==========
 
@@ -148,11 +148,11 @@ export function getFriendlyApiErrorMessage(error) {
   }
 
   if (/(model.*not found|model.*invalid|unsupported model|模型.*不可用|404)/i.test(rawMessage)) {
-    return '当前模型不可用，请在设置中切换模型';
+    return '当前模型暂时不可用，请稍后重试';
   }
 
   if (/(tool_choice|tool call|function call|does not support)/i.test(rawMessage)) {
-    return '当前模型暂不支持这个功能，请切换模型或稍后重试';
+    return '当前模型暂不支持这个功能，请稍后重试';
   }
 
   if (/(failed to fetch|networkerror|network error|load failed|连接失败|网络)/i.test(rawMessage)) {
@@ -160,7 +160,7 @@ export function getFriendlyApiErrorMessage(error) {
   }
 
   if (/(timeout|timed out|超时)/i.test(rawMessage)) {
-    return '请求超时，请稍后重试，或切换到快速模式';
+    return '请求超时，请稍后重试';
   }
 
   if (/(500|502|503|504|server error|service unavailable|bad gateway|gateway timeout|overloaded)/i.test(rawMessage)) {

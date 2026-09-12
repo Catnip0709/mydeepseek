@@ -107,20 +107,19 @@
 - 关闭 Token 预估后，AI 消息底部的字数/token 统计消失
 - 刷新页面后，所有设置项仍按上次选择恢复
 
-**六B、模型选择**
+**六B、当前模型**
 
-- 设置页中显示模型选择区域，包含 V4-Flash 正式版（推荐）、V4-Pro 预览版两个 radio 选项
-- 默认选中 V4-Flash
-- 切换模型后，`state.selectedModel` 立即更新并持久化到 `dsSelectedModel`
-- 刷新页面后，模型选择恢复为上次选中的模型
-- 模型选择区域右侧有 ℹ️ 信息按钮，点击可打开模型信息面板
-- 模型信息面板显示两个模型的价格表（输入/输出、缓存命中/未命中）
+- 设置页中显示"当前模型"区域，展示 DeepSeek Flash（V4.1 · 1M 上下文），不再提供模型切换 radio
+- `state.selectedModel` 在内存中归一为 `deepseek-flash`，不回写或删除 localStorage 中的 `dsSelectedModel`，不修改其他存储项
+- 刷新页面后，`state.selectedModel` 保持为 `deepseek-flash`
+- "当前模型"区域右侧有 ℹ️ 信息按钮，点击可打开模型信息面板
+- 模型信息面板显示 DeepSeek Flash 的价格表（缓存命中 / 未命中 / 输出，空闲 / 高峰）和峰谷时段说明
 - 模型信息面板可通过"知道了"按钮关闭
-- 模型选择 radio 在日间模式下样式正确（背景、边框、文字、hover 效果）
+- "当前模型"展示卡在日间模式下样式正确（背景、边框、文字）
 - 模型信息按钮在日间模式下 hover 时文字清晰可见
 - 模型信息面板在日间模式下样式正确（标题、价格文字、说明文字、按钮）
-- 非法 localStorage 中的 `dsSelectedModel` 值（如空字符串、不存在的模型名、历史遗留的 deepseek-chat）会回退到默认值 V4-Flash
-- 切换模型后，深度思考 badge 文案保持一致（V4 模型显示"V4"）
+- 非法或历史遗留的 `dsSelectedModel`（如空字符串、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-chat`）会回退到默认值 `deepseek-flash`
+- 深度思考 badge 文案保持一致
 
 **六C、深度思考**
 
@@ -172,7 +171,7 @@
 - 空输入时点击发送不会报错
 - 发送期间按钮会切换为"停止"
 - DeepSeek 回复可正常流式展示
-- 发送消息时使用 `state.selectedModel` 指定的模型（而非硬编码的 deepseek-v4-flash）
+- 发送消息时使用 `state.selectedModel` 指定的模型（默认 `deepseek-flash`，而非硬编码字面量）
 - 输入区实时计数显示"字数 / 约 tokens"
 - 清空输入框后，计数恢复为 `0 字`
 - 输入框根据内容自动调整高度，最小 44px，最大 88px（桌面端 104px），超出后出现滚动条
@@ -593,9 +592,8 @@
 
 - 使用真实 Key 发起最小 `stream: false` 请求，验证返回内容和 `usage`
 - 使用真实 Key 发起最小 `stream: true` 请求，验证 SSE 分块可收到
-- `deepseek-v4-flash` 普通请求可用
-- `deepseek-v4-pro` 普通请求可用
-- V4 模型 + 深度思考请求可用，`reasoning_content` 和 `content` 字段正确分离
+- `deepseek-flash` 普通请求可用
+- `deepseek-flash` + 深度思考请求可用，`reasoning_content` 和 `content` 字段正确分离
 - 使用最短输入和较小 `max_tokens`，避免额外消耗过多额度
 
 **二十九、角色卡管理**
@@ -860,7 +858,7 @@
 - 新建群聊面板每次打开时清空之前的选择
 - 新建群聊面板每次打开时清空之前输入的群聊名称
 - 旧版消息数据中无 `id` 字段时，`initializeData` 会自动补生成唯一 ID
-- `dsSelectedModel` 中存储了非法值（如空字符串、不存在的模型名）时，回退到默认值 V4-Flash
+- `dsSelectedModel` 中存储了非法或历史遗留值（如空字符串、`deepseek-v4-flash`、`deepseek-v4-pro`）时，回退到默认值 `deepseek-flash`
 - `dsDeepThink` 中存储了非法值时，回退到 `false`（关闭深度思考）
 
 **四十二、背景信息功能**

@@ -8,9 +8,9 @@ import {
   state, CHARACTER_STORAGE_KEY, PROMPT_STORAGE_KEY, FAVORITES_STORAGE_KEY,
   getMaxContextTokens, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL,
   encodeTabData, decodeTabData, storageRecoveryState, readPageLock, isPageLockStale, canModifyPersistedData
-} from './state.js?v=6';
-import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js?v=6';
-import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=6';
+} from './state.js?v=7';
+import { formatBytes, estimateTokensByText, countChars, estimateTokensByChars, generateMessageId, isHtmlRelatedMessage } from './utils.js?v=7';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=7';
 
 // ========== 存储用量统计 ==========
 

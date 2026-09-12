@@ -5,9 +5,9 @@
  * 通过 core.js 的 call 访问其他模块，避免循环依赖。
  */
 
-import { state } from './state.js?v=6';
-import { call as coreCall } from './core.js?v=6';
-import { containsForeignText } from './utils.js?v=6';
+import { state } from './state.js?v=7';
+import { call as coreCall } from './core.js?v=7';
+import { containsForeignText } from './utils.js?v=7';
 
 /**
  * 群聊 toolExecutor：处理 character_reply、narrate、search_conversation、get_all_characters。

@@ -5,20 +5,20 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=6';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=7';
 import {
   escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js?v=6';
-import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=6';
-import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js?v=6';
-import { showToast, closeSidebar, hideReplyBar } from './panels.js?v=6';
-import { renderMarkdown } from './markdown.js?v=6';
-import { call as coreCall } from './core.js?v=6';
-import { GROUPCHAT_TOOLS_STABLE } from './tools.js?v=6';
-import { groupchatToolExecutor } from './agent.js?v=6';
+} from './utils.js?v=7';
+import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=7';
+import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js?v=7';
+import { showToast, closeSidebar, hideReplyBar } from './panels.js?v=7';
+import { renderMarkdown } from './markdown.js?v=7';
+import { call as coreCall } from './core.js?v=7';
+import { GROUPCHAT_TOOLS_STABLE } from './tools.js?v=7';
+import { groupchatToolExecutor } from './agent.js?v=7';
 
-import { isHtmlRelatedMessage } from './utils.js?v=6';
+import { isHtmlRelatedMessage } from './utils.js?v=7';
 
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
 const GROUPCHAT_MAX_ROUNDS = 30;
@@ -976,7 +976,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 
     // 异步检查是否需要生成/更新摘要
     if (shouldCheckSummary) {
-      import('./summary.js?v=6').then(({ checkAndGenerateSummary }) => {
+      import('./summary.js?v=7').then(({ checkAndGenerateSummary }) => {
         checkAndGenerateSummary(tabId).catch(() => {});
       });
     }

@@ -5,7 +5,7 @@
  * 本模块不导入任何其他模块，避免循环依赖。
  *
  * 使用一个 state 对象来持有所有可变状态，这样其他模块可以通过
- * import { state } from './state.js?v=6' 来读写状态。
+ * import { state } from './state.js?v=7' 来读写状态。
  */
 
 // 用户ID（初始化时生成并持久化）
@@ -232,10 +232,13 @@ function readMemoryStrategy() {
 }
 
 // 模型选择
-const VALID_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+// 官方规范名统一为 deepseek-flash（底层为 DeepSeek-V4.1-Flash）。
+// 旧值 deepseek-v4-flash / deepseek-v4-pro 依然可以调用，但都会被路由到 V4.1-Flash，
+// 这里直接归一到 deepseek-flash，避免继续走别名兼容路径。
+const VALID_MODELS = ['deepseek-flash'];
 function readSelectedModel() {
   const stored = localStorage.getItem('dsSelectedModel');
-  return VALID_MODELS.includes(stored) ? stored : 'deepseek-v4-flash';
+  return VALID_MODELS.includes(stored) ? stored : 'deepseek-flash';
 }
 
 // 深度思考开关
@@ -551,25 +554,25 @@ Object.defineProperty(state, 'isPreparingTextAttachment', {
 // 常量
 export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c'];
 
-export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // V4: 1M
+export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // DeepSeek Flash: 1M
 
 /**
  * 获取当前生效的模型 ID 和额外参数。
- * - V4 + 深度思考 → model: 选中的 V4, thinkingType: 'enabled', reasoningEffort: 'max'
- * - V4 + 非深度思考 → model: 选中的 V4, thinkingType: 'disabled'
+ * - 深度思考开 → thinkingType: 'enabled', reasoningEffort: 'max'
+ * - 深度思考关 → thinkingType: 'disabled'
  */
 export function getEffectiveModel() {
   return {
     model: state.selectedModel,
-    // V4 默认开启思考模式，关闭时必须显式传 disabled。
+    // Flash 默认开启思考模式，关闭时必须显式传 disabled。
     thinkingType: state.deepThink ? 'enabled' : 'disabled',
     reasoningEffort: state.deepThink ? 'max' : null
   };
 }
 
 /**
- * 根据当前选择的模型返回对应的上下文 token 上限。
- * V4 系列（Flash / Pro）→ 1M。
+ * 返回当前模型的上下文 token 上限。
+ * DeepSeek Flash → 1M。
  */
 export function getMaxContextTokens() {
   return MAX_CONTEXT_TOKENS_V4;

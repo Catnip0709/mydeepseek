@@ -4,13 +4,13 @@
  * 负责指令的 CRUD、AI 优化、插入到新对话等功能。
  */
 
-import { state, canModifyPersistedData } from './state.js?v=6';
-import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js?v=6';
-import { savePrompts } from './storage.js?v=6';
-import { showToast, closeSidebar, showConfirmModal } from './panels.js?v=6';
-import { createNewTab } from './tabs.js?v=6';
-import { autoHeight } from './chat.js?v=6';
-import { callLLM } from './llm.js?v=6';
+import { state, canModifyPersistedData } from './state.js?v=7';
+import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js?v=7';
+import { savePrompts } from './storage.js?v=7';
+import { showToast, closeSidebar, showConfirmModal } from './panels.js?v=7';
+import { createNewTab } from './tabs.js?v=7';
+import { autoHeight } from './chat.js?v=7';
+import { callLLM } from './llm.js?v=7';
 
 // ========== 指令面板管理 ==========
 

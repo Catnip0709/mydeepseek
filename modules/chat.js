@@ -4,27 +4,27 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=6';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=7';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js?v=6';
+} from './utils.js?v=7';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
   isTokenLimitReached, isStorageFull
-} from './storage.js?v=6';
-import { checkAndGenerateSummary, clearSummary } from './summary.js?v=6';
-import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=6';
-import { generateHumanizedNormalReply } from './humanizer.js?v=6';
-import { renderMarkdown } from './markdown.js?v=6';
-import { enhanceHtmlCodeBlocks } from './html-preview.js?v=6';
+} from './storage.js?v=7';
+import { checkAndGenerateSummary, clearSummary } from './summary.js?v=7';
+import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=7';
+import { generateHumanizedNormalReply } from './humanizer.js?v=7';
+import { renderMarkdown } from './markdown.js?v=7';
+import { enhanceHtmlCodeBlocks } from './html-preview.js?v=7';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
   hideEmptyChatHint, hideReplyBar, showReplyBar
-} from './panels.js?v=6';
-import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js?v=6';
-import { call as coreCall } from './core.js?v=6';
+} from './panels.js?v=7';
+import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js?v=7';
+import { call as coreCall } from './core.js?v=7';
 
 // ========== 聊天区域事件绑定（事件委托） ==========
 
@@ -1038,7 +1038,7 @@ export async function sendMessage() {
 
   // HTML 模式分支：走自动续写通道，忽略角色扮演/群聊/附件等上下文
   try {
-    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js?v=6');
+    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js?v=7');
     if (isHtmlModeEnabled()) {
       input.value = "";
       autoHeight();
@@ -1085,7 +1085,7 @@ export async function sendMessage() {
     hideReplyBar();
 
     // 动态导入 groupchat.js 中的 sendGroupMessage，避免循环依赖
-    const { sendGroupMessage } = await import('./groupchat.js?v=6');
+    const { sendGroupMessage } = await import('./groupchat.js?v=7');
     try {
       await sendGroupMessage(sendingTabId, userText, replyInfo);
     } finally {
@@ -1706,7 +1706,7 @@ export async function saveEditAndRegenerate() {
 
   // 群聊走群聊发送逻辑
   if (currentTab.type === 'group') {
-    const { sendGroupMessage } = await import('./groupchat.js?v=6');
+    const { sendGroupMessage } = await import('./groupchat.js?v=7');
     await sendGroupMessage(editingTabId, newContent);
   } else {
     if (messagesToKeep[editIdx]?.role === 'user') {
@@ -1718,7 +1718,7 @@ export async function saveEditAndRegenerate() {
     // 如果编辑的是一个 HTML 模式生成的 user 消息，重定向到 HTML 分支
     if (messagesToKeep[editIdx]?.htmlModeRequest) {
       try {
-        const { sendHtmlGenerationMessage } = await import('./htmlmode.js?v=6');
+        const { sendHtmlGenerationMessage } = await import('./htmlmode.js?v=7');
         // 由于是编辑 user 消息，重生成的是后面紧跟着的 assistant 消息，这与普通的 sendMessage 不同。
         // 不过由于前面的代码直接把 user 消息之后的全部切掉了（messagesToKeep 只有前面一半），
         // 等价于发了一条新消息，所以我们直接当新消息发送即可。
@@ -1779,7 +1779,7 @@ export function regenerateResponse(messageIndex) {
 
   // 识别 HTML 模式消息并重定向到专门通道
   if (targetMessage.htmlGeneration) {
-    import('./htmlmode.js?v=6').then(({ sendHtmlGenerationMessage }) => {
+    import('./htmlmode.js?v=7').then(({ sendHtmlGenerationMessage }) => {
       sendHtmlGenerationMessage({ tabId: regenTabId, regenerateIndex: messageIndex });
     }).catch(err => {
       console.error('重载 HTML 模式生成异常:', err);
