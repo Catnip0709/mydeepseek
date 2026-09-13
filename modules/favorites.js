@@ -1,8 +1,8 @@
-import { state, canModifyPersistedData } from './state.js?v=7';
-import { saveFavorites, saveTabs, getTabDisplayName } from './storage.js?v=7';
-import { closeSidebar, showToast } from './panels.js?v=7';
-import { escapeHtml, generateFavoriteId } from './utils.js?v=7';
-import { call as coreCall } from './core.js?v=7';
+import { state, canModifyPersistedData } from './state.js?v=8';
+import { saveFavorites, saveTabs, getTabDisplayName } from './storage.js?v=8';
+import { closeSidebar, showToast } from './panels.js?v=8';
+import { escapeHtml, generateFavoriteId } from './utils.js?v=8';
+import { call as coreCall } from './core.js?v=8';
 
 const FAVORITE_HIGHLIGHT_CLASS = 'favorite-target-highlight';
 const FAVORITE_HIGHLIGHT_MS = 1800;

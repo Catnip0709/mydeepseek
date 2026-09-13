@@ -4,13 +4,13 @@
  * 负责指令的 CRUD、AI 优化、插入到新对话等功能。
  */
 
-import { state, canModifyPersistedData } from './state.js?v=7';
-import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js?v=7';
-import { savePrompts } from './storage.js?v=7';
-import { showToast, closeSidebar, showConfirmModal } from './panels.js?v=7';
-import { createNewTab } from './tabs.js?v=7';
-import { autoHeight } from './chat.js?v=7';
-import { callLLM } from './llm.js?v=7';
+import { state, canModifyPersistedData } from './state.js?v=8';
+import { escapeHtml, copyText, copyIconSvg, checkIconSvg, editIconSvg, deleteIconSvg } from './utils.js?v=8';
+import { savePrompts } from './storage.js?v=8';
+import { showToast, closeSidebar, showConfirmModal } from './panels.js?v=8';
+import { createNewTab } from './tabs.js?v=8';
+import { autoHeight } from './chat.js?v=8';
+import { callLLM } from './llm.js?v=8';
 
 // ========== 指令面板管理 ==========
 
@@ -218,6 +218,7 @@ function savePromptItem() {
 // ========== AI 优化指令 ==========
 
 export async function optimizePromptWithAI() {
+  const model = state.selectedModel;
   if (state.optimizeInProgress) return;
   const promptContentInput = document.getElementById('promptContentInput');
   const optimizePromptBtn = document.getElementById('optimizePromptBtn');
@@ -251,7 +252,7 @@ export async function optimizePromptWithAI() {
   optimizePromptBtn.innerHTML = `<div class="loading-spinner"></div>`;
 
   try {
-    const optimized = await requestOptimizedPrompt(original);
+    const optimized = await requestOptimizedPrompt(original, { model });
     if (!optimized || !optimized.trim()) {
       throw new Error('AI 未返回有效结果');
     }
@@ -273,7 +274,7 @@ export async function optimizePromptWithAI() {
   }
 }
 
-export async function requestOptimizedPrompt(original) {
+export async function requestOptimizedPrompt(original, { model = state.selectedModel } = {}) {
   const originalLength = original.length;
   const minLen = Math.max(1, Math.floor(originalLength * 0.9));
   const maxLen = Math.max(minLen, Math.ceil(originalLength * 1.1));
@@ -307,7 +308,7 @@ ${original}`
   ];
 
   const data = await callLLM({
-    model: state.selectedModel,
+    model,
     messages,
     stream: false,
     temperature: 0.5,

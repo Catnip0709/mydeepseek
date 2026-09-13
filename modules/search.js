@@ -4,8 +4,8 @@
  * 负责对话内容的搜索、高亮、导航等功能。
  */
 
-import { state } from './state.js?v=7';
-import { renderChat } from './chat.js?v=7';
+import { state } from './state.js?v=8';
+import { renderChat } from './chat.js?v=8';
 
 // ========== 搜索操作 ==========
 

@@ -4,7 +4,7 @@
  * 封装 DeepSeek API 的通用调用、流式调用和 JSON 调用。
  */
 
-import { state } from './state.js?v=7';
+import { state, normalizeModel } from './state.js?v=8';
 
 export const CHUNK_INACTIVITY_TIMEOUT_MS = 120000;
 
@@ -83,7 +83,7 @@ export function createChunkInactivityGuard({
 }
 
 export async function callLLM({
-  model = 'deepseek-flash',
+  model = state.selectedModel,
   messages = [],
   stream = false,
   temperature = 0.7,
@@ -98,6 +98,7 @@ export async function callLLM({
   chunkTimeoutMs = 0,
   onTimeout = null
 } = {}) {
+  model = normalizeModel(model);
   const guard = createChunkInactivityGuard({ timeoutMs: chunkTimeoutMs, signal, onTimeout });
   let res;
   const allowReasoning = thinkingType === 'enabled';
@@ -270,12 +271,12 @@ const LANGUAGE_NAMES = { 'zh-CN': '简体中文', en: 'English', ja: '日本語'
  * 将中文文本翻译为目标语言。用于角色回复的外语翻译。
  * @param {string} text - 要翻译的中文文本
  * @param {string} targetLang - 目标语言代码（如 'en', 'ja'）
- * @param {object} options - { signal, characterName, characterStyle }
+ * @param {object} options - { signal, characterName, characterStyle, model }
  * @returns {Promise<string>} 翻译后的文本
  */
 export async function translateText(text, targetLang, options = {}) {
   if (!text || targetLang === 'zh-CN') return text;
-  const { signal, characterName, characterStyle } = options;
+  const { signal, characterName, characterStyle, model = state.selectedModel } = options;
   const langName = LANGUAGE_NAMES[targetLang] || targetLang;
   const styleHint = characterName
     ? `\nThis is a line spoken by a character named "${characterName}"${characterStyle ? ` who speaks in a ${characterStyle} style` : ''}. Preserve their tone and personality in the translation.`
@@ -290,7 +291,7 @@ export async function translateText(text, targetLang, options = {}) {
   ];
 
   const result = await callLLM({
-    model: state.selectedModel || 'deepseek-flash',
+    model,
     messages,
     stream: false,
     temperature: 0.3,
@@ -304,7 +305,7 @@ export async function translateText(text, targetLang, options = {}) {
 
 // ========== LLM JSON 调用封装 ==========
 
-export async function callLLMJSON({ model = 'deepseek-flash', messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
+export async function callLLMJSON({ model = state.selectedModel, messages = [], temperature = 0.5, maxTokens = 1024, signal = null, chunkTimeoutMs = 0, onTimeout = null } = {}) {
   const result = await callLLM({ model, messages, stream: false, temperature, maxTokens, signal, chunkTimeoutMs, onTimeout });
   const text = typeof result === 'string' ? result : (result?.content || '');
   const cleanedText = text.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
@@ -453,9 +454,10 @@ export async function callLLMAgent({
   toolChoice = 'auto',
   ...callLLMOptions
 } = {}) {
+  callLLMOptions.model = normalizeModel(callLLMOptions.model ?? state.selectedModel);
   if (!tools || tools.length === 0 || !toolExecutor) {
     // 没有 tools，退化为普通调用
-    const result = await callLLM(callLLMOptions);
+    const result = await callLLM({ ...callLLMOptions, messages });
     return {
       content: typeof result === 'string' ? result : (result?.content || ''),
       reasoningContent: result?.reasoningContent || '',
@@ -622,7 +624,7 @@ function stripTrailingFence(text) {
  * @returns {Promise<{content:string, finishReason:string|null, rounds:number, truncated:boolean}>}
  */
 export async function callLLMWithAutoContinue({
-  model = 'deepseek-flash',
+  model = state.selectedModel,
   messages = [],
   maxRounds = 6,
   maxTokensPerRound = 8192,
@@ -633,6 +635,7 @@ export async function callLLMWithAutoContinue({
   onChunk = null,
   isDoneFn = null
 } = {}) {
+  model = normalizeModel(model);
   const doneFn = typeof isDoneFn === 'function' ? isDoneFn : isHtmlClosed;
   let fullText = '';
   let lastFinishReason = null;

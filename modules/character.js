@@ -4,12 +4,12 @@
  * 负责角色卡的 CRUD、AI 增强、面板管理、角色选择面板等。
  */
 
-import { state, CHARACTER_COLORS, canModifyPersistedData } from './state.js?v=7';
-import { escapeHtml, editIconSvg, deleteIconSvg } from './utils.js?v=7';
-import { saveCharacters, getTabDisplayName, saveTabs, generateNewTabId } from './storage.js?v=7';
-import { callLLMJSON } from './llm.js?v=7';
-import { showToast, closeSidebar } from './panels.js?v=7';
-import { call as coreCall } from './core.js?v=7';
+import { state, CHARACTER_COLORS, canModifyPersistedData } from './state.js?v=8';
+import { escapeHtml, editIconSvg, deleteIconSvg } from './utils.js?v=8';
+import { saveCharacters, getTabDisplayName, saveTabs, generateNewTabId } from './storage.js?v=8';
+import { callLLMJSON } from './llm.js?v=8';
+import { showToast, closeSidebar } from './panels.js?v=8';
+import { call as coreCall } from './core.js?v=8';
 
 // ========== 角色 CRUD ==========
 

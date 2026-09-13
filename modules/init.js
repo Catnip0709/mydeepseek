@@ -5,36 +5,36 @@
  * 所有模块在此汇聚，由 index.html 作为 ES Module 入口加载。
  */
 
-import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk, canModifyPersistedData } from './state.js?v=7';
-import { trackEvent } from './utils.js?v=7';
+import { state, storageRecoveryState, acquirePageLock, refreshPageLock, releasePageLock, readPageLock, isPageLockStale, getPageInstanceId, detectStoragePersistenceRisk, canModifyPersistedData } from './state.js?v=8';
+import { trackEvent } from './utils.js?v=8';
 import {
   initializeData, repairData, flushPendingSaveImmediately, onPersistError,
   getRecoverySession, getRecoverableStorageInfo, mergeRecoverySession,
   discardRecoverySession, saveRecoverySessionSnapshot, hasUnpersistedTabChanges
-} from './storage.js?v=7';
-import { register } from './core.js?v=7';
-import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js?v=7';
-import { renderTabs, invalidateTabCache } from './tabs.js?v=7';
+} from './storage.js?v=8';
+import { register } from './core.js?v=8';
+import { renderChat, cancelEdit, checkScrollButton, scrollToBottom, rebindChatButtons, updateInputCounter, clearPendingTextAttachment, updateComposerPrimaryButtonState, closeComposerActionMenu } from './chat.js?v=8';
+import { renderTabs, invalidateTabCache } from './tabs.js?v=8';
 import {
   closeSettingsPanel, closeRenameTabPanel, closeConfirmModal, closeDownloadPanel,
   showToast, applyFontSize, updateFontSizeButtons, openSidebar, closeSidebar, closeCleanupChoicePanel,
   showConfirmModal
-} from './panels.js?v=7';
+} from './panels.js?v=8';
 import {
   bindSettingsEvents, applyDeepThinkState, forceToggleDeepThinkFromUI,
   syncDeepThinkFromInput, refreshRecoverableStorageInfo
-} from './settings.js?v=7';
-import { bindTabEvents } from './tabs.js?v=7';
-import { bindChatEvents } from './chat.js?v=7';
-import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js?v=7';
-import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js?v=7';
-import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js?v=7';
-import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js?v=7';
-import { bindSearchEvents, clearSearch } from './search.js?v=7';
-import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js?v=7';
-import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js?v=7';
-import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js?v=7';
-import { bindHtmlModeEvents } from './htmlmode.js?v=7';
+} from './settings.js?v=8';
+import { bindTabEvents } from './tabs.js?v=8';
+import { bindChatEvents } from './chat.js?v=8';
+import { bindGroupChatEvents, closeCreateGroupPanel, openCreateGroupPanel, closeBgInfoPanel, updateBgInfoChip } from './groupchat.js?v=8';
+import { bindCharacterEvents, closeCharacterPanel, openCharacterPanel, getCharacterColor, getCharacterById, createCharacterChatTab, openCharacterSelectPanel } from './character.js?v=8';
+import { bindPromptEvents, closeOptimizePreviewPanel, closePromptPanel } from './prompts.js?v=8';
+import { bindMarketEvents, closePromptMarketPanel, closeAiGeneratePanel } from './market.js?v=8';
+import { bindSearchEvents, clearSearch } from './search.js?v=8';
+import { migrateLegacySummariesOnInit, migrateLegacySummaryForTab } from './summary.js?v=8';
+import { bindStoryArchiveEvents, closeStoryArchivePanel, openStoryArchivePanel, markStoryArchiveStale } from './archive.js?v=8';
+import { bindFavoritesEvents, closeFavoritePreviewPanel, closeFavoritesPanel, openFavoritesPanel, renderFavoritesPanel } from './favorites.js?v=8';
+import { bindHtmlModeEvents } from './htmlmode.js?v=8';
 
 // ========== 注册跨模块函数到 core ==========
 

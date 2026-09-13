@@ -5,20 +5,20 @@
  * 群聊消息发送、以及群聊创建面板的管理。
  */
 
-import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=7';
+import { state, MEMORY_STRATEGY_FULL, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=8';
 import {
   escapeHtml, limitSentences, deleteIconSvg, copyIconSvg, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js?v=7';
-import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=7';
-import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js?v=7';
-import { showToast, closeSidebar, hideReplyBar } from './panels.js?v=7';
-import { renderMarkdown } from './markdown.js?v=7';
-import { call as coreCall } from './core.js?v=7';
-import { GROUPCHAT_TOOLS_STABLE } from './tools.js?v=7';
-import { groupchatToolExecutor } from './agent.js?v=7';
+} from './utils.js?v=8';
+import { callLLM, callLLMJSON, callLLMAgent, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=8';
+import { saveTabs, generateNewTabId, tabHasUsableSummary } from './storage.js?v=8';
+import { showToast, closeSidebar, hideReplyBar } from './panels.js?v=8';
+import { renderMarkdown } from './markdown.js?v=8';
+import { call as coreCall } from './core.js?v=8';
+import { GROUPCHAT_TOOLS_STABLE } from './tools.js?v=8';
+import { groupchatToolExecutor } from './agent.js?v=8';
 
-import { isHtmlRelatedMessage } from './utils.js?v=7';
+import { isHtmlRelatedMessage } from './utils.js?v=8';
 
 const GROUPCHAT_MAX_SPEAKS_PER_CHARACTER = 3;
 const GROUPCHAT_MAX_ROUNDS = 30;
@@ -77,19 +77,19 @@ function inferAgentParticipantPlan(userMessage, characters) {
 
 // ========== Step 1: 路由判断 ==========
 
-async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null, llmTimeoutOptions = {}) {
+async function routeMessage(userMessage, characters, history, signal = null, replyInfo = null, llmTimeoutOptions = {}, model = state.selectedModel) {
   if (replyInfo && replyInfo.characterId) {
     const targetIdx = characters.findIndex(c => c.id === replyInfo.characterId);
     if (targetIdx >= 0) {
-      const otherIndices = await routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions);
+      const otherIndices = await routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions, model);
       const combined = [targetIdx, ...otherIndices.filter(i => i !== targetIdx)];
       return combined;
     }
   }
-  return await routeMessageByLLM(userMessage, characters, history, signal, null, llmTimeoutOptions);
+  return await routeMessageByLLM(userMessage, characters, history, signal, null, llmTimeoutOptions, model);
 }
 
-async function routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions = {}) {
+async function routeMessageByLLM(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions = {}, model = state.selectedModel) {
   const charSummaries = characters.map((c, i) => `${i + 1}. ${c.name}：${c.summary || c.personality || '无描述'}`).join('\n');
 
   let extraRule = '';
@@ -117,7 +117,7 @@ async function routeMessageByLLM(userMessage, characters, history, signal, reply
     }
   ];
 
-  const result = await callLLMJSON({ model: state.selectedModel, messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
+  const result = await callLLMJSON({ model, messages, temperature: 0.3, maxTokens: 50, signal, ...llmTimeoutOptions });
   if (!result || !Array.isArray(result)) return characters.map((_, i) => i);
 
   const indices = result.map(n => parseInt(n) - 1).filter(n => n >= 0 && n < characters.length);
@@ -226,7 +226,7 @@ export async function generateCharacterReply(character, userMessage, history, al
 
 // ========== Step 3: 追问判断 ==========
 
-export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, speakCount = 0, signal = null, llmTimeoutOptions = {}) {
+export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, speakCount = 0, signal = null, llmTimeoutOptions = {}, model = state.selectedModel) {
   const lastReplyText = lastReplies.map(r => `${r.characterName}：${r.content}`).join('\n');
 
   const messages = [
@@ -254,7 +254,7 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
     }
   ];
 
-  const result = await callLLM({ model: state.selectedModel, messages, temperature: 0.5, maxTokens: 10, signal, ...llmTimeoutOptions });
+  const result = await callLLM({ model, messages, temperature: 0.5, maxTokens: 10, signal, ...llmTimeoutOptions });
   const resultText = typeof result === 'string' ? result : (result?.content || '');
   return resultText.trim().includes('是');
 }
@@ -262,6 +262,7 @@ export async function shouldFollowUp(lastReplies, otherCharacter, userMessage, s
 // ========== 编排主函数（流式） ==========
 
 export async function orchestrateGroupChat(userMessage, characters, history, options = {}) {
+  options = { ...options, model: getEffectiveModel(options.model).model };
   const { onCharacterStart, onCharacterChunk, onCharacterEnd, signal, model, replyInfo, groupContext } = options;
   const allReplies = [];
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
@@ -272,7 +273,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
   // Step 1: 路由判断
   let speakerIndices;
   try {
-    speakerIndices = await routeMessage(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions);
+    speakerIndices = await routeMessage(userMessage, characters, history, signal, replyInfo, llmTimeoutOptions, model);
   } catch (e) {
     if (e.name === 'AbortError') return allReplies;
     throw e;
@@ -303,7 +304,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
     const charLang = character.replyLanguage || 'zh-CN';
     if (charLang !== 'zh-CN' && content) {
       try {
-        const translated = await translateText(content, charLang, { signal, characterName: character.name, characterStyle: character.speakingStyle });
+        const translated = await translateText(content, charLang, { model, signal, characterName: character.name, characterStyle: character.speakingStyle });
         if (translated) {
           content = `${translated}\n----------------\n${content}`;
         }
@@ -335,7 +336,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
 
         let needFollow;
         try {
-          needFollow = await shouldFollowUp([lastReply], otherChar, userMessage, speakCount, signal, llmTimeoutOptions);
+          needFollow = await shouldFollowUp([lastReply], otherChar, userMessage, speakCount, signal, llmTimeoutOptions, model);
         } catch (e) {
           if (e.name === 'AbortError') break;
           throw e;
@@ -361,7 +362,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
           const otherLang = otherChar.replyLanguage || 'zh-CN';
           if (otherLang !== 'zh-CN' && content) {
             try {
-              const translated = await translateText(content, otherLang, { signal, characterName: otherChar.name, characterStyle: otherChar.speakingStyle });
+              const translated = await translateText(content, otherLang, { model, signal, characterName: otherChar.name, characterStyle: otherChar.speakingStyle });
               if (translated) {
                 content = `${translated}\n----------------\n${content}`;
               }
@@ -391,6 +392,7 @@ export async function orchestrateGroupChat(userMessage, characters, history, opt
  * 替代硬编码的"路由→回复→追问"三步流程。
  */
 export async function orchestrateGroupChatAgent(userMessage, characters, history, options = {}) {
+  options = { ...options, model: getEffectiveModel(options.model).model };
   const { onCharacterStart, onCharacterChunk, onCharacterEnd, onFallbackReset, signal, model, reasoningEffort, thinkingType, groupContext, tabId, replyInfo } = options;
   const llmTimeoutOptions = options.llmTimeoutOptions || {};
   const allReplies = [];
@@ -531,8 +533,8 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
         try {
           const [translatedAction, translatedDialogue] = await Promise.all([
-            action ? translateText(action, replyLang, { signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve(''),
-            dialogue ? translateText(dialogue, replyLang, { signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve('')
+            action ? translateText(action, replyLang, { model, signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve(''),
+            dialogue ? translateText(dialogue, replyLang, { model, signal, characterName: character.name, characterStyle: character.speakingStyle }) : Promise.resolve('')
           ]);
 
           const foreignParts = [];
@@ -588,7 +590,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     try {
       reply = await generateCharacterReply(character, userMessage, history, characters, {
         signal,
-        model: model || state.selectedModel,
+        model,
         groupContext,
         llmTimeoutOptions,
         stream: !!onCharacterChunk,
@@ -605,7 +607,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
     const charLang = character.replyLanguage || 'zh-CN';
     if (charLang !== 'zh-CN' && content) {
       try {
-        const translated = await translateText(content, charLang, { signal, characterName: character.name, characterStyle: character.speakingStyle });
+        const translated = await translateText(content, charLang, { model, signal, characterName: character.name, characterStyle: character.speakingStyle });
         if (translated) {
           content = `${translated}\n----------------\n${content}`;
         }
@@ -661,7 +663,7 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
       toolExecutor: (name, args) => groupchatToolExecutor(name, args, executorContext),
       maxRounds: GROUPCHAT_MAX_ROUNDS,
       toolChoice: 'required',
-      model: model || state.selectedModel,
+      model,
       temperature: 0.8,
       // 导演只需要产出 tool_calls（而不是长篇文字），maxTokens 太大会让模型“想很久/写很长”才出手。
       // 下调上限可以明显降低首条输出延迟与 token 消耗。
@@ -738,9 +740,9 @@ ${userRoleInfo}${storyBgInfo}${summaryInfo}${bannedWordsInfo}${replyTargetInfo}
 
 // ========== 群聊消息发送（由 chat 模块调用） ==========
 
-export async function sendGroupMessage(tabId, userMessage, replyInfo) {
+export async function sendGroupMessage(tabId, userMessage, replyInfo, options = {}) {
   const chat = document.getElementById("chat");
-  const { model: selectedModel } = getEffectiveModel();
+  const { model: selectedModel } = getEffectiveModel(options.model);
   // 群聊编排固定使用非思考模式，避免增加首条角色回复的延迟和 token 消耗。
   const reasoningEffort = null;
   const thinkingType = 'disabled';
@@ -976,7 +978,7 @@ export async function sendGroupMessage(tabId, userMessage, replyInfo) {
 
     // 异步检查是否需要生成/更新摘要
     if (shouldCheckSummary) {
-      import('./summary.js?v=7').then(({ checkAndGenerateSummary }) => {
+      import('./summary.js?v=8').then(({ checkAndGenerateSummary }) => {
         checkAndGenerateSummary(tabId).catch(() => {});
       });
     }

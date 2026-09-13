@@ -5,11 +5,11 @@
  * 摘要滚动更新，始终只保留一个。
  */
 
-import { state, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=7';
-import { callLLM } from './llm.js?v=7';
-import { isHtmlRelatedMessage } from './utils.js?v=7';
-import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js?v=7';
-import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=7';
+import { state, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=8';
+import { callLLM } from './llm.js?v=8';
+import { isHtmlRelatedMessage } from './utils.js?v=8';
+import { saveTabs, tabHasCurrentSummaryVersion } from './storage.js?v=8';
+import { SUMMARY_RECENT_RAW_COUNT, SUMMARY_FORMAT_VERSION } from './memory-config.js?v=8';
 
 // ========== 常量 ==========
 
@@ -49,6 +49,7 @@ export async function checkAndGenerateSummary(tabId) {
   }
 
   return runExclusiveSummaryJob(tabId, async () => {
+    const model = state.selectedModel;
     try {
       const tab = state.tabData.list[tabId];
       if (!tab || !tab.messages || tab.messages.length < SUMMARY_TRIGGER_COUNT) return;
@@ -58,16 +59,16 @@ export async function checkAndGenerateSummary(tabId) {
 
       // 兼容旧数据：旧摘要没有当前版本标记时，统一按新边界重建。
       if (tab.summary && !tabHasCurrentSummaryVersion(tab)) {
-        await rebuildSummaryToCover(tabId, targetCover);
+        await rebuildSummaryToCover(tabId, targetCover, model);
         return;
       }
 
       if (!tab.summary || tab.summaryCoversUpTo === 0) {
         // 首次生成
-        await generateNewSummary(tabId);
+        await generateNewSummary(tabId, model);
       } else if (targetCover - tab.summaryCoversUpTo >= SUMMARY_UPDATE_INTERVAL) {
         // 更新摘要
-        await updateExistingSummary(tabId);
+        await updateExistingSummary(tabId, model);
       }
     } catch (e) {
       console.warn('摘要生成失败，下次将自动重试:', e.message);
@@ -94,7 +95,7 @@ export async function migrateLegacySummaryForTab(tabId) {
     return { migrated: false, skipped: false };
   }
 
-  await runExclusiveSummaryJob(tabId, () => rebuildSummaryToCover(tabId, targetCover));
+  await runExclusiveSummaryJob(tabId, () => rebuildSummaryToCover(tabId, targetCover, state.selectedModel));
   const currentTab = state.tabData.list[tabId];
   return {
     migrated: !!(currentTab && currentTab.summaryVersion === SUMMARY_FORMAT_VERSION && currentTab.summaryCoversUpTo === targetCover),
@@ -204,11 +205,11 @@ function buildConversationText(messages) {
   }).join('\n');
 }
 
-async function requestFullSummaryFromMessages(messages) {
+async function requestFullSummaryFromMessages(messages, model) {
   const conversationText = buildConversationText(messages);
 
   return callLLM({
-    model: state.selectedModel,
+    model,
     messages: [
       { role: 'system', content: FIRST_SUMMARY_PROMPT },
       { role: 'user', content: conversationText }
@@ -229,13 +230,13 @@ function isConversationSnapshotUnchanged(tabId, startIdx, endIdx, expectedText) 
 /**
  * 首次生成摘要
  */
-async function generateNewSummary(tabId) {
+async function generateNewSummary(tabId, model) {
   const tab = state.tabData.list[tabId];
   const targetCover = getTargetSummaryCoverIndex(tab.messages.length);
   if (targetCover <= 0) return;
   const messagesToSummarize = tab.messages.slice(0, targetCover).filter(m => !isHtmlRelatedMessage(m));
   const conversationText = buildConversationText(messagesToSummarize);
-  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize, model);
   const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
 
   if (!summary || !summary.trim()) return;
@@ -255,13 +256,13 @@ async function generateNewSummary(tabId) {
   console.log(`[摘要] 首次生成完成，tab=${tabId}，覆盖 ${targetCover} 条消息，保留最近 ${SUMMARY_RECENT_RAW_COUNT} 条原文`);
 }
 
-async function rebuildSummaryToCover(tabId, coverIdx) {
+async function rebuildSummaryToCover(tabId, coverIdx, model) {
   const tab = state.tabData.list[tabId];
   if (!tab || coverIdx <= 0) return;
 
   const messagesToSummarize = tab.messages.slice(0, coverIdx).filter(m => !isHtmlRelatedMessage(m));
   const conversationText = buildConversationText(messagesToSummarize);
-  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize);
+  const rawSummary = await requestFullSummaryFromMessages(messagesToSummarize, model);
   const summary = typeof rawSummary === 'string' ? rawSummary : (rawSummary?.content || '');
   if (!summary || !summary.trim()) return;
 
@@ -283,7 +284,7 @@ async function rebuildSummaryToCover(tabId, coverIdx) {
 /**
  * 更新已有摘要
  */
-async function updateExistingSummary(tabId) {
+async function updateExistingSummary(tabId, model) {
   const tab = state.tabData.list[tabId];
   const startIdx = tab.summaryCoversUpTo;
   const endIdx = getTargetSummaryCoverIndex(tab.messages.length);
@@ -295,7 +296,7 @@ async function updateExistingSummary(tabId) {
   const newConversationText = buildConversationText(newMessages);
 
   const result = await callLLM({
-    model: state.selectedModel,
+    model,
     messages: [
       { role: 'system', content: UPDATE_SUMMARY_PROMPT },
       { role: 'user', content: `【旧摘要】\n${baseSummary}\n\n【新增对话】\n${newConversationText}` }

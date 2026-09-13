@@ -107,19 +107,27 @@
 - 关闭 Token 预估后，AI 消息底部的字数/token 统计消失
 - 刷新页面后，所有设置项仍按上次选择恢复
 
-**六B、当前模型**
+**六B、模型选择**
 
-- 设置页中显示"当前模型"区域，展示 DeepSeek Flash（V4.1 · 1M 上下文），不再提供模型切换 radio
-- `state.selectedModel` 在内存中归一为 `deepseek-flash`，不回写或删除 localStorage 中的 `dsSelectedModel`，不修改其他存储项
-- 刷新页面后，`state.selectedModel` 保持为 `deepseek-flash`
-- "当前模型"区域右侧有 ℹ️ 信息按钮，点击可打开模型信息面板
-- 模型信息面板显示 DeepSeek Flash 的价格表（缓存命中 / 未命中 / 输出，空闲 / 高峰）和峰谷时段说明
+- 设置页显示"模型选择"，提供 DeepSeek V4.1 Flash / V4 Pro 两个同名单选项，支持键盘操作
+- 无模型偏好时默认 `deepseek-flash`；合法 `deepseek-v4-pro` 偏好保持为 Pro
+- 启动不回写或删除 `dsSelectedModel`；主动切换时只写入该设置，刷新后恢复
+- 只读页面或聊天数据读取失败时不能切换；保存失败时模型及 radio 回滚，显示失败提示
+- 重复选择当前模型不重复写存储，非法 radio 值不被保存
+- "模型选择"右侧有信息按钮，点击可打开模型信息面板
+- 模型信息面板显示两种模型的价格表（缓存命中 / 未命中 / 输出，空闲 / 高峰）、北京时间峰谷时段及官方价格链接
 - 模型信息面板可通过"知道了"按钮关闭
-- "当前模型"展示卡在日间模式下样式正确（背景、边框、文字）
+- 模型选项在桌面和窄屏、日间和夜间模式下显示正确，无文本溢出
 - 模型信息按钮在日间模式下 hover 时文字清晰可见
 - 模型信息面板在日间模式下样式正确（标题、价格文字、说明文字、按钮）
-- 非法或历史遗留的 `dsSelectedModel`（如空字符串、`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-chat`）会回退到默认值 `deepseek-flash`
-- 深度思考 badge 文案保持一致
+- 空字符串、`deepseek-v4-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-chat`、`deepseek-reasoner` 及未知值仅在内存回退到 Flash
+- 切换模型不清空消息、历史版本、摘要、档案馆或 HTML 摘要缓存，不新增 `dsTabs` 写入
+- 生成中切换：同次发送的 TXT 压缩、主回复、去 AI 味及翻译保持原模型
+- 同轮群聊的路由、Agent 循环、传统回退、追问和翻译保持原模型
+- HTML 临时摘要、正文与续写，以及档案馆核心与扩展阶段分别保持任务开始时的模型
+- 标题和记忆摘要作为独立后台任务，启动时取当前模型；多会话并发任务互不影响
+- 通用 LLM、JSON、Agent 和自动续写未传 model 时跟随全局设置，显式 model 优先，无效值兜底 Flash
+- 运行时入口和所有静态、动态 import 统一使用 `?v=8`，无旧版 state 混载
 
 **六C、深度思考**
 
@@ -129,8 +137,7 @@
 - V4 模型 + 深度思考时，请求体中额外包含 `reasoning_effort: "max"`
 - 关闭深度思考后，发送消息时请求体中包含 `thinking: { type: "disabled" }`
 - 深度思考状态持久化到 `dsDeepThink`，刷新页面后恢复
-- 深度思考 chip 的 badge 显示"V4"
-- 切换模型时，badge 文案保持一致
+- 深度思考 chip 文案为"深度思考"，切换模型不改变开关状态
 - 快速连续点击深度思考 chip 不会导致状态错乱
 - 深度思考 chip 在日间模式下样式正确
 - 深度思考关闭时按 V4 模型的非思考模式发送
@@ -592,8 +599,8 @@
 
 - 使用真实 Key 发起最小 `stream: false` 请求，验证返回内容和 `usage`
 - 使用真实 Key 发起最小 `stream: true` 请求，验证 SSE 分块可收到
-- `deepseek-flash` 普通请求可用
-- `deepseek-flash` + 深度思考请求可用，`reasoning_content` 和 `content` 字段正确分离
+- `deepseek-flash` 和 `deepseek-v4-pro` 普通请求分别可用
+- 两种模型 + 深度思考请求分别可用，`reasoning_content` 和 `content` 字段正确分离
 - 使用最短输入和较小 `max_tokens`，避免额外消耗过多额度
 
 **二十九、角色卡管理**
@@ -858,7 +865,7 @@
 - 新建群聊面板每次打开时清空之前的选择
 - 新建群聊面板每次打开时清空之前输入的群聊名称
 - 旧版消息数据中无 `id` 字段时，`initializeData` 会自动补生成唯一 ID
-- `dsSelectedModel` 中存储了非法或历史遗留值（如空字符串、`deepseek-v4-flash`、`deepseek-v4-pro`）时，回退到默认值 `deepseek-flash`
+- `dsSelectedModel` 中的非法值或旧 Flash 别名仅在内存中回退到 `deepseek-flash`；`deepseek-v4-pro` 保持为 Pro
 - `dsDeepThink` 中存储了非法值时，回退到 `false`（关闭深度思考）
 
 **四十二、背景信息功能**

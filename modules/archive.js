@@ -4,12 +4,12 @@
  * 负责剧情档案馆的生成、渲染与面板交互。
  */
 
-import { state, canModifyPersistedData } from './state.js?v=7';
-import { callLLM, extractJsonFromText } from './llm.js?v=7';
-import { saveTabs, getTabDisplayName } from './storage.js?v=7';
-import { isHtmlRelatedMessage } from './utils.js?v=7';
-import { showToast, closeSidebar } from './panels.js?v=7';
-import { call as coreCall } from './core.js?v=7';
+import { state, canModifyPersistedData } from './state.js?v=8';
+import { callLLM, extractJsonFromText } from './llm.js?v=8';
+import { saveTabs, getTabDisplayName } from './storage.js?v=8';
+import { isHtmlRelatedMessage } from './utils.js?v=8';
+import { showToast, closeSidebar } from './panels.js?v=8';
+import { call as coreCall } from './core.js?v=8';
 
 const STORY_ARCHIVE_VERSION = 'v1';
 const STORY_ARCHIVE_MIN_MESSAGES = 4;
@@ -737,6 +737,7 @@ export function markStoryArchiveStale(tabId) {
 }
 
 export async function generateStoryArchive(tabId = state.tabData.active, options = {}) {
+  const model = state.selectedModel;
   if (!canModifyPersistedData()) {
     if (!options.silent) showToast('当前页面只读，请切换到正在操作的页面');
     return null;
@@ -799,7 +800,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
 
     // 成功率优先：长会话采用“两阶段生成”拆分输出，降低截断/解析失败率
     const coreResult = await callLLM({
-      model: state.selectedModel,
+      model,
       messages: promptMessages,
       stream: true,
       temperature: 0.2,
@@ -843,7 +844,7 @@ export async function generateStoryArchive(tabId = state.tabData.active, options
         const coreArchiveJson = buildCoreArchiveHint(coreArchive).slice(0, 1800);
         const extrasPrompt = buildArchivePrompt(tab, title, { profile, stage: 'extras', coreArchiveJson });
         const extrasResult = await callLLM({
-          model: state.selectedModel,
+          model,
           messages: extrasPrompt,
           stream: true,
           temperature: 0.2,

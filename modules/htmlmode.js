@@ -9,12 +9,12 @@
  *   生成过程对用户透明：气泡只显示进度文案，完成后一次性展示完整代码 + 预览按钮
  */
 
-import { state, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=7';
-import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js?v=7';
-import { saveTabs } from './storage.js?v=7';
-import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js?v=7';
-import { applyDeepThinkState } from './settings.js?v=7';
-import { showToast } from './panels.js?v=7';
+import { state, setTabSending, clearTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=8';
+import { callLLMWithAutoContinue, CHUNK_INACTIVITY_TIMEOUT_MS, callLLM } from './llm.js?v=8';
+import { saveTabs } from './storage.js?v=8';
+import { generateMessageId, trackEvent, copyText, isHtmlRelatedMessage } from './utils.js?v=8';
+import { applyDeepThinkState } from './settings.js?v=8';
+import { showToast } from './panels.js?v=8';
 
 // ========== 常量 ==========
 
@@ -170,7 +170,7 @@ const HTML_SUMMARY_TTL = 2 * 60 * 1000; // 缓存有效期 2 分钟
 /**
  * 确保 HTML 模式有剧情摘要（针对全量模式用户，临时生成一次性摘要，不写回 localStorage）
  */
-async function ensureHtmlContextSummary(tab, onStatus, signal) {
+async function ensureHtmlContextSummary(tab, onStatus, signal, model) {
   if (!tab) return '';
   if (typeof tab.summary === 'string' && tab.summary.trim()) {
     return tab.summary.trim(); // 已有摘要直接返回
@@ -219,7 +219,6 @@ async function ensureHtmlContextSummary(tab, onStatus, signal) {
   const summaryPrompt = `请用客观的语言，总结以下剧情或对话背景（只提取核心设定、关键人物、已发生的重要剧情和最新进展）。不要输出除了总结以外的任何多余文字，也不要对剧情做评价。\n\n【内容】\n${fullText}`;
   
   try {
-    const { model } = getEffectiveModel();
     const result = await callLLM({
       model: model,
       messages: [{ role: 'user', content: summaryPrompt }],
@@ -251,12 +250,12 @@ async function ensureHtmlContextSummary(tab, onStatus, signal) {
  * 规模控制在 CONTEXT_BLOCK_MAX_CHARS 以内。
  * 如果 tab 完全没有可引用的上下文（例如是新对话），返回空串 → 调用方不注入分区。
  */
-async function buildStoryContextBlock(tab, onStatus, signal) {
+async function buildStoryContextBlock(tab, onStatus, signal, model) {
   if (!tab) return '';
 
   const parts = [];
 
-  const summary = await ensureHtmlContextSummary(tab, onStatus, signal);
+  const summary = await ensureHtmlContextSummary(tab, onStatus, signal, model);
   if (summary) {
     parts.push('【既往剧情摘要】\n' + truncateAtBoundary(summary, SUMMARY_MAX_CHARS_FOR_HTML));
   }
@@ -469,7 +468,8 @@ function removeGeneratingBubble(tabId) {
  * @param {string} opts.tabId            - 锁定的目标 tab id
  * @param {string} opts.userText         - 用户原始输入
  */
-export async function sendHtmlGenerationMessage({ tabId, userText, regenerateIndex, fromEdit }) {
+export async function sendHtmlGenerationMessage({ tabId, userText, regenerateIndex, fromEdit, model = state.selectedModel }) {
+  model = getEffectiveModel(model).model;
   if (!canModifyPersistedData()) {
     showToast('当前页面只读，请切换到正在操作的页面');
     return;
@@ -520,7 +520,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
 
   // 在 DOM 里渲染 user 消息 + 生成中气泡（loading 气泡用 tab 维度固定 id，自愈重建）
   if (state.tabData.active === tabId) {
-    const { renderChat } = await import('./chat.js?v=7');
+    const { renderChat } = await import('./chat.js?v=8');
     renderChat();
     ensureGeneratingBubble(tabId);
   }
@@ -532,7 +532,6 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
     abortController: new AbortController()
   });
 
-  const { model } = getEffectiveModel();
   trackEvent('发送消息-HTML');
 
   // 组装消息：HTML system + 剧情上下文 + 用户指令
@@ -544,7 +543,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
       if (state.tabData.active === tabId) {
         updateGeneratingBubble(tabId, { statusText: msg });
       }
-    }, tabEntry.abortController.signal);
+    }, tabEntry.abortController.signal, model);
   } catch (err) {
     if (err.name === 'AbortError') {
       generationState = 'interrupted';
@@ -610,7 +609,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
 
   // 生成期间让用户能看到"停止"按钮，复用现有 state.isSending 语义
   try {
-    const { updateComposerPrimaryButtonState } = await import('./chat.js?v=7');
+    const { updateComposerPrimaryButtonState } = await import('./chat.js?v=8');
     updateComposerPrimaryButtonState();
   } catch (_) {}
 
@@ -657,7 +656,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
     clearTabSending(tabId);
     removeGeneratingBubble(tabId);
     try {
-      const { updateComposerPrimaryButtonState } = await import('./chat.js?v=7');
+      const { updateComposerPrimaryButtonState } = await import('./chat.js?v=8');
       updateComposerPrimaryButtonState();
     } catch (_) {}
   }
@@ -715,7 +714,7 @@ export async function sendHtmlGenerationMessage({ tabId, userText, regenerateInd
   saveTabs();
 
   if (state.tabData.active === tabId) {
-    const { renderChat } = await import('./chat.js?v=7');
+    const { renderChat } = await import('./chat.js?v=8');
     renderChat();
   }
 

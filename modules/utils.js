@@ -5,7 +5,7 @@
  * 所有模块都可以安全导入本文件。
  */
 
-import { state } from './state.js?v=7';
+import { state } from './state.js?v=8';
 
 // ========== HTML 转义 ==========
 

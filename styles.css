@@ -1168,6 +1168,9 @@ body.search-active #emptyChatHint {
       margin-top:6px;
       white-space:pre-line;
     }
+    #modelInfoPanel .modal-desc {
+      white-space: normal;
+    }
 
     .cleanup-choice-list { display:flex; flex-direction:column; gap:10px; }
     .cleanup-choice-btn {

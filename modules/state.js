@@ -5,7 +5,7 @@
  * 本模块不导入任何其他模块，避免循环依赖。
  *
  * 使用一个 state 对象来持有所有可变状态，这样其他模块可以通过
- * import { state } from './state.js?v=7' 来读写状态。
+ * import { state } from './state.js?v=8' 来读写状态。
  */
 
 // 用户ID（初始化时生成并持久化）
@@ -232,13 +232,16 @@ function readMemoryStrategy() {
 }
 
 // 模型选择
-// 官方规范名统一为 deepseek-flash（底层为 DeepSeek-V4.1-Flash）。
-// 旧值 deepseek-v4-flash / deepseek-v4-pro 依然可以调用，但都会被路由到 V4.1-Flash，
-// 这里直接归一到 deepseek-flash，避免继续走别名兼容路径。
-const VALID_MODELS = ['deepseek-flash'];
+export const DEFAULT_MODEL = 'deepseek-flash';
+export const VALID_MODELS = Object.freeze([DEFAULT_MODEL, 'deepseek-v4-pro']);
+
+export function normalizeModel(model) {
+  return VALID_MODELS.includes(model) ? model : DEFAULT_MODEL;
+}
+
 function readSelectedModel() {
-  const stored = localStorage.getItem('dsSelectedModel');
-  return VALID_MODELS.includes(stored) ? stored : 'deepseek-flash';
+  // 旧 Flash 别名仅在内存中归一化；Pro 保留为独立模型，不改写存储。
+  return normalizeModel(localStorage.getItem('dsSelectedModel'));
 }
 
 // 深度思考开关
@@ -554,17 +557,17 @@ Object.defineProperty(state, 'isPreparingTextAttachment', {
 // 常量
 export const CHARACTER_COLORS = ['#f87171', '#60a5fa', '#34d399', '#fbbf24', '#a78bfa', '#f472b6', '#38bdf8', '#fb923c'];
 
-export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // DeepSeek Flash: 1M
+export const MAX_CONTEXT_TOKENS_V4 = 1048576;  // DeepSeek Flash / Pro: 1M
 
 /**
  * 获取当前生效的模型 ID 和额外参数。
  * - 深度思考开 → thinkingType: 'enabled', reasoningEffort: 'max'
  * - 深度思考关 → thinkingType: 'disabled'
  */
-export function getEffectiveModel() {
+export function getEffectiveModel(model = state.selectedModel) {
   return {
-    model: state.selectedModel,
-    // Flash 默认开启思考模式，关闭时必须显式传 disabled。
+    model: normalizeModel(model),
+    // 两种模型默认开启思考模式，关闭时必须显式传 disabled。
     thinkingType: state.deepThink ? 'enabled' : 'disabled',
     reasoningEffort: state.deepThink ? 'max' : null
   };
@@ -572,7 +575,7 @@ export function getEffectiveModel() {
 
 /**
  * 返回当前模型的上下文 token 上限。
- * DeepSeek Flash → 1M。
+ * DeepSeek Flash / Pro → 1M。
  */
 export function getMaxContextTokens() {
   return MAX_CONTEXT_TOKENS_V4;

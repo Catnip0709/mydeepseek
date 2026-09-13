@@ -4,27 +4,27 @@
  * 负责聊天渲染、消息发送、流式请求、编辑/重新生成等功能。
  */
 
-import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=7';
+import { state, setTabSending, clearTabSending, abortTabSending, getEffectiveModel, canModifyPersistedData } from './state.js?v=8';
 import {
   escapeHtml, copyText, checkIconSvg, deleteIconSvg, copyIconSvg,
   replyIconSvg, favoriteIconSvg, estimateTokensByChars, countChars, trackEvent, generateMessageId,
   formatRoleplayReply, getFriendlyApiErrorMessage
-} from './utils.js?v=7';
+} from './utils.js?v=8';
 import {
   saveTabs, buildPayloadMessages, buildUserInputMeta, normalizeTabSummaryState,
   isTokenLimitReached, isStorageFull
-} from './storage.js?v=7';
-import { checkAndGenerateSummary, clearSummary } from './summary.js?v=7';
-import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=7';
-import { generateHumanizedNormalReply } from './humanizer.js?v=7';
-import { renderMarkdown } from './markdown.js?v=7';
-import { enhanceHtmlCodeBlocks } from './html-preview.js?v=7';
+} from './storage.js?v=8';
+import { checkAndGenerateSummary, clearSummary } from './summary.js?v=8';
+import { callLLM, createChunkInactivityGuard, translateText, CHUNK_INACTIVITY_TIMEOUT_MS } from './llm.js?v=8';
+import { generateHumanizedNormalReply } from './humanizer.js?v=8';
+import { renderMarkdown } from './markdown.js?v=8';
+import { enhanceHtmlCodeBlocks } from './html-preview.js?v=8';
 import {
   showToast, openSettingsPanel, showEmptyChatHint,
   hideEmptyChatHint, hideReplyBar, showReplyBar
-} from './panels.js?v=7';
-import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js?v=7';
-import { call as coreCall } from './core.js?v=7';
+} from './panels.js?v=8';
+import { canFavoriteMessage, isMessageFavorited, toggleFavoriteForMessage, removeFavoritesForMessageIds } from './favorites.js?v=8';
+import { call as coreCall } from './core.js?v=8';
 
 // ========== 聊天区域事件绑定（事件委托） ==========
 
@@ -133,9 +133,9 @@ async function decodeTxtFile(file) {
   return decoder.decode(buffer);
 }
 
-async function summarizeTextAttachment(originalText, signal = null, tabEntry = null) {
+async function summarizeTextAttachment(originalText, signal = null, tabEntry = null, model = state.selectedModel) {
   const result = await callLLM({
-    model: state.selectedModel,
+    model,
     messages: [
       {
         role: 'system',
@@ -502,7 +502,7 @@ async function handleTxtFileSelected(file) {
   }
 }
 
-async function buildOutgoingUserMessage(questionText) {
+async function buildOutgoingUserMessage(questionText, model) {
   const pending = state.pendingTextAttachment;
   if (!pending) {
     return {
@@ -532,7 +532,7 @@ async function buildOutgoingUserMessage(questionText) {
       updatePendingTextAttachmentUI();
       updateComposerPrimaryButtonState();
       try {
-        pending.processedText = await summarizeTextAttachment(pending.originalText, preparingEntry.abortController.signal, preparingEntry);
+        pending.processedText = await summarizeTextAttachment(pending.originalText, preparingEntry.abortController.signal, preparingEntry, model);
         pending.processedCharCount = countChars(pending.processedText);
       } catch (e) {
         setTabSending(preparingTabId, { isPreparingTextAttachment: false, abortController: null });
@@ -1004,6 +1004,7 @@ export function renderChat() {
 // ========== 发送消息 ==========
 
 export async function sendMessage() {
+  const { model } = getEffectiveModel();
   const input = document.getElementById("input");
   const keyPanel = document.getElementById("keyPanel");
 
@@ -1028,7 +1029,7 @@ export async function sendMessage() {
   const currentTab = state.tabData.list[sendingTabId];
   const currentMsgs = currentTab.messages || [];
   const isFirstMessage = currentMsgs.length === 0;
-  const outgoing = await buildOutgoingUserMessage(text);
+  const outgoing = await buildOutgoingUserMessage(text, model);
   if (!outgoing) return;
   const userText = outgoing.content;
   if (state.pendingTextAttachment) {
@@ -1038,14 +1039,14 @@ export async function sendMessage() {
 
   // HTML 模式分支：走自动续写通道，忽略角色扮演/群聊/附件等上下文
   try {
-    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js?v=7');
+    const { isHtmlModeEnabled, sendHtmlGenerationMessage } = await import('./htmlmode.js?v=8');
     if (isHtmlModeEnabled()) {
       input.value = "";
       autoHeight();
       updateInputCounter();
       hideReplyBar();
       try {
-        await sendHtmlGenerationMessage({ tabId: sendingTabId, userText });
+        await sendHtmlGenerationMessage({ tabId: sendingTabId, userText, model });
       } finally {
         clearPendingTextAttachment();
       }
@@ -1085,9 +1086,9 @@ export async function sendMessage() {
     hideReplyBar();
 
     // 动态导入 groupchat.js 中的 sendGroupMessage，避免循环依赖
-    const { sendGroupMessage } = await import('./groupchat.js?v=7');
+    const { sendGroupMessage } = await import('./groupchat.js?v=8');
     try {
-      await sendGroupMessage(sendingTabId, userText, replyInfo);
+      await sendGroupMessage(sendingTabId, userText, replyInfo, { model });
     } finally {
       clearPendingTextAttachment();
     }
@@ -1118,7 +1119,7 @@ export async function sendMessage() {
     // S-1 修复：显式把 sendingTabId 传给 fetchAndStreamResponse，保证"push 用户消息的 tab"
     // 与"流式 AI 回复所绑定的 tab"必然一致。避免 await buildOutgoingUserMessage 里 txt 摘要
     // 耗时期间用户切 tab 导致的消息错位。
-    await fetchAndStreamResponse({ tabId: sendingTabId });
+    await fetchAndStreamResponse({ tabId: sendingTabId, model });
   } finally {
     clearPendingTextAttachment();
   }
@@ -1135,7 +1136,7 @@ export async function sendMessage() {
 
 export async function fetchAndStreamResponse(opts = {}) {
   const chat = document.getElementById("chat");
-  const { model: selectedModel, reasoningEffort, thinkingType } = getEffectiveModel();
+  const { model: selectedModel, reasoningEffort, thinkingType } = getEffectiveModel(opts.model);
   const allowReasoning = thinkingType === 'enabled';
 
   // S-1 修复：优先使用调用方显式传入的 tabId。sendMessage 在 await buildOutgoingUserMessage 里
@@ -1639,7 +1640,7 @@ export async function fetchAndStreamResponse(opts = {}) {
       if (charLang !== 'zh-CN' && fullContent) {
         const targetMsgId = currentMsgs[isRegen ? targetIndex : currentMsgs.length - 1]?.id;
         const rawContent = fullContent;
-        translateText(rawContent, charLang, { characterName: char.name, characterStyle: char.speakingStyle })
+        translateText(rawContent, charLang, { model: selectedModel, characterName: char.name, characterStyle: char.speakingStyle })
           .then(translated => {
             if (!translated) return;
             const currentTab = state.tabData.list[lockedTabId];
@@ -1669,6 +1670,7 @@ export async function fetchAndStreamResponse(opts = {}) {
 // ========== 编辑和重新生成 ==========
 
 export async function saveEditAndRegenerate() {
+  const { model } = getEffectiveModel();
   if (!canModifyPersistedData()) {
     showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return;
@@ -1706,8 +1708,8 @@ export async function saveEditAndRegenerate() {
 
   // 群聊走群聊发送逻辑
   if (currentTab.type === 'group') {
-    const { sendGroupMessage } = await import('./groupchat.js?v=7');
-    await sendGroupMessage(editingTabId, newContent);
+    const { sendGroupMessage } = await import('./groupchat.js?v=8');
+    await sendGroupMessage(editingTabId, newContent, null, { model });
   } else {
     if (messagesToKeep[editIdx]?.role === 'user') {
       messagesToKeep[editIdx].inputMeta = buildUserInputMeta(messagesToKeep, editIdx, editingTabId);
@@ -1718,18 +1720,18 @@ export async function saveEditAndRegenerate() {
     // 如果编辑的是一个 HTML 模式生成的 user 消息，重定向到 HTML 分支
     if (messagesToKeep[editIdx]?.htmlModeRequest) {
       try {
-        const { sendHtmlGenerationMessage } = await import('./htmlmode.js?v=7');
+        const { sendHtmlGenerationMessage } = await import('./htmlmode.js?v=8');
         // 由于是编辑 user 消息，重生成的是后面紧跟着的 assistant 消息，这与普通的 sendMessage 不同。
         // 不过由于前面的代码直接把 user 消息之后的全部切掉了（messagesToKeep 只有前面一半），
         // 等价于发了一条新消息，所以我们直接当新消息发送即可。
-        await sendHtmlGenerationMessage({ tabId: editingTabId, userText: newContent, fromEdit: true });
+        await sendHtmlGenerationMessage({ tabId: editingTabId, userText: newContent, fromEdit: true, model });
         return;
       } catch (err) {
         console.error('重载 HTML 模式生成异常:', err);
       }
     }
     
-    await fetchAndStreamResponse({ tabId: editingTabId });
+    await fetchAndStreamResponse({ tabId: editingTabId, model });
   }
 }
 
@@ -1759,6 +1761,7 @@ export function editUserMessage(messageIndex) {
 }
 
 export function regenerateResponse(messageIndex) {
+  const { model } = getEffectiveModel();
   if (!canModifyPersistedData()) {
     showToast('当前聊天数据暂不可写入，请刷新或切换到操作页面');
     return;
@@ -1779,16 +1782,16 @@ export function regenerateResponse(messageIndex) {
 
   // 识别 HTML 模式消息并重定向到专门通道
   if (targetMessage.htmlGeneration) {
-    import('./htmlmode.js?v=7').then(({ sendHtmlGenerationMessage }) => {
-      sendHtmlGenerationMessage({ tabId: regenTabId, regenerateIndex: messageIndex });
+    import('./htmlmode.js?v=8').then(({ sendHtmlGenerationMessage }) => {
+      sendHtmlGenerationMessage({ tabId: regenTabId, regenerateIndex: messageIndex, model });
     }).catch(err => {
       console.error('重载 HTML 模式生成异常:', err);
-      fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
+      fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex, model });
     });
     return;
   }
 
-  fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex });
+  fetchAndStreamResponse({ tabId: regenTabId, regenerateIndex: messageIndex, model });
 }
 
 // ========== 输入框相关 ==========
@@ -1859,6 +1862,7 @@ export function getLastUserMessageIndex() {
 // ========== 生成标题 ==========
 
 export async function generateTitleForCurrentTab() {
+  const { model } = getEffectiveModel();
   const titleTabId = state.tabData.active;
   const currentMsgs = state.tabData.list[titleTabId].messages || [];
   if (currentMsgs.length < 2) return;
@@ -1875,7 +1879,7 @@ export async function generateTitleForCurrentTab() {
         "Authorization": `Bearer ${state.apiKey}`
       },
       body: JSON.stringify({
-        model: state.selectedModel,
+        model,
         messages: [
           { role: "user", content: `请为以下对话生成一个简洁、描述性的标题（不超过 15 个字）。只返回标题，不要其他内容。\n\n用户消息：${titleSource}` }
         ],

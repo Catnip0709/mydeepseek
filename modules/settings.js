@@ -4,21 +4,21 @@
  * 管理设置面板、API Key 管理、下载导出、字体设置事件绑定等。
  */
 
-import { state, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=7';
-import { copyText, checkIconSvg, formatBytes } from './utils.js?v=7';
+import { state, VALID_MODELS, MEMORY_STRATEGY_WINDOW, MEMORY_STRATEGY_FULL, canModifyPersistedData } from './state.js?v=8';
+import { copyText, checkIconSvg, formatBytes } from './utils.js?v=8';
 import {
   getTabDisplayName, updateStorageUsage, isTokenLimitReached,
   getRecoverableStorageInfo, discardRecoverySession, clearCorruptedBackups
-} from './storage.js?v=7';
+} from './storage.js?v=8';
 import {
   showToast, openSettingsPanel, closeSettingsPanel, applyFontSize,
   updateFontSizeButtons, closeRenameTabPanel, saveRenamedTab,
   closeConfirmModal, closeDownloadPanel, hideReplyBar,
   openSidebar, closeSidebar, closeCleanupChoicePanel, showConfirmModal
-} from './panels.js?v=7';
-import { renderChat } from './chat.js?v=7';
-import { renderTabs } from './tabs.js?v=7';
-import { call as coreCall } from './core.js?v=7';
+} from './panels.js?v=8';
+import { renderChat } from './chat.js?v=8';
+import { renderTabs } from './tabs.js?v=8';
+import { call as coreCall } from './core.js?v=8';
 
 export function applyDeepThinkState(nextChecked, source = 'manual') {
   const deepThinkToggle = document.getElementById('deepThinkToggle');
@@ -320,6 +320,33 @@ export function refreshRecoverableStorageInfo() {
 }
 
 export function bindSettingsEvents() {
+  const modelInputs = document.querySelectorAll('input[name="selectedModel"]');
+  const syncModelInputs = () => {
+    modelInputs.forEach(input => { input.checked = input.value === state.selectedModel; });
+  };
+  syncModelInputs();
+  modelInputs.forEach(input => {
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      if (!canModifyPersistedData()) {
+        syncModelInputs();
+        showToast('当前页面只读，请切换到正在操作的页面');
+        return;
+      }
+      if (!VALID_MODELS.includes(input.value) || input.value === state.selectedModel) {
+        syncModelInputs();
+        return;
+      }
+      try {
+        localStorage.setItem('dsSelectedModel', input.value);
+        state.selectedModel = input.value;
+      } catch (_) {
+        showToast('模型选择保存失败，请检查本地存储空间');
+      }
+      syncModelInputs();
+    });
+  });
+
   const settingsBtn = document.getElementById('settingsBtn');
   const settingsCloseBtn = document.getElementById('settingsCloseBtn');
   const settingsPanel = document.getElementById('settingsPanel');
